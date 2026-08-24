@@ -10,6 +10,76 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.76.1 — QC: angka filter & ekspor tak sejalan dengan baris yang tampil
+
+Audit lanjutan setelah 1.76.0. Dua ketidakcocokan ditemukan — keduanya lahir karena baris
+kolaborasi disisipkan ke tampilan, tapi penghitung dan pengekspornya belum ikut menyesuaikan.
+
+### 1. Pil filter menghitung task saja
+`applyQuickFilterCount()` memakai `scopedTasks()` — task saja. Padahal Task List & Kanban
+menampilkan task **+ baris kolaborasi**. Jadi pil bertuliskan *"Semua 6"* sementara tabelnya
+memperlihatkan **25** baris.
+
+Hitungannya kini menyertakan baris kolaborasi **pada view yang memang menampilkannya**.
+Timeline & Calendar tidak menyisipkan collab, jadi angkanya tetap task saja — diperiksa
+lewat `viewIncludesCollab()`, bukan diseragamkan buta.
+
+Terverifikasi: Task List *"Semua 25"* = 25 baris tampil; Timeline *"Semua 6"*.
+
+### 2. Ekspor CSV mengabaikan filter cepat pada baris kolaborasi
+Filter **Tugas Saya / Overdue / Due ≤3 hari** dan **fokus deadline** menyaring baris task,
+tapi baris kolaborasi tetap lengkap — satu berkas memuat dua cakupan berbeda.
+
+Sekarang keduanya disaring sama. Terverifikasi:
+
+| Filter | Task | Kolaborasi |
+|---|---|---|
+| Semua | 6 | 26 |
+| Tugas Saya | 0 | **4** (bukan 26) |
+| Overdue | 3 | **3** (bukan 26) |
+
+### Yang diperiksa dan ternyata SEHAT
+- **Dashboard & grafik** memakai sumber terpisah (`dashTasks()`) yang tidak menyertakan
+  baris kolaborasi — jadi satu kolaborasi dengan 9 PIC **tidak** menggandakan hitungan beban
+  kerja. Ini sengaja diperiksa karena 1.76.0 membuat satu kolaborasi menghasilkan banyak baris.
+- **Pemilihan banyak (multi-select) di Kanban** — `isSelectable()` memang menolak baris
+  kolaborasi, jadi ID kembar antar-baris tidak bisa mengacaukan pilihan.
+- Cakupan pseudo-task collab dipisah jadi `collabScopedTasks()` supaya tampilan, hitungan,
+  dan ekspor menarik dari **satu** sumber — tidak bisa lagi melenceng sendiri-sendiri.
+
+---
+
+## 1.76.0 — Proses kolaborasi tiap orang ikut muncul di daftar task
+
+Task List & Kanban sebenarnya sudah menyisipkan pekerjaan kolaborasi — tapi **hanya milik
+yang sedang login**. Akibatnya Manager melihat ratusan task tim, namun **nol** proses
+kolaborasi milik orang lain, seolah kerja kolaborasi tidak pernah ada di daftar.
+
+Sekarang cakupannya mengikuti hak pandang:
+
+| Pengguna | Proses kolaborasi yang muncul |
+|---|---|
+| Manager / Leader / Dev | **seluruh tim** — 19 baris dari 9 orang berbeda |
+| Manager + **Fokus PIC** | menyempit ke orang itu saja |
+| Staff | prosesnya sendiri |
+
+Baris kolaborasi kini menyebut **pemiliknya**: *"Proses Andika: Syuting pengenalan"* untuk
+milik orang lain, dan tetap *"Proses Anda"* bila memang milik yang sedang melihat.
+
+### Celah yang ikut ketahuan: PIC berupa peran tak pernah muncul
+`myCollabTasks()` mencocokkan PIC dengan `same(s.pic, me)`. Sejak PIC boleh berupa peran
+(`@Magang`, 1.67.0), proses **milik bersama tidak pernah muncul** di daftar task anggotanya —
+mereka hanya bisa menemukannya lewat tab Task Kolaborasi.
+
+Pencocokannya kini lewat `stepBelongsTo()` yang memahami PIC peran, dan `stepIsMine()`
+menjadi turunannya supaya satu aturan dipakai bersama. Terverifikasi: anak magang yang
+sebelumnya mendapat **0** baris kini mendapat proses milik bersamanya.
+
+Pseudo-task collab juga kini membawa **stage** dan **link hasil** prosesnya, jadi kolom Stage
+di Task List tidak lagi kosong untuk baris kolaborasi.
+
+---
+
 ## 1.75.0 — Export CSV ikut memuat Task Kolaborasi
 
 Tombol **CSV** di Task List dulu hanya mengekspor task biasa, jadi seluruh pekerjaan di Task

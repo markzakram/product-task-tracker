@@ -791,7 +791,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.75.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.76.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1762,7 +1762,7 @@ function same(a,b){return String(a||'').toLowerCase()===String(b||'').toLowerCas
 /* ---------- Quick filter pills ---------- */
 const QUICK_PILLS=[['all','Semua'],['mine','Tugas Saya'],['overdue','Overdue'],['duesoon','Due ≤3 hari']];
 function applyQuickFilterCount(qf){
-  const arr=scopedTasks();
+  const arr=scopedTasks().concat(viewIncludesCollab()?collabScopedTasks():[]);
   if(qf==='mine') return arr.filter(t=>ownsTask(t,state.currentUser)).length;
   if(qf==='overdue') return arr.filter(isLate).length;
   if(qf==='duesoon') return arr.filter(t=>isDeadlineActive(t)&&daysToDue(t)>=0&&daysToDue(t)<=3).length;
@@ -1901,26 +1901,58 @@ function viewTasks(){
 }
 // Task kolaborasi tempat user (default currentUser) jadi PIC -> "pseudo-task" bertanda collab
 // untuk disisipkan ke view task biasa. Status Kanban dipetakan dari state step user.
+/* Satu "pseudo-task" collab untuk seorang PIC pada satu kolaborasi, supaya pekerjaan
+   kolaborasi ikut muncul di daftar/kanban task biasa. Mengembalikan null bila orang itu
+   tak punya proses di sana. */
+function collabPseudo(c, user){
+  const mySteps=(c.steps||[]).filter(s=>stepBelongsTo(s, user));
+  if(!mySteps.length) return null;
+  const isTurn=(s)=>{ if(s.done) return false; const prev=(c.steps||[]).find(x=>x.order===s.order-1); return !prev||prev.done; };
+  const undone=mySteps.filter(s=>!s.done).sort((a,b)=>a.order-b.order);
+  const myStep=undone[0]||mySteps[mySteps.length-1];
+  const status = mySteps.every(s=>s.done) ? 'Done' : (mySteps.some(isTurn) ? 'In progress' : 'Todo');
+  return { _collab:true, id:c.id, collabId:c.id, taskName:c.title, status, priority:'Normal',
+    pic:user, platform:c.platform||'', stage:(myStep&&myStep.stage)||'', dueDate:(myStep&&myStep.deadline)||c.deadline||'',
+    startDate:(myStep&&myStep.deadline)||c.deadline||'', document:(myStep&&myStep.link)||'',
+    _projectDeadline:c.deadline||'', _myStepName:(myStep&&myStep.name)||'',
+    _myStepDeadline:(myStep&&myStep.deadline)||'', _collabColor:c.color||'', _stepOwner:user };
+}
+// Proses collab MILIK SESEORANG -> pseudo-task. PIC berupa peran ("@Magang") ikut dihitung,
+// jadi proses milik bersama muncul juga di daftar tiap anggotanya.
 function myCollabTasks(forUser){
   if(isViewOnly()) return [];
   const me=forUser||state.currentUser;
   const out=[];
+  (state.collabs||[]).forEach(c=>{ const row=collabPseudo(c, me); if(row) out.push(row); });
+  return out;
+}
+/* Proses collab SELURUH tim — satu baris per (kolaborasi x PIC). Dipakai saat penggunanya
+   memang boleh melihat pekerjaan semua orang. Tanpa ini, Manager melihat ratusan task tapi
+   NOL proses kolaborasi milik orang lain, seolah kerja kolaborasi tak ada di daftar. */
+function allCollabTasks(){
+  if(isViewOnly()) return [];
+  const out=[];
   (state.collabs||[]).forEach(c=>{
-    const mySteps=(c.steps||[]).filter(s=>same(s.pic,me)); if(!mySteps.length) return;
-    const isTurn=(s)=>{ if(s.done) return false; const prev=(c.steps||[]).find(x=>x.order===s.order-1); return !prev||prev.done; };
-    const undone=mySteps.filter(s=>!s.done).sort((a,b)=>a.order-b.order);
-    const myStep=undone[0]||mySteps[mySteps.length-1];
-    const status = mySteps.every(s=>s.done) ? 'Done' : (mySteps.some(isTurn) ? 'In progress' : 'Todo');
-    out.push({ _collab:true, id:c.id, collabId:c.id, taskName:c.title, status, priority:'Normal',
-      pic:me, platform:c.platform||'', stage:'', dueDate:(myStep&&myStep.deadline)||c.deadline||'', startDate:(myStep&&myStep.deadline)||c.deadline||'',
-      _projectDeadline:c.deadline||'', _myStepName:(myStep&&myStep.name)||'', _myStepDeadline:(myStep&&myStep.deadline)||'', _collabColor:c.color||'' });
+    const pics=[];
+    (c.steps||[]).forEach(s=>{ const v=String(s.pic||'').trim(); if(v && !pics.some(x=>same(x,v))) pics.push(v); });
+    pics.forEach(v=>{ const row=collabPseudo(c, v); if(row) out.push(row); });
   });
   return out;
 }
+/* Cakupan pseudo-task collab SEBELUM filter — sepadan dengan scopedTasks() untuk task biasa.
+   Fokus PIC -> orang itu saja. Boleh lihat semua (Manager/Leader/Dev) -> proses SELURUH tim.
+   Selain itu -> hanya prosesnya sendiri. */
+function collabScopedTasks(){
+  const fokus=(isManager(state.currentUser)&&state.managerFocus)?state.managerFocus:'';
+  if(fokus) return myCollabTasks(fokus);
+  return canSeeAllTasks(state.currentUser) ? allCollabTasks() : myCollabTasks(state.currentUser);
+}
+// Hanya Kanban & Task List yang menyisipkan baris collab; Timeline & Calendar tidak.
+// Hitungan pil filter harus mengikuti ini, kalau tidak angkanya tak cocok dgn baris terlihat.
+function viewIncludesCollab(){ return state.activeView==='kanban' || state.activeView==='list'; }
 // Collab pseudo-task setelah lewat filter yang sama seperti task biasa (untuk Kanban & List).
 function collabViewTasks(){
-  const forUser=(isManager(state.currentUser)&&state.managerFocus)?state.managerFocus:state.currentUser;
-  let arr=applyQuickFilter(myCollabTasks(forUser));
+  let arr=applyQuickFilter(collabScopedTasks());
   const q=globalSearchValue(); if(q) arr=arr.filter(t=>[t.taskName,t.platform,t.id,t.status].join(' ').toLowerCase().includes(q));
   arr=applyFieldFilters(arr);
   if(state.deadlineFocus) arr=arr.filter(t=>isLate(t)||(isDeadlineActive(t)&&daysToDue(t)===0));
@@ -1935,7 +1967,7 @@ function collabInlineCard(t){
       ${overdue?'<span class="text-[10px] font-bold text-rose-600">TELAT</span>':(today?'<span class="text-[10px] font-bold text-pink-600">HARI INI</span>':'')}
     </div>
     <p class="text-[13px] font-medium leading-snug text-gray-800 dark:text-slate-100 mt-1.5 line-clamp-2">${escapeHtml(t.taskName||'-')}</p>
-    <div class="mt-1.5 text-[11px] text-gray-600 dark:text-slate-300">Proses Anda: <b>${escapeHtml(t._myStepName||'—')}</b>${t._myStepDeadline?` · <span class="${overdue?'text-rose-600 font-semibold':'text-gray-500'}">${escapeHtml(t._myStepDeadline)}</span>`:''}</div>
+    <div class="mt-1.5 text-[11px] text-gray-600 dark:text-slate-300">Proses ${escapeHtml(same(t._stepOwner,state.currentUser)?'Anda':(stepPicLabel(t._stepOwner)||t.pic||'—'))}: <b>${escapeHtml(t._myStepName||'—')}</b>${t._myStepDeadline?` · <span class="${overdue?'text-rose-600 font-semibold':'text-gray-500'}">${escapeHtml(t._myStepDeadline)}</span>`:''}</div>
     ${t._projectDeadline?`<div class="mt-0.5 text-[11px] text-gray-400 flex items-center gap-1"><span class="material-icons-round text-[12px]">flag</span>Deadline project · ${escapeHtml(t._projectDeadline)}</div>`:''}
     ${t.platform?`<div class="mt-1.5 flex flex-wrap gap-1">${String(t.platform).split(',').map(x=>x.trim()).filter(Boolean).map(pf=>`<span class="inline-flex items-center h-5 px-1.5 rounded text-[11px] font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">${escapeHtml(pf)}</span>`).join('')}</div>`:''}
   </div>`;
@@ -1943,7 +1975,7 @@ function collabInlineCard(t){
 function collabTableRow(t){
   const overdue=isLate(t);
   return `<tr onclick="openCollabModal('${escapeAttr(t.collabId)}')" class="hover:bg-gray-50 dark:hover:bg-slate-800/70 cursor-pointer border-l-[3px] border-violet-400">
-    <td class="px-4 py-3 max-w-[360px]"><div class="font-medium text-gray-900 dark:text-white break-words">${escapeHtml(t.taskName||'-')} <span class="inline-flex items-center gap-0.5 align-middle h-5 px-1.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"><span class="material-icons-round text-[11px]">account_tree</span>Kolaborasi</span></div><div class="text-[11px] text-gray-400 mt-0.5">Proses Anda: ${escapeHtml(t._myStepName||'—')}${t._projectDeadline?' • Deadline project: '+escapeHtml(t._projectDeadline):''}</div></td>
+    <td class="px-4 py-3 max-w-[360px]"><div class="font-medium text-gray-900 dark:text-white break-words">${escapeHtml(t.taskName||'-')} <span class="inline-flex items-center gap-0.5 align-middle h-5 px-1.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"><span class="material-icons-round text-[11px]">account_tree</span>Kolaborasi</span></div><div class="text-[11px] text-gray-400 mt-0.5">Proses ${escapeHtml(same(t._stepOwner,state.currentUser)?'Anda':(stepPicLabel(t._stepOwner)||t.pic||'—'))}: ${escapeHtml(t._myStepName||'—')}${t._projectDeadline?' • Deadline project: '+escapeHtml(t._projectDeadline):''}</div></td>
     <td class="px-4 py-3"><span class="inline-flex items-center h-5 px-2 rounded text-[11px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">${escapeHtml(t.status)}</span></td>
     <td class="px-4 py-3 text-gray-400">—</td>
     <td class="px-4 py-3"><div class="flex items-center gap-2">${avatar(t.pic)}<span class="text-sm text-gray-600 dark:text-slate-300">${escapeHtml(t.pic||'—')}</span></div></td>
@@ -1957,7 +1989,7 @@ function collabMiniCard(t){
   const overdue=isLate(t); const col=safeColor(t._collabColor);
   return `<div onclick="openCollabModal('${escapeAttr(t.collabId)}')" style="${col?`border-left:3px solid ${col}`:''}" class="p-2.5 rounded-lg bg-gray-50 dark:bg-slate-800 border border-violet-200 dark:border-violet-900/50 cursor-pointer hover:bg-gray-100">
     <div class="flex justify-between gap-3 items-start"><div class="font-medium text-sm leading-snug line-clamp-2 text-gray-800 dark:text-slate-100">${escapeHtml(t.taskName||'-')}</div><span class="shrink-0 inline-flex items-center gap-0.5 h-5 px-1.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"><span class="material-icons-round text-[11px]">account_tree</span>Kolab</span></div>
-    <div class="mt-1 text-[11px] text-gray-600 dark:text-slate-300">Proses Anda: ${escapeHtml(t._myStepName||'—')}${t._myStepDeadline?` · <span class="${overdue?'text-rose-600 font-semibold':''}">${escapeHtml(t._myStepDeadline)}</span>`:''}</div>
+    <div class="mt-1 text-[11px] text-gray-600 dark:text-slate-300">Proses ${escapeHtml(same(t._stepOwner,state.currentUser)?'Anda':(stepPicLabel(t._stepOwner)||t.pic||'—'))}: ${escapeHtml(t._myStepName||'—')}${t._myStepDeadline?` · <span class="${overdue?'text-rose-600 font-semibold':''}">${escapeHtml(t._myStepDeadline)}</span>`:''}</div>
     ${t._projectDeadline?`<div class="text-[10px] text-gray-400">Deadline project: ${escapeHtml(t._projectDeadline)}</div>`:''}
   </div>`;
 }
@@ -2842,11 +2874,12 @@ function canCheckStepClient(s){
 }
 /* Proses ini "milik saya"? PIC proses boleh berupa peran ("@Magang") — artinya prosesnya
    milik bersama semua yang berperan itu, jadi giliran & izin centangnya ikut kolektif. */
-function stepIsMine(s){
+function stepBelongsTo(s, user){
   const rp=rolePicOf(s&&s.pic);
-  if(rp) return hasRole(state.currentUser, String(rp).toLowerCase());
-  return same(s&&s.pic, state.currentUser);
+  if(rp) return hasRole(user, String(rp).toLowerCase());
+  return same(s&&s.pic, user);
 }
+function stepIsMine(s){ return stepBelongsTo(s, state.currentUser); }
 // Nama PIC proses untuk ditampilkan: "@Magang" dibaca sebagai "Semua Magang".
 function stepPicLabel(pic){ return rolePicLabel(pic) || String(pic||'—'); }
 function collabProgress(c){ const list=(c&&c.steps)||[]; const total=list.length, done=list.filter(s=>s.done).length; return {done,total,pct: total?Math.round(done/total*100):0}; }
@@ -4241,6 +4274,14 @@ function collabExportRows(){
       if(f.platform&&f.platform.length && !f.platform.some(v=>String(c.platform||'').split(',').map(x=>x.trim()).some(x=>same(x,v)))) return;
       if(f.dueStart && !(due && due>=f.dueStart)) return;
       if(f.dueEnd && !(due && due<=f.dueEnd)) return;
+      // Filter cepat & fokus deadline juga berlaku — kalau tidak, satu berkas bisa memuat
+      // dua cakupan berbeda: task tersaring "Tugas Saya" tapi proses collab tetap semuanya.
+      const telat = !st.done && due && due < todayStr();
+      const sisa = due ? Math.ceil((parseDate(due)-TODAY)/86400000) : 9999;
+      if(state.quickFilter==='mine' && !stepBelongsTo(st, state.currentUser)) return;
+      if(state.quickFilter==='overdue' && !telat) return;
+      if(state.quickFilter==='duesoon' && !(!st.done && sisa>=0 && sisa<=3)) return;
+      if(state.deadlineFocus && !(telat || (!st.done && sisa===0))) return;
       out.push(['Kolaborasi', c.id+'#'+st.order, c.createdAt||'', due, status, '',
         c.title+' — '+st.name, st.stage||'', c.platform||'', stepPicLabel(st.pic), '',
         st.link||'', st.note||'', c.description||'', st.doneBy||'', st.doneAt||'']);

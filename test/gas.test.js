@@ -1279,7 +1279,23 @@ ok('Support memakai pengelompokan itu', /support\.innerHTML = picOptionsHtml\(st
 ok('PIC proses kolaborasi ikut dikelompokkan', /function collabPicOptions\(sel\)\{ return '<option value="">\(pilih PIC\)<\/option>'\+picOptionsHtml\(state\.options\.pic, sel, true\)/.test(commHtml));
 // Proses kolaborasi juga boleh ber-PIC peran (milik bersama).
 ok('ada penentu proses "milik saya"', /function stepIsMine\(s\)/.test(commHtml));
-ok('stepIsMine memahami PIC peran', /function stepIsMine\(s\)[\s\S]{0,220}?hasRole\(state\.currentUser, String\(rp\)\.toLowerCase\(\)\)/.test(commHtml));
+ok('kepemilikan proses memahami PIC peran', commHtml.indexOf("function stepBelongsTo(s, user){") >= 0 && commHtml.indexOf("hasRole(user, String(rp).toLowerCase())") >= 0);
+ok('stepIsMine kini turunan stepBelongsTo', commHtml.indexOf("function stepIsMine(s){ return stepBelongsTo(s, state.currentUser); }") >= 0);
+// Proses collab tiap user ikut muncul di daftar/kanban, bukan cuma milik yang sedang login.
+ok('ada pembangun pseudo-task per orang', commHtml.indexOf("function collabPseudo(c, user){") >= 0);
+ok('ada pengumpul proses SELURUH tim', commHtml.indexOf("function allCollabTasks(){") >= 0);
+ok('yang boleh lihat semua dapat proses semua orang', commHtml.indexOf("return canSeeAllTasks(state.currentUser) ? allCollabTasks() : myCollabTasks(state.currentUser);") >= 0);
+ok('Fokus PIC menyempitkan ke orang itu', commHtml.indexOf("if(fokus) return myCollabTasks(fokus);") >= 0);
+ok('cakupan collab jadi fungsi tersendiri', commHtml.indexOf("function collabScopedTasks(){") >= 0);
+// Hitungan pil filter harus cocok dgn baris yang benar-benar tampil.
+ok('hitungan pil ikut menyertakan baris collab', commHtml.indexOf("scopedTasks().concat(viewIncludesCollab()?collabScopedTasks():[])") >= 0);
+ok('hanya Kanban & List yang menyisipkan collab', commHtml.indexOf("function viewIncludesCollab(){ return state.activeView==='kanban' || state.activeView==='list'; }") >= 0);
+// Ekspor CSV: cakupan collab harus sama dgn task, termasuk filter cepat.
+ok('ekspor collab hormati filter cepat', commHtml.indexOf("if(state.quickFilter==='mine' && !stepBelongsTo(st, state.currentUser)) return;") >= 0);
+ok('ekspor collab hormati fokus deadline', commHtml.indexOf("if(state.deadlineFocus && !(telat || (!st.done && sisa===0))) return;") >= 0);
+ok('pseudo-task menyimpan pemilik prosesnya', commHtml.indexOf("_stepOwner:user") >= 0);
+ok('label bukan selalu "Proses Anda"', commHtml.indexOf("same(t._stepOwner,state.currentUser)?'Anda':(stepPicLabel(t._stepOwner)||t.pic||'—')") >= 0);
+ok('stage & link proses ikut ke pseudo-task', commHtml.indexOf("stage:(myStep&&myStep.stage)||'', dueDate:(myStep&&myStep.deadline)||c.deadline||''") >= 0);
 ok('giliran memakai stepIsMine', /if\(!stepIsMine\(s\)\) return false;/.test(commHtml));
 ok('izin centang proses memahami peran', /function canCheckStepClient\(s\)\{[\s\S]{0,320}?const rp=rolePicOf\(s&&s\.pic\);/.test(commHtml));
 ok('PIC peran ditampilkan ramah', /function stepPicLabel\(pic\)\{ return rolePicLabel\(pic\) \|\| String\(pic\|\|'—'\); \}/.test(commHtml));
