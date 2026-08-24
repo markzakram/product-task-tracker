@@ -1205,6 +1205,20 @@ ok('kotak fokus disembunyikan selama pratinjau', /fBox\.classList\.toggle\('hide
 ok('label kotak berubah di mode Dev', /fLbl\.textContent = isDevReal\(\) \? 'Lihat sebagai' : 'Fokus PIC'/.test(commHtml));
 ok('ganti identitas keluar dari pratinjau', /function setCurrentUser\(user\)\{if\(state\.previewAs\)\{state\.previewAs='';state\._realUser='';/.test(commHtml));
 
+// Export CSV ikut menyertakan proses Task Kolaborasi.
+ok('ada pembangun baris CSV collab', commHtml.indexOf("function collabExportRows(){") >= 0);
+ok('satu baris per PROSES, bukan per kartu', commHtml.indexOf("out.push(['Kolaborasi', c.id+'#'+st.order,") >= 0);
+ok('ada kolom penanda sumber', commHtml.indexOf("const headers=['Sumber','Task ID'") >= 0);
+ok('baris task diberi label Task', commHtml.indexOf("rows.map(t=>['Task',t.id,") >= 0);
+ok('baris collab digabung ke berkas yang sama', commHtml.indexOf("[headers,...data,...collab]") >= 0);
+ok('cakupannya sama dgn tampilan aplikasi', commHtml.indexOf("const terlihat=(state.collabs||[]);") >= 0);
+ok('filter PIC ikut diterapkan ke collab', commHtml.indexOf("if(f.pic&&f.pic.length && !f.pic.some(v=>{") >= 0);
+ok('PIC berupa peran ikut dicocokkan', commHtml.indexOf("const rp=rolePicOf(st.pic); return rp ? hasRole(v, String(rp).toLowerCase()) : same(st.pic,v);") >= 0);
+ok('filter rentang due ikut diterapkan', commHtml.indexOf("if(f.dueStart && !(due && due>=f.dueStart)) return;") >= 0);
+ok('deadline proses jatuh ke deadline project bila kosong', commHtml.indexOf("const due=st.deadline||c.deadline||'';") >= 0);
+ok('link & catatan proses ikut terekspor', commHtml.indexOf("st.link||'', st.note||'', c.description||''") >= 0);
+ok('pengguna diberi tahu jumlah barisnya', commHtml.indexOf("' proses kolaborasi diunduh.'") >= 0);
+
 // Tautan: kolom Dokumen task + lampiran hasil di proses & sub-ceklis.
 ok('ada pengubah teks jadi tautan', commHtml.indexOf("function asUrl(v){") >= 0);
 ok('hanya http/https yang jadi tautan', commHtml.indexOf("new RegExp('^https?://','i').test(t)") >= 0);

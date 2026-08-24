@@ -10,6 +10,45 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.75.0 — Export CSV ikut memuat Task Kolaborasi
+
+Tombol **CSV** di Task List dulu hanya mengekspor task biasa, jadi seluruh pekerjaan di Task
+Kolaborasi tak pernah ikut terunduh. Sekarang keduanya masuk ke satu berkas.
+
+### Satu baris per PROSES, bukan per kartu
+Unit kerja yang sebenarnya adalah **prosesnya** — punya PIC, deadline, status, catatan, dan
+link hasilnya sendiri. Mengekspor per-kartu justru menyembunyikan siapa mengerjakan apa.
+
+Kolom baru **Sumber** membedakan `Task` dari `Kolaborasi`, dan kolomnya dipetakan ke kolom
+task yang setara supaya satu berkas bisa dibaca sekaligus:
+
+| Kolom | Isi untuk baris Kolaborasi |
+|---|---|
+| Task ID | `COL-009#11` |
+| Task Name | `PCPM Tahap I — QC Ali` |
+| Due Date | deadline proses, atau deadline project bila prosesnya tak punya |
+| Status | `Done` / `Belum` |
+| Document / Link | link hasil proses |
+| PIC Notes | catatan proses |
+| PM Notes | deskripsi kolaborasi |
+
+Ditambahkan juga **Diselesaikan Oleh** dan **Diselesaikan Pada** — untuk baris task diisi
+dari jejak pengubah status (1.67.0), untuk baris kolaborasi dari pencentang prosesnya.
+
+### Filter Task List ikut dihormati
+Filter yang punya padanan diterapkan juga ke baris kolaborasi: **PIC** (termasuk PIC berupa
+peran seperti `@Magang`), **Stage**, **Platform**, **Status**, dan **rentang Due Date**.
+Filter tanpa padanan — mis. **Priority**, yang memang tidak ada pada proses — sengaja
+diabaikan daripada dipaksakan.
+
+Cakupannya **sama persis dengan yang sudah terlihat di tab Task Kolaborasi** — tidak lebih
+ketat, tidak lebih longgar. Percobaan pertama saya justru lebih ketat (hanya collab tempat
+orang itu ikut serta); itu tak cocok dengan tampilan aplikasi, jadi dikembalikan.
+
+Setelah mengunduh, muncul keterangan jumlahnya: *"6 task + 26 proses kolaborasi diunduh."*
+
+---
+
 ## 1.74.1 — QC: task dihapus meninggalkan ceklis & chat yang diwarisi task baru
 
 Audit menyeluruh terhadap kelas bug yang sama dengan sub-ceklis kolaborasi: **data yang

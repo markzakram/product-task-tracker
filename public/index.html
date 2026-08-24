@@ -791,7 +791,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.74.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.75.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -4217,11 +4217,46 @@ function runFixIds(){
 }
 
 /* ---------- Misc ---------- */
+/* Baris CSV untuk PROSES task kolaborasi. Satu baris per proses — itulah unit kerja yang
+   sebenarnya (punya PIC, deadline, status, dan hasilnya sendiri); mengekspor per-kartu akan
+   menyembunyikan siapa mengerjakan apa. Kolomnya dipetakan ke kolom task yang setara supaya
+   satu berkas bisa dibaca sekaligus.
+   Filter Task List yang punya padanan ikut diterapkan (PIC, stage, platform, rentang due,
+   status). Filter tanpa padanan di collab (mis. Priority) sengaja diabaikan. */
+function collabExportRows(){
+  const f=state.filters||{};
+  // Cakupannya SAMA dengan yang sudah terlihat di tab Task Kolaborasi — tidak lebih ketat,
+  // tidak lebih longgar. Untuk level magang, state.collabs memang sudah dipangkas server.
+  const terlihat=(state.collabs||[]);
+  const out=[];
+  terlihat.forEach(c=>{
+    (c.steps||[]).forEach(st=>{
+      const status=st.done?'Done':'Belum';
+      const due=st.deadline||c.deadline||'';
+      if(f.pic&&f.pic.length && !f.pic.some(v=>{
+        const rp=rolePicOf(st.pic); return rp ? hasRole(v, String(rp).toLowerCase()) : same(st.pic,v);
+      })) return;
+      if(f.stage&&f.stage.length && !f.stage.some(v=>same(st.stage||'',v))) return;
+      if(f.status&&f.status.length && !f.status.some(v=>same(status,v))) return;
+      if(f.platform&&f.platform.length && !f.platform.some(v=>String(c.platform||'').split(',').map(x=>x.trim()).some(x=>same(x,v)))) return;
+      if(f.dueStart && !(due && due>=f.dueStart)) return;
+      if(f.dueEnd && !(due && due<=f.dueEnd)) return;
+      out.push(['Kolaborasi', c.id+'#'+st.order, c.createdAt||'', due, status, '',
+        c.title+' — '+st.name, st.stage||'', c.platform||'', stepPicLabel(st.pic), '',
+        st.link||'', st.note||'', c.description||'', st.doneBy||'', st.doneAt||'']);
+    });
+  });
+  return out;
+}
 function exportCsv(){
-  const rows=viewTasks(); const headers=['Task ID','Created Date','Due Date','Status','Priority','Task Name','Stage','Platform','PIC','Support','Document','PIC Notes','PM Notes'];
-  const data=rows.map(t=>[t.id,t.createdDate,t.dueDate,t.status,t.priority,t.taskName,t.stage,t.platform,t.pic,t.support,t.document,t.picNotes,t.pmNotes]);
-  const csv=[headers,...data].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join('\n');
-  const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='task_tracker_export.csv'; a.click(); URL.revokeObjectURL(a.href);
+  const rows=viewTasks();
+  const headers=['Sumber','Task ID','Created Date','Due Date','Status','Priority','Task Name','Stage','Platform','PIC','Support','Document / Link','PIC Notes','PM Notes','Diselesaikan Oleh','Diselesaikan Pada'];
+  const data=rows.map(t=>['Task',t.id,t.createdDate,t.dueDate,t.status,t.priority,t.taskName,t.stage,t.platform,t.pic,t.support,t.document,t.picNotes,t.pmNotes,'',t.statusBy||'']);
+  const collab=collabExportRows();
+  const csv=[headers,...data,...collab].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join(String.fromCharCode(10));
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='task_tracker_export.csv'; a.click(); URL.revokeObjectURL(a.href);
+  showToast(rows.length+' task + '+collab.length+' proses kolaborasi diunduh.');
 }
 
 /* ---------- Helpers ---------- */
