@@ -1343,6 +1343,16 @@ ok('pembagian baris seimbang', (() => {
   return [[1,1],[2,2],[3,3],[4,2],[5,3],[6,3],[7,4],[8,4]].every(([n, k]) => fn(n) === k);
 })());
 
+// Menu notifikasi harus di ATAS kartu task. backdrop-blur pada <header> membuat stacking
+// context sendiri, jadi z-index menu di dalamnya tak berlaku terhadap <section> konten —
+// header WAJIB punya z-index sendiri, kalau tidak seluruh isinya tenggelam di bawah kartu.
+ok('header punya stacking context sendiri', commHtml.indexOf("<header class=\"relative z-[70] h-16") >= 0);
+ok('alasannya dicatat di kode', commHtml.indexOf("backdrop-blur membuat stacking context sendiri") >= 0);
+ok('menu notifikasi tetap di dalam header', commHtml.indexOf("id=\"notifMenu\"") >= 0);
+// Header harus DI BAWAH modal, supaya dialog tetap menutupinya.
+// Header harus DI BAWAH modal, supaya dialog tetap menutupinya.
+ok('modal task lebih tinggi dari header', (function(){var k=commHtml.indexOf("id=\"taskModal\""); if(k<0) return -1; var a=commHtml.indexOf('z-[',k); if(a<0) return -1; var b=commHtml.indexOf(']',a); return Number(commHtml.slice(a+3,b)); })() > (function(){var k=commHtml.indexOf("<header class=\"relative"); if(k<0) return -1; var a=commHtml.indexOf('z-[',k); if(a<0) return -1; var b=commHtml.indexOf(']',a); return Number(commHtml.slice(a+3,b)); })());
+
 // Sidebar bisa disembunyikan supaya area task lebih lebar.
 ok('ada tombol sembunyikan sidebar', /id="sidebarToggle"/.test(commHtml));
 ok('tombol hanya utk layar lebar', /id="sidebarToggle"[^>]*hidden md:inline-flex/.test(commHtml));

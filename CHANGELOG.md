@@ -10,6 +10,32 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.76.2 — Perbaikan: menu notifikasi tenggelam di bawah kartu task
+
+Membuka lonceng notifikasi menampilkan menunya **di belakang** kartu task, jadi isinya
+tertutup dan tak bisa diklik.
+
+### Sebabnya bukan z-index menunya
+Menu sudah `z-[60]`. Masalahnya di induknya: `<header>` memakai **`backdrop-blur`**, dan
+properti itu membuat **stacking context baru**. Akibatnya z-index menu hanya berlaku *di
+dalam* header — sementara header sendiri tak punya z-index dan berada sebelum `<section>`
+konten, sehingga seluruh isinya (menu termasuk) tenggelam di bawah kartu.
+
+Menaikkan `z-[60]` jadi berapa pun tidak akan menolong; yang perlu z-index adalah headernya.
+
+### Perbaikannya
+`<header>` diberi `relative z-[70]` — tetap **di bawah modal** (`z-[90]` ke atas) supaya
+dialog masih menutupi header seperti sebelumnya.
+
+Dibuktikan dengan `elementFromPoint` di tiga titik dalam menu: sesudah perbaikan semuanya
+mengembalikan `notifMenu`; begitu stacking context header dicabut, yang teratas kembali
+menjadi elemen kartu. Modal juga diperiksa masih menutupi header.
+
+Menu melayang lain di aplikasi ini hanya satu — menu mention di dalam modal kolaborasi — dan
+itu aman karena modalnya sudah punya stacking context sendiri.
+
+---
+
 ## 1.76.1 — QC: angka filter & ekspor tak sejalan dengan baris yang tampil
 
 Audit lanjutan setelah 1.76.0. Dua ketidakcocokan ditemukan — keduanya lahir karena baris
