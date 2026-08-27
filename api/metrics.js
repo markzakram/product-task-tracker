@@ -119,13 +119,36 @@ function dayFromStatusBy(statusBy) {
 }
 
 /**
- * Peta taskId -> tanggal PERTAMA kali task tercatat berstatus Done.
+ * Apakah satu baris log menandai perpindahan status KE Done?
  *
- * Ini rekonstruksi, bukan catatan resmi: statusnya tertanam sebagai teks bebas
- * di kolom Detail ACTIVITY ("• Status: Done •"), bukan kolom tersendiri. Selama
- * formatnya belum dirapikan, cakupannya akan terus bolong — dan itu dilaporkan
- * lewat `coverage.completion_date`, bukan disembunyikan.
+ * Baris yang punya kolom `statusTo` terisi dipercaya apa adanya — termasuk saat
+ * isinya bukan Done, yang berarti baris itu memang bukan penyelesaian. Hanya
+ * baris lama, yang ditulis sebelum kolom itu ada, yang jatuh ke pembacaan teks
+ * "• Status: Done •". Pembacaan teks itu rapuh dan sengaja jadi jalur cadangan,
+ * bukan jalur utama.
  */
+function movedToDone(entry) {
+  const to = String((entry && entry.statusTo) || '').trim();
+  if (to) return /^done$/i.test(to);
+  return /Status:\s*Done/i.test((entry && entry.detail) || '');
+}
+
+/**
+ * Seberapa banyak riwayat sudah tercatat terstruktur, bukan ditebak dari teks.
+ * Dipakai untuk melaporkan kemajuan perbaikan pencatatan — angka ini semestinya
+ * naik terus seiring waktu.
+ */
+function statusLoggingProgress(activity) {
+  let structured = 0;
+  let textOnly = 0;
+  activity.forEach((a) => {
+    if (String((a && a.statusTo) || '').trim()) structured += 1;
+    else if (/Status:\s*\S/.test((a && a.detail) || '')) textOnly += 1;
+  });
+  return { structured, text_only: textOnly, structured_ratio: ratio(structured, structured + textOnly) };
+}
+
+/** Peta taskId -> tanggal PERTAMA kali task tercatat berpindah ke Done. */
 function buildCompletionMap(activity) {
   const map = {};
   // getActivityLog() mengembalikan terbaru di atas; dibalik supaya yang terbaca
@@ -133,7 +156,7 @@ function buildCompletionMap(activity) {
   for (let i = activity.length - 1; i >= 0; i--) {
     const a = activity[i];
     if (!a || !a.taskId) continue;
-    if (!/Status:\s*Done/i.test(a.detail || '')) continue;
+    if (!movedToDone(a)) continue;
     const day = String(a.timestamp || '').slice(0, 10);
     if (isDay(day) && !map[a.taskId]) map[a.taskId] = day;
   }
@@ -268,7 +291,15 @@ function buildCaveats(view, filters, cov, source, excluded) {
     out.push(`Hanya ${Math.round(cov.due_date * 100)}% task punya Due Date. Task tanpa Due Date TIDAK dihitung, jadi angka ini bukan gambaran seluruh task.`);
   }
   if (usesCompletion && cov.completion_date !== null && cov.completion_date < 0.95) {
-    out.push(`Tanggal selesai hanya bisa dipastikan untuk ${Math.round(cov.completion_date * 100)}% task Done (${cov.completion_date_note}). Riwayat status masih tersimpan sebagai teks bebas di ACTIVITY, belum kolom tersendiri.`);
+    out.push(`Tanggal selesai hanya bisa dipastikan untuk ${Math.round(cov.completion_date * 100)}% task Done (${cov.completion_date_note}).`);
+  }
+  if (usesCompletion) {
+    const prog = statusLoggingProgress(source.activity);
+    if (prog.structured === 0 && prog.text_only > 0) {
+      out.push('Belum ada satu pun perpindahan status yang tercatat di kolom terstruktur, jadi seluruh riwayat masih dibaca dengan menebak pola teks. Angka ini akan membaik sendiri begitu status task mulai berubah setelah perbaikan pencatatan aktif.');
+    } else if (prog.structured_ratio !== null && prog.structured_ratio < 0.5) {
+      out.push(`Baru ${Math.round(prog.structured_ratio * 100)}% riwayat status tercatat terstruktur; sisanya masih dibaca dari teks. Riwayat lama tidak bisa diisi mundur, jadi rasio ini hanya naik untuk kejadian baru.`);
+    }
   }
   const first = earliestActivityDay(source.activity);
   if (first && filters.from && filters.from < first) {
@@ -538,6 +569,7 @@ module.exports = async function handler(req, res) {
         : null,
       coverage,
       excluded,
+      status_logging: statusLoggingProgress(source.activity),
       caveats: buildCaveats(view, filters, coverage, source, excluded),
       data,
     }));
@@ -552,6 +584,7 @@ module.exports = async function handler(req, res) {
 // Diekspor untuk pengujian — tidak dipakai jalur HTTP.
 module.exports._internals = {
   parseTokens, safeEqual, identify, buildCompletionMap, completionDay, dayFromStatusBy,
+  movedToDone, statusLoggingProgress,
   bucketOf, daysBetween, matchesFilters, inRange, platformParts, coverageOf, buildCaveats,
   viewSummary, viewThroughput, viewOntime, viewWorkload, viewAging, viewTasks, VIEWS,
 };

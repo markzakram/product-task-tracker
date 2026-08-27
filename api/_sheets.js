@@ -603,8 +603,12 @@ async function saveTask(task) {
 
   const savedRows = await valuesGet(`${CONFIG.TASK_SHEET}!${CONFIG.FIRST_COL_LETTER}${rowNumber}:${CONFIG.LAST_COL_LETTER}${rowNumber}`);
   const saved = rowToTask(savedRows[0] || rowData, rowNumber);
+  // `statusBerubah` sudah dihitung di atas untuk keperluan statusBy — dipakai ulang
+  // di sini. Pada task baru, oldStatus kosong sehingga tercatat "" → status awal,
+  // yang memang benar: itu titik masuk task ke alur kerja.
   await logActivity(actor, isUpdate ? 'Update Task' : 'Create Task', saved.id,
-    `${saved.taskName} • Status: ${saved.status} • PIC: ${saved.pic}`);
+    `${saved.taskName} • Status: ${saved.status} • PIC: ${saved.pic}`,
+    statusBerubah ? oldStatus : '', statusBerubah ? saved.status : '');
 
   const tasks = await getTasks();
   return { success: true, message: 'Task berhasil disimpan.', task: saved, tasks };
@@ -663,16 +667,23 @@ async function quickUpdateField(taskId, field, value, actor) {
     return { success: false, message: 'Field tidak didukung: ' + field };
   }
 
-  // Gerbang "Done": yang bukan Done approver tak boleh memindahkan task KE Done.
-  // Task yang sudah Done tetap boleh diubah (mis. ditarik balik) — yang dilarang
-  // hanya aksi menetapkan Done. Baca status lama dulu untuk membedakannya.
-  // Izinnya bergantung PIC task — Staff boleh menutup task milik anak magang.
-  if (f === 'status' && isDoneStatus(value)) {
+  // Untuk perubahan status, baris lamanya dibaca lebih dulu — dipakai dua hal
+  // sekaligus: gerbang izin "Done", dan pencatatan status LAMA ke log. Satu
+  // pembacaan melayani keduanya, jadi tak ada tambahan kuota untuk jalur Done.
+  let oldStatus = '';
+  if (f === 'status') {
     const cur0 = await valuesGet(`${CONFIG.TASK_SHEET}!${CONFIG.FIRST_COL_LETTER}${row}:${CONFIG.LAST_COL_LETTER}${row}`);
     const existing = rowToTask(cur0[0] || [], row);
-    await loadUsers();
-    if (!isDoneStatus(existing.status) && !canApproveDone(actor, existing.pic, existing.support)) {
-      return { success: false, message: doneDeniedMessage(existing.pic) };
+    oldStatus = existing.status;
+    // Gerbang "Done": yang bukan Done approver tak boleh memindahkan task KE Done.
+    // Task yang sudah Done tetap boleh diubah (mis. ditarik balik) — yang dilarang
+    // hanya aksi menetapkan Done. Izinnya bergantung PIC task — Staff boleh
+    // menutup task milik anak magang.
+    if (isDoneStatus(value)) {
+      await loadUsers();
+      if (!isDoneStatus(oldStatus) && !canApproveDone(actor, existing.pic, existing.support)) {
+        return { success: false, message: doneDeniedMessage(existing.pic) };
+      }
     }
   }
 
@@ -680,7 +691,12 @@ async function quickUpdateField(taskId, field, value, actor) {
   // Catat siapa yang mengubah status. Wajib untuk task milik bersama (PIC berupa peran):
   // tanpa ini, satu status dipakai beramai-ramai tanpa jejak siapa yang menggerakkannya.
   if (f === 'status') await valuesUpdate(`${CONFIG.TASK_SHEET}!${COL.statusBy}${row}`, [[statusByStamp(actor)]]);
-  await logActivity(String(actor || '').trim() || 'Unknown', 'Update Task', taskId, `${field} → ${value}`);
+  // Kolom status hanya diisi bila status benar-benar berpindah. Menyetel ulang ke
+  // nilai yang sama bukan perpindahan, dan kalau dicatat akan terbaca sebagai
+  // "selesai hari ini" oleh penghitung riwayat.
+  const statusBerpindah = f === 'status' && String(value || '').trim() !== String(oldStatus).trim();
+  await logActivity(String(actor || '').trim() || 'Unknown', 'Update Task', taskId, `${field} → ${value}`,
+    statusBerpindah ? oldStatus : '', statusBerpindah ? String(value || '') : '');
 
   const cur = await valuesGet(`${CONFIG.TASK_SHEET}!${CONFIG.FIRST_COL_LETTER}${row}:${CONFIG.LAST_COL_LETTER}${row}`);
   const saved = rowToTask(cur[0] || [], row);
@@ -1834,10 +1850,23 @@ async function createMentionNotifications(refId, author, message) {
 /* ACTIVITY                                                            */
 /* ------------------------------------------------------------------ */
 
-async function logActivity(user, action, taskId, detail) {
+/**
+ * Catat satu kejadian ke sheet ACTIVITY.
+ *
+ * `statusFrom`/`statusTo` diisi HANYA saat status task memang berpindah, dan
+ * ditulis ke kolom tersendiri (F & G) — bukan diselipkan ke teks `detail`.
+ * Sebelumnya status hanya bisa dibaca ulang dengan menebak pola dari kalimat
+ * "• Status: Done •", yang rapuh: sekali format kalimatnya berubah, seluruh
+ * riwayat jadi tak terbaca tanpa satu pun error muncul.
+ *
+ * Kolom `detail` tetap memuat kalimat lamanya supaya tampilan riwayat di UI
+ * tidak berubah dan baris lama tetap sebanding dengan baris baru.
+ */
+async function logActivity(user, action, taskId, detail, statusFrom, statusTo) {
   try {
-    await valuesAppend(`${CONFIG.ACTIVITY_SHEET}!A:E`,
-      [[nowStamp(), String(user || 'Unknown'), String(action || ''), String(taskId || ''), String(detail || '')]]);
+    await valuesAppend(`${CONFIG.ACTIVITY_SHEET}!A:G`,
+      [[nowStamp(), String(user || 'Unknown'), String(action || ''), String(taskId || ''), String(detail || ''),
+        String(statusFrom || ''), String(statusTo || '')]]);
   } catch (e) {
     // Logging tidak boleh menggagalkan operasi utama.
   }
@@ -1847,7 +1876,7 @@ async function getActivityLog(limit, pre) {
   let rows = [];
   if (pre !== undefined) rows = pre;
   else {
-    try { rows = await valuesGet(`${CONFIG.ACTIVITY_SHEET}!A2:E`); }
+    try { rows = await valuesGet(`${CONFIG.ACTIVITY_SHEET}!A2:G`); }
     catch (e) { return []; }
   }
   const out = rows
@@ -1857,6 +1886,10 @@ async function getActivityLog(limit, pre) {
       action: String(r[2] || ''),
       taskId: String(r[3] || ''),
       detail: String(r[4] || ''),
+      // Kosong pada baris yang ditulis sebelum kolom ini ada. Pembaca harus
+      // memperlakukan kosong sebagai "tak tercatat", bukan "tidak berubah".
+      statusFrom: String(r[5] || ''),
+      statusTo: String(r[6] || ''),
     }))
     .filter(r => r.timestamp || r.user);
   out.reverse(); // terbaru di atas
@@ -2090,9 +2123,14 @@ async function ensureCommentsSheet() {
 
 async function ensureActivitySheet() {
   await ensureSheetExists(CONFIG.ACTIVITY_SHEET);
-  const head = await valuesGet(`${CONFIG.ACTIVITY_SHEET}!A1:E1`);
-  if (!head.length || !head[0] || !head[0][0]) {
-    await valuesUpdate(`${CONFIG.ACTIVITY_SHEET}!A1:E1`, [['Timestamp', 'User', 'Action', 'Task ID', 'Detail']]);
+  const head = await valuesGet(`${CONFIG.ACTIVITY_SHEET}!A1:G1`);
+  const h0 = (head.length && head[0]) || [];
+  if (!h0[0]) {
+    await valuesUpdate(`${CONFIG.ACTIVITY_SHEET}!A1:G1`,
+      [['Timestamp', 'User', 'Action', 'Task ID', 'Detail', 'Status Lama', 'Status Baru']]);
+  } else if (!h0[5]) {
+    // Sheet lama yang baru punya A..E — tambah dua kolom status tanpa menyentuh baris data.
+    await valuesUpdate(`${CONFIG.ACTIVITY_SHEET}!F1:G1`, [['Status Lama', 'Status Baru']]);
   }
 }
 

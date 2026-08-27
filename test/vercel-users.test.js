@@ -616,6 +616,61 @@ function resetAll() { ['TSK-001', 'TSK-002', 'TSK-003', 'TSK-004'].forEach(id =>
   fresh();
   await backend.deleteTask(mkT2.task.id, 'Nynda');
 
+  console.log('\nRiwayat status tercatat di kolom tersendiri (ACTIVITY F & G):');
+  fresh();
+  const st = await backend.saveTask({ taskName: 'Task riwayat', pic: 'Ali', status: 'Todo', priority: 'Normal', stage: 'QC Konten', platform: 'JadiASN', actor: 'Nynda' });
+  const stId = st.task.id;
+  // Ambil entri log terbaru untuk task ini.
+  const lastFor = async (id) => (await backend.getActivityLog(800)).find(a => a.taskId === id);
+
+  fresh();
+  const logCreate = await lastFor(stId);
+  eq('task baru: status lama kosong', logCreate.statusFrom, '');
+  eq('task baru: status baru tercatat', logCreate.statusTo, 'Todo');
+
+  fresh();
+  await backend.quickUpdateField(stId, 'status', 'In progress', 'Ali');
+  fresh();
+  const logMove = await lastFor(stId);
+  eq('perpindahan: status lama', logMove.statusFrom, 'Todo');
+  eq('perpindahan: status baru', logMove.statusTo, 'In progress');
+  ok('kalimat detail lama tetap ada demi tampilan riwayat', /status/i.test(logMove.detail));
+
+  // Menyetel ulang ke nilai yang sama BUKAN perpindahan. Kalau ini ikut tercatat,
+  // penghitung riwayat akan membacanya sebagai kejadian baru pada tanggal itu.
+  fresh();
+  await backend.quickUpdateField(stId, 'status', 'In progress', 'Ali');
+  fresh();
+  const logSame = await lastFor(stId);
+  eq('setel ulang nilai sama: status lama kosong', logSame.statusFrom, '');
+  eq('setel ulang nilai sama: status baru kosong', logSame.statusTo, '');
+
+  // Mengubah field NON-status tak boleh mengisi kolom status sama sekali.
+  fresh();
+  await backend.quickUpdateField(stId, 'priority', 'Urgent', 'Ali');
+  fresh();
+  const logOther = await lastFor(stId);
+  eq('ubah priority: kolom status tetap kosong', logOther.statusTo, '');
+
+  fresh();
+  await backend.quickUpdateField(stId, 'status', 'Done', 'Nynda');
+  fresh();
+  const logDone = await lastFor(stId);
+  eq('penyelesaian tercatat terstruktur', logDone.statusTo, 'Done');
+  eq('penyelesaian: dari status sebelumnya', logDone.statusFrom, 'In progress');
+
+  // Header sheet lama (A..E) harus ikut dimigrasi tanpa menyentuh baris data.
+  fresh();
+  SHEETS['ACTIVITY'][0] = ['Timestamp', 'User', 'Action', 'Task ID', 'Detail'];
+  const barisSebelum = SHEETS['ACTIVITY'].length;
+  await backend.setupTaskTracker();
+  eq('header lama dimigrasi: kolom F', SHEETS['ACTIVITY'][0][5], 'Status Lama');
+  eq('header lama dimigrasi: kolom G', SHEETS['ACTIVITY'][0][6], 'Status Baru');
+  eq('migrasi tak menambah/mengurangi baris data', SHEETS['ACTIVITY'].length, barisSebelum);
+
+  fresh();
+  await backend.deleteTask(stId, 'Nynda');
+
   console.log('\nTanpa sheet USERS -> kembali ke environment variable:');
   SHEETS['USERS'] = [['Nama', 'Peran', 'Aktif']];   // kosongkan isinya
   fresh();

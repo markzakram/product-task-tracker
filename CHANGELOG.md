@@ -10,6 +10,90 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.78.0 — Fondasi data untuk sistem OKR: endpoint metrics & riwayat status terstruktur
+
+Dua tambahan di sisi backend. Tidak ada satu pun perubahan tampilan — tim tidak
+akan melihat bedanya. Keduanya menyiapkan jalan supaya sistem OKR bisa membaca
+angka dari task tracker ini tanpa boleh mengubah apa pun di dalamnya.
+
+### Endpoint `api/metrics.js` — pintu baca-saja untuk sistem luar
+
+Sistem OKR sebaiknya tidak membaca kolom spreadsheet langsung. Task tracker ini
+berubah cepat, dan setiap perubahan struktur akan menggeser angka di sisi sana
+tanpa ada yang sadar. Endpoint ini jadi **kontrak**: isi dalam boleh berubah,
+bentuk jawabannya dijaga tetap.
+
+Enam view — `summary`, `throughput`, `ontime`, `workload`, `aging`, `tasks` —
+dengan penyaring `from`/`to`/`stage`/`platform`/`pic`/`status`/`priority`/`q`.
+
+Tiga hal yang menjaganya aman:
+
+| Jaminan | Cara ditegakkan |
+|---|---|
+| Tak bisa menulis | Hanya melayani `GET`; metode lain ditolak sebelum data dibaca |
+| Tak menyentuh data pribadi | Hanya memakai `getTasks()` & `getActivityLog()`. Sheet `NOTES`, `COMMENTS`, `LINKS`, `USERS`, `AUTH`, `CHECKLIST`, `COLLAB`, `NOTIFICATIONS` tidak pernah dibuka |
+| Akses dicabut per orang | Token terdaftar satu-satu lewat env `METRICS_TOKENS` berformat `nama:token` |
+
+Jaminan kedua diuji otomatis: tesnya membaca ulang kode sumber `metrics.js` dan
+gagal kalau ada panggilan ke luar dua fungsi itu.
+
+Yang membedakannya dari sekadar "ambil data": setiap jawaban membawa `coverage`,
+`excluded`, dan `caveats` — seberapa lengkap data di balik angkanya. Contohnya
+`ontime` melaporkan sendiri bahwa 163 task Done gugur dari hitungan karena tanggal
+selesainya tak diketahui, alih-alih diam-diam menghilangkannya.
+
+Panduan lengkap: `docs/METRICS.md`.
+
+### Riwayat status kini punya kolomnya sendiri
+
+Sampai 1.77.x, perpindahan status hanya tersimpan sebagai kalimat di kolom Detail
+`ACTIVITY`:
+
+```
+Mengedit 5 Video materi • Status: Done • PIC: Dhea
+```
+
+Siapa pun yang ingin menghitung "berapa task selesai bulan lalu" harus menebak
+pola dari kalimat itu. Jalan, tapi rapuh — sekali format kalimatnya berubah,
+seluruh angka riwayat ikut bergeser tanpa satu pun error muncul.
+
+Sekarang ada dua kolom baru:
+
+| Kolom | Isi |
+|---|---|
+| `F` — Status Lama | Status sebelum berpindah; kosong pada task yang baru dibuat |
+| `G` — Status Baru | Status setelah berpindah |
+
+Diisi **hanya saat status benar-benar berpindah**. Menyunting judul, tenggat, atau
+prioritas tidak menyentuh kolom ini. Begitu juga menyetel ulang status ke nilai
+yang sama — kalau itu ikut tercatat, task yang sebenarnya kelar bulan lalu akan
+terbaca sebagai kelar hari ini.
+
+Kalimat lama di kolom Detail tetap ditulis seperti biasa, jadi tampilan riwayat di
+aplikasi tidak berubah dan baris lama tetap sebanding dengan baris baru.
+
+Tidak ada tambahan baca ke Google: jalur "Done" memang sudah membaca baris itu
+untuk gerbang izin, dan sekarang satu pembacaan melayani dua keperluan.
+
+### Yang perlu dilakukan sekali
+
+Klik **Setup** di mode Dev untuk menambahkan label kolom `Status Lama` dan
+`Status Baru`. Aman diulang dan tidak menyentuh baris data — hanya barisnya header.
+Pencatatannya sendiri sudah jalan begitu versi ini terpasang, dengan atau tanpa
+labelnya.
+
+### Batasnya: hanya berlaku ke depan
+
+Baris lama tetap kosong selamanya dan terus dibaca lewat penebakan teks. Yang
+membaik hanya kejadian baru. Endpoint metrics melaporkan kemajuannya lewat
+`status_logging` — saat pertama aktif isinya `structured: 0`, lalu naik sendiri
+seiring tim bekerja.
+
+Sampai rasionya cukup tinggi: **kondisi hari ini bisa dipercaya, tren antar
+periode belum.**
+
+---
+
 ## 1.77.1 — Item ceklis lama yang jejak pembuatnya rusak tak lagi terkunci
 
 Setelah 1.77.0 terpasang, PIC yang jelas-jelas membuat sendiri item ceklisnya

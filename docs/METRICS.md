@@ -122,6 +122,18 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST -H "x-metrics-token: <token-kam
 Kalau ada yang balas `200`, berhenti dan periksa konfigurasinya sebelum token
 dibagikan ke siapa pun.
 
+### Langkah 5 — Rapikan header `ACTIVITY` (sekali)
+
+Buka aplikasi, masuk **mode Dev**, klik tombol **Setup**. Ini menambahkan label
+kolom `Status Lama` dan `Status Baru` di sheet `ACTIVITY`.
+
+Aman diulang: seluruh fungsi `ensure*` memeriksa dulu sebelum menulis, dan tidak
+ada baris data yang tersentuh — hanya baris header.
+
+> Langkah ini sebetulnya kosmetik. Pencatatan status sudah menulis ke kolom F & G
+> sejak deployment aktif, dengan atau tanpa labelnya. Yang berubah cuma: sheet-nya
+> jadi terbaca manusia saat dibuka langsung.
+
 ---
 
 ## 3. Cara memanggil
@@ -357,6 +369,7 @@ Semua view memakai bungkus yang sama:
   "range_applied_to": "completedOn",
   "coverage": { "...": "..." },
   "excluded":  { "no_completion_date": 163 },
+  "status_logging": { "structured": 0, "text_only": 1142, "structured_ratio": 0 },
   "caveats":   [ "..." ],
   "data":      { "...": "..." }
 }
@@ -373,6 +386,19 @@ Dihitung dari baris yang benar-benar dipakai jawaban ini, bukan seluruh sheet.
 | `platform` | Rasio yang platform-nya terisi |
 | `pic` | Rasio yang PIC-nya terisi |
 | `completion_date` | Rasio task Done yang tanggal selesainya bisa dipastikan |
+
+### `status_logging` — seberapa jauh riwayat sudah rapi
+
+Menghitung baris `ACTIVITY` yang memuat perpindahan status:
+
+| Kolom | Arti |
+|---|---|
+| `structured` | Tercatat di kolom tersendiri — bisa dipercaya |
+| `text_only` | Baris lama, status hanya bisa ditebak dari kalimat `• Status: X •` |
+| `structured_ratio` | Rasio yang sudah rapi, `null` kalau belum ada riwayat sama sekali |
+
+Angka ini **hanya bisa naik untuk kejadian baru** — baris lama tidak bisa diisi
+mundur. Lihat [bagian 7](#7-batas-data-hari-ini) untuk konteksnya.
 
 ### `excluded` — yang gugur sebelum dihitung
 
@@ -427,22 +453,38 @@ percaya tabel ini selamanya.
 | Platform terisi | **84%** | Pecahan per platform tidak lengkap |
 | Platform bernilai ganda | ada, mis. `"All Platform, Markaz"` | Satu task bisa terhitung di beberapa platform |
 
-### Yang paling berdampak: riwayat status masih teks bebas
+### Riwayat status: sudah diperbaiki, tapi hanya untuk ke depan
 
-Status perubahan tersimpan begini di kolom Detail `ACTIVITY`:
+Dulu status perubahan hanya tersimpan sebagai kalimat di kolom Detail `ACTIVITY`:
 
 ```
 Mengedit 5 Video materi • Status: Done • PIC: Dhea
 ```
 
-Endpoint ini membacanya dengan pencocokan pola. Jalan, tapi rapuh — begitu format
-teksnya berubah sedikit, angka riwayat ikut bergeser tanpa error apa pun.
+Endpoint membacanya dengan menebak pola. Jalan, tapi rapuh — begitu format
+kalimatnya berubah sedikit, angka riwayat ikut bergeser tanpa satu pun error muncul.
 
-**Perbaikan yang paling besar hasilnya:** tambahkan kolom terpisah di `ACTIVITY`
-untuk status lama dan status baru. Sekali dikerjakan, `completion_date` naik
-mendekati 100%, `aging` jadi akurat, dan tren antar bulan bisa dipercaya.
+Sekarang `ACTIVITY` punya dua kolom tersendiri:
 
-Sampai itu dikerjakan: **kondisi hari ini bisa dipercaya, tren antar periode belum.**
+| Kolom | Isi |
+|---|---|
+| `F` — Status Lama | Status sebelum berpindah. Kosong pada task yang baru dibuat |
+| `G` — Status Baru | Status setelah berpindah |
+
+Keduanya diisi **hanya saat status benar-benar berpindah**. Menyunting judul,
+tenggat, atau prioritas tidak menyentuh kolom ini; begitu juga menyetel ulang
+status ke nilai yang sama.
+
+**Yang penting dipahami: ini tidak bisa mengisi mundur.** Baris lama tetap kosong
+selamanya dan terus dibaca lewat penebakan teks. Yang membaik hanya kejadian baru.
+Artinya setiap hari yang lewat tanpa perubahan status tercatat adalah sehari
+riwayat yang hilang permanen — jadi semakin cepat dipakai, semakin utuh datanya.
+
+Pantau kemajuannya lewat `status_logging` di tiap jawaban. Saat pertama aktif,
+isinya `structured: 0`; angka itu akan naik sendiri seiring tim bekerja.
+
+Sampai rasionya cukup tinggi: **kondisi hari ini bisa dipercaya, tren antar
+periode belum.**
 
 ---
 
@@ -466,7 +508,13 @@ Sampai itu dikerjakan: **kondisi hari ini bisa dipercaya, tren antar periode bel
 npm run test:metrics
 ```
 
-88 assertion, tanpa jaringan dan tanpa credential — memakai data contoh di memori.
+102 assertion, tanpa jaringan dan tanpa credential — memakai data contoh di memori.
+
+Jalur tulisnya diuji terpisah lewat spreadsheet tiruan:
+
+```bash
+npm run test:vercel
+```
 
 Untuk menguji ke spreadsheet asli, jalankan lewat `vercel dev` dengan `.env` terisi,
 lalu tembak `http://localhost:3000/api/metrics?view=summary`.
@@ -480,6 +528,7 @@ Endpoint ini bagian pertama dari tiga. Dua sisanya belum dibuat:
 | # | Bagian | Status |
 |---|---|---|
 | 1 | `api/metrics.js` — kontrak read-only | **selesai** |
+| 1b | Kolom status terstruktur di `ACTIVITY` | **selesai** |
 | 2 | Sheet OKR — Objective, KR, target, cara ukur | belum |
 | 3 | MCP di device manager — baca (1), baca/tulis (2) | belum |
 
@@ -494,10 +543,11 @@ endpoint ini, supaya tak ada penerjemahan yang bisa salah:
 | QC selesai tepat waktu | 90% | `view=ontime&stage=QC` → `data.on_time_rate` |
 | Revisi ditekan | <5% | `view=summary` → `by_status.Revisi / total` |
 
-Sebelum bagian 3 dipasang, sebaiknya kolom status di `ACTIVITY` dirapikan dulu
-(lihat [bagian 7](#7-batas-data-hari-ini)). Kalau tidak, hal pertama yang dilakukan
-manager hampir pasti membandingkan antar bulan — dan itu justru bagian yang paling
-belum bisa dipercaya.
+Bagian 1b sudah aktif, tapi hasilnya baru terasa setelah tim bekerja beberapa waktu —
+riwayat lama tak bisa diisi mundur. Sebelum bagian 3 dipasang, periksa dulu
+`status_logging.structured_ratio` sudah cukup tinggi. Kalau masih mendekati nol,
+hal pertama yang dilakukan manager hampir pasti membandingkan antar bulan — dan itu
+justru bagian yang paling belum bisa dipercaya.
 
 ---
 

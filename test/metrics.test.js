@@ -7,6 +7,7 @@ const assert = require('assert');
 const { _internals } = require('../api/metrics');
 const {
   parseTokens, safeEqual, identify, buildCompletionMap, completionDay, dayFromStatusBy,
+  movedToDone, statusLoggingProgress,
   bucketOf, daysBetween, matchesFilters, inRange, platformParts, coverageOf, buildCaveats,
   viewSummary, viewThroughput, viewOntime, viewWorkload, viewAging, viewTasks,
 } = _internals;
@@ -85,6 +86,34 @@ eq('bucket mingguan jatuh ke Senin', bucketOf('2026-07-09', 'week'), '2026-07-06
 eq('selisih hari', daysBetween('2026-07-05', '2026-07-09'), 4);
 eq('selisih hari negatif', daysBetween('2026-07-10', '2026-07-08'), -2);
 eq('tanggal tak sah -> null', daysBetween('bukan tanggal', '2026-07-08'), null);
+
+console.log('\nKolom status terstruktur vs pembacaan teks:');
+ok('kolom terstruktur Done -> ya', movedToDone({ statusTo: 'Done', detail: '' }) === true);
+ok('kolom terstruktur huruf besar-kecil bebas', movedToDone({ statusTo: 'done', detail: '' }) === true);
+ok('kolom terstruktur bukan Done -> tidak', movedToDone({ statusTo: 'Revisi', detail: '' }) === false);
+// Kasus paling penting: baris yang PUNYA kolom terstruktur harus dipercaya penuh.
+// Kalau teks lamanya masih menyebut "Status: Done" sementara kolomnya bilang Revisi,
+// yang benar adalah kolomnya — teks itu cuma jejak kalimat lama.
+ok('kolom terstruktur mengalahkan teks yang bertentangan',
+  movedToDone({ statusTo: 'Revisi', detail: 'Apa pun • Status: Done • PIC: X' }) === false);
+ok('tanpa kolom -> jatuh ke teks', movedToDone({ statusTo: '', detail: 'Apa pun • Status: Done •' }) === true);
+ok('tanpa kolom & teks bukan Done -> tidak', movedToDone({ statusTo: '', detail: 'Apa pun • Status: Todo •' }) === false);
+ok('baris kosong aman', movedToDone({}) === false && movedToDone(null) === false);
+
+const CAMPUR = [
+  { taskId: 'A', timestamp: '2026-08-01 10:00:00', statusFrom: 'Todo', statusTo: 'Done', detail: 'x' },
+  { taskId: 'B', timestamp: '2026-07-01 10:00:00', statusFrom: '', statusTo: '', detail: 'y • Status: Done •' },
+  { taskId: 'C', timestamp: '2026-07-02 10:00:00', statusFrom: 'Done', statusTo: 'Revisi', detail: 'z • Status: Done •' },
+];
+const prog = statusLoggingProgress(CAMPUR);
+eq('terhitung terstruktur', prog.structured, 2);
+eq('terhitung masih dari teks', prog.text_only, 1);
+eq('rasio terstruktur', prog.structured_ratio, 0.667);
+const mapCampur = buildCompletionMap(CAMPUR);
+eq('A selesai dari kolom terstruktur', mapCampur.A, '2026-08-01');
+eq('B selesai dari teks (baris lama)', mapCampur.B, '2026-07-01');
+ok('C tidak dianggap selesai walau teksnya menyebut Done', mapCampur.C === undefined);
+eq('log tanpa kolom sama sekali -> semua dari teks', statusLoggingProgress(ACTIVITY).structured, 0);
 
 /* ---------------- Penyaringan ---------------- */
 console.log('\nPenyaringan:');
