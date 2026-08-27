@@ -10,6 +10,59 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.78.1 — Kerangka sheet OKR: templat, jembatan ke metrics, dan pemeriksanya
+
+Tidak ada kode aplikasi yang berubah. Isinya templat, dokumentasi, dan satu alat
+bantu di folder `okr/` — tak dipanggil dari `api/` dan tak ikut ter-deploy.
+
+Sistem OKR sengaja berdiri **di luar** task tracker: spreadsheet sendiri, milik
+manager, tak menyentuh data operasional tim. Yang menyambungkan keduanya hanya
+endpoint metrics.
+
+### Templat sheet OKR
+
+`okr/template.csv`, tinggal diimpor ke Google Sheets. Dua belas kolom, dan dua di
+antaranya jadi jembatan ke angka nyata:
+
+| Kolom | Isi |
+|---|---|
+| `Query` | Querystring endpoint metrics, mis. `view=ontime&stage=QC&from=…&to=…` |
+| `Ambil` | Jalur nilai di jawaban, mis. `data.on_time_rate` |
+
+Dipisah jadi dua kolom supaya tak ada penerjemahan yang bisa salah diam-diam.
+
+Dua kolom lain yang gampang dianggap sepele tapi menentukan: `Arah` (`naik`/`turun`
+— menentukan apakah target itu batas bawah atau batas atas) dan `Baseline` (tanpa
+ini, "55% menuju 90%" tak bermakna karena tak diketahui berangkat dari mana).
+
+Baseline di templat diisi dari **data asli** yang diukur 27 Agustus 2026, bukan
+angka karangan.
+
+Satu baris contoh sengaja dibiarkan tanpa `Query` — menandakan bahwa tidak semua
+Key Result harus terukur dari task tracker. Memaksakannya justru membuat tujuan
+dipangkas agar muat ke alat ukurnya.
+
+### Pemeriksa jembatan
+
+```bash
+METRICS_TOKEN=<token> npm run okr:check -- --sheet <ID_SHEET_OKR>
+```
+
+Query yang salah ketik tidak memunculkan error apa pun di spreadsheet — dia diam
+sampai berbulan-bulan kemudian ada yang mempertanyakan angkanya. Pemeriksa ini
+menjalankan tiap `Query` ke endpoint dan melaporkan hasilnya, menangkap view yang
+salah ketik, jalur `Ambil` yang tak ada, baris setengah terisi, format tanggal
+keliru, serta baseline atau arah yang kosong.
+
+Catatan keterbatasan dari endpoint ditampilkan **menempel pada KR-nya**, bukan
+dikumpulkan jadi satu daftar — tiap KR menyaring data yang berbeda, jadi "69%
+punya Due Date" pada satu KR dan "82%" pada KR lain sama-sama benar. Digabung,
+keduanya malah terbaca seperti saling bertentangan.
+
+Panduan lengkap: `docs/OKR.md`.
+
+---
+
 ## 1.78.0 — Fondasi data untuk sistem OKR: endpoint metrics & riwayat status terstruktur
 
 Dua tambahan di sisi backend. Tidak ada satu pun perubahan tampilan — tim tidak

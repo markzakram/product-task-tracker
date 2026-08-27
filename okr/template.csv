@@ -1,0 +1,6 @@
+ID,Periode,Objective,Key Result,Owner,Arah,Baseline,Target,Query,Ambil,Status,Catatan
+O1.KR1,Q3 2026,Kualitas eksekusi konten naik,Ketepatan waktu QC mencapai 90%,Nynda,naik,0.886,0.90,view=ontime&stage=QC&from=2026-07-01&to=2026-09-30,data.on_time_rate,,"Baseline diukur 27 Agu 2026 dari 35 task QC yang bisa dinilai — sampelnya kecil, cek caveats tiap kali"
+O1.KR2,Q3 2026,Kualitas eksekusi konten naik,Task mandek lebih dari 30 hari turun ke maksimal 8,Nynda,turun,16,8,view=aging&minDays=30,data.counted,,"Umur sebagian besar masih dihitung dari Created Date, jadi angkanya cenderung membesar"
+O2.KR1,Q3 2026,Alur kerja lintas divisi lebih lancar,Ketepatan waktu seluruh divisi mencapai 70%,Nynda,naik,0.559,0.70,view=ontime&from=2026-07-01&to=2026-09-30,data.on_time_rate,,"Baseline dari 195 task yang bisa dinilai; 163 task Done lain tak punya tanggal selesai"
+O2.KR2,Q3 2026,Alur kerja lintas divisi lebih lancar,Task selesai per kuartal mencapai 280,Nynda,naik,239,280,view=throughput&from=2026-07-01&to=2026-09-30,data.total_completed,,
+O3.KR1,Q3 2026,Tim bekerja dengan beban yang wajar,Skor survei beban kerja internal mencapai 4.2 dari 5,Nynda,naik,3.8,4.2,,,,"CONTOH KR MANUAL — kolom Query & Ambil sengaja kosong. Tidak semua hasil bisa diukur dari task tracker, dan itu wajar. Isi nilainya sendiri saat review."

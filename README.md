@@ -145,6 +145,9 @@ apa pun dan tanpa menyentuh data pribadi tim.
 
 Panduan lengkap: **[docs/METRICS.md](docs/METRICS.md)**
 
+Di atasnya dibangun sistem OKR yang berdiri terpisah — spreadsheet sendiri,
+milik manager, tak menyentuh data operasional tim: **[docs/OKR.md](docs/OKR.md)**
+
 ## Cara kerja singkat (untuk developer)
 
 - Frontend memakai pola yang sama seperti dulu: `GAS.withSuccessHandler(...).withFailureHandler(...).namaFungsi(args)`.
