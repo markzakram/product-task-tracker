@@ -936,7 +936,11 @@ async function canDeleteChecklist(taskId, actor, createdBy) {
   await loadUsers();
   if (isManagerActor(actor) || isLeaderActor(actor)) return true;
   const pembuat = baseName(createdBy);
-  return !!pembuat && pembuat === baseName(actor);
+  // Pembuat tak diketahui (item lama dgn kolom D rusak): jatuh ke siapa pun yang memang
+  // berhak mengubah ceklis task ini — PM atau PIC/Support-nya. Tanpa cadangan ini, item
+  // lama terkunci selamanya dan hanya bisa dihapus Leader/Manager.
+  if (!pembuat) return await canEditChecklist(taskId, actor);
+  return pembuat === baseName(actor);
 }
 
 async function getChecklist(taskId) {
@@ -948,7 +952,14 @@ async function getChecklist(taskId) {
       taskId: String((r && r[0]) || '').trim(),
       item: String((r && r[1]) || '').trim(),
       done: isChecked(r && r[2]),
-      createdBy: String((r && r[3]) || '').trim(),
+      // Baris lama bisa punya kolom D rusak: sebelum 1.77.0, mencentang item menimpanya
+      // dengan TEKS ITEM. Tandanya pasti (D === B), jadi dibaca sebagai "pembuat tak diketahui"
+      // — bukan ditebak jadi nama orang, karena menebak pemilik lebih berbahaya daripada mengaku
+      // tidak tahu. Izin menghapusnya lalu jatuh ke aturan cadangan di canDeleteChecklist().
+      createdBy: (function(){
+        const d = String((r && r[3]) || '').trim();
+        return d && d === String((r && r[1]) || '').trim() ? '' : d;
+      })(),
       checkedBy: String((r && r[4]) || '').trim(),
       checkedAt: stampStr(r && r[5]),
       link: String((r && r[6]) || '').trim(),   // lampiran hasil (opsional)
@@ -1086,7 +1097,10 @@ async function deleteChecklistItem(taskId, row, actor) {
   const cur = await valuesGet(`${CONFIG.CHECKLIST_SHEET}!A${row}:D${row}`);
   const owner = String((cur[0] && cur[0][0]) || '').trim();
   if (owner !== taskId) return { success: false, message: 'Item ceklis tidak cocok dengan task ini. Muat ulang.' };
-  const pembuat = String((cur[0] && cur[0][3]) || '').trim();
+  // Kolom D bisa rusak pada baris lama (tertimpa teks item sebelum 1.77.0) -> anggap
+  // pembuatnya tak diketahui, sama seperti pembacaan di getChecklist().
+  const dRaw = String((cur[0] && cur[0][3]) || '').trim();
+  const pembuat = (dRaw && dRaw === String((cur[0] && cur[0][1]) || '').trim()) ? '' : dRaw;
   if (!(await canDeleteChecklist(taskId, actor, pembuat))) {
     return { success: false, message: `Hanya ${pembuat || 'pembuat item'}, Leader, atau Manager yang bisa menghapus item ini.` };
   }

@@ -10,6 +10,36 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.77.1 — Item ceklis lama yang jejak pembuatnya rusak tak lagi terkunci
+
+Setelah 1.77.0 terpasang, PIC yang jelas-jelas membuat sendiri item ceklisnya
+tetap tidak melihat tombol hapus. Penyebabnya data lama, bukan aturan izinnya.
+
+### Apa yang rusak
+Sampai 1.76.x, fungsi `setChecklistDone` menulis rentang `C:F` sekaligus saat item
+dicentang — dan kolom **D (`Created By`)** ikut tertimpa teks item. Bug itu sudah
+ditutup di 1.77.0, tapi baris yang **terlanjur** dicentang sebelum itu jejaknya
+sudah hilang: kolom D berisi nama item, bukan nama pembuat. Karena 1.77.0 mulai
+memakai kolom D sebagai dasar izin, item-item lama itu jadi "milik" nama yang
+tidak pernah ada, dan pembuat aslinya ikut terkunci.
+
+### Perbaikannya
+Kerusakannya punya tanda yang pasti: **kolom D sama persis dengan kolom B**
+(nama pembuat tidak mungkin identik dengan teks itemnya). Baris seperti itu kini
+dibaca sebagai **pembuat tidak diketahui**, bukan dianggap milik siapa pun.
+
+Kalau pembuatnya tidak diketahui, izin hapus jatuh ke hak ubah ceklis task itu —
+yakni **PIC / Support task, Leader, dan Manager**. Orang di luar itu tetap ditolak.
+
+Berlaku di tiga tempat sekaligus supaya tak ada celah: pembacaan `getChecklist`,
+jalur `deleteChecklistItem` di backend, dan tampilan tombol di frontend.
+
+Tidak ada penulisan ke spreadsheet dan tidak ada migrasi data — murni cara membaca.
+Item yang dibuat mulai 1.77.0 menyimpan pembuatnya dengan benar, jadi ini hanya
+menyangkut baris lama.
+
+---
+
 ## 1.77.0 — Tombol simpan di kanan + hapus item Ceklis Pengerjaan
 
 ### "Simpan catatan" & "Simpan link" jadi tombol di kanan

@@ -795,7 +795,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.77.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.77.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -2726,7 +2726,8 @@ function sendModalComment(){const id=getVal('fieldId'); const msg=document.getEl
 /* ---------- Ceklis task (PM menyusun langkah/output, PIC mencentang) ----------
    Hak akses (dicerminkan juga di server):
    - Tambah item & centang : manager/Dev, atau PIC/Support task itu
-   - Hapus item            : manager/Dev SAJA (item dari PM tak bisa dihilangkan PIC)
+   - Hapus item            : Manager/Dev, Leader, atau pembuat item itu sendiri
+   -                         (item lama yang jejak pembuatnya rusak -> jatuh ke hak ubah di atas)
    Task BARU belum punya ID -> item ditampung di state._pendingChecklist dulu,
    lalu dikirim setelah task tersimpan dan ID terbit. */
 function checklistTask(){ const id=getVal('fieldId'); return id?state.tasks.find(t=>t.id===id):null; }
@@ -2742,7 +2743,12 @@ function canEditChecklist(){
 function canDeleteChecklistItem(c){
   if(isViewOnly()) return false;
   if(isManager(state.currentUser) || isLeader(state.currentUser)) return true;
-  return !!(c && c.createdBy) && same(c.createdBy, state.currentUser);
+  const pembuat=(c && c.createdBy)||'';
+  // Item lama bisa kehilangan jejak pembuatnya (kolom Created By sempat tertimpa teks item
+  // sebelum 1.77.0). Kalau tak diketahui, jatuh ke siapa pun yang berhak mengubah ceklis
+  // task ini — kalau tidak, item lama terkunci selamanya bagi PIC-nya sendiri.
+  if(!pembuat) return canEditChecklist();
+  return same(pembuat, state.currentUser);
 }
 function checklistProgress(list){ const total=list.length, done=list.filter(c=>c.done).length; return {done,total,pct: total?Math.round(done/total*100):0}; }
 function loadChecklist(id){

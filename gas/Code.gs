@@ -1174,7 +1174,10 @@ function canDeleteChecklist_(taskId, actor, createdBy) {
   if (parseCollabStep_(taskId)) return !!baseName_(actor);
   if (isManagerActor_(actor) || isLeaderActor_(actor)) return true;
   var pembuat = baseName_(createdBy);
-  return !!pembuat && pembuat === baseName_(actor);
+  // Pembuat tak diketahui (item lama dgn kolom D rusak): jatuh ke siapa pun yang berhak
+  // mengubah ceklis task ini — PM atau PIC/Support-nya.
+  if (!pembuat) return canEditChecklist_(taskId, actor);
+  return pembuat === baseName_(actor);
 }
 
 function getChecklist(taskId) {
@@ -1188,7 +1191,10 @@ function getChecklist(taskId) {
         taskId: String((r && r[0]) || '').trim(),
         item: String((r && r[1]) || '').trim(),
         done: isChecked_(r && r[2]),
-        createdBy: String((r && r[3]) || '').trim(),
+        // Kolom D bisa rusak pada baris lama (sebelum 1.77.0 mencentang menimpanya dgn
+        // TEKS ITEM). Tandanya pasti (D === B) -> dibaca sebagai "pembuat tak diketahui".
+        createdBy: (String((r && r[3]) || '').trim() === String((r && r[1]) || '').trim())
+          ? '' : String((r && r[3]) || '').trim(),
         checkedBy: String((r && r[4]) || '').trim(),
         checkedAt: stampStr_(r && r[5]),
         link: String((r && r[6]) || '').trim()   // lampiran hasil (opsional)
@@ -1322,7 +1328,10 @@ function deleteChecklistItem(taskId, row, actor) {
   var cur = valuesGet_(CONFIG.CHECKLIST_SHEET + '!A' + row + ':D' + row);
   var owner = String((cur[0] && cur[0][0]) || '').trim();
   if (owner !== taskId) return { success: false, message: 'Item ceklis tidak cocok dengan task ini. Muat ulang.' };
-  var pembuat = String((cur[0] && cur[0][3]) || '').trim();
+  // Kolom D bisa rusak pada baris lama (tertimpa teks item sebelum 1.77.0) -> anggap
+  // pembuatnya tak diketahui, sama seperti pembacaan di getChecklist().
+  var dRaw = String((cur[0] && cur[0][3]) || '').trim();
+  var pembuat = (dRaw && dRaw === String((cur[0] && cur[0][1]) || '').trim()) ? '' : dRaw;
   if (!canDeleteChecklist_(taskId, actor, pembuat)) {
     return { success: false, message: 'Hanya ' + (pembuat || 'pembuat item') + ', Leader, atau Manager yang bisa menghapus item ini.' };
   }

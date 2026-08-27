@@ -705,6 +705,16 @@ const ck3 = call('addChecklistItem', 'TSK-055', 'Item ketiga', 'Staff Data');
 const delByPm = call('deleteChecklistItem', 'TSK-055', ck3.checklist[ck3.checklist.length-1].row, 'Manager');
 eq('PM boleh hapus item ceklis task', delByPm.success, true);
 
+// Data LAMA yang rusak: sebelum 1.77.0, mencentang menimpa kolom D dgn teks item.
+// Tiru persis keadaan itu, lalu pastikan PIC tidak terkunci dari item buatannya sendiri.
+const ckLama = call('addChecklistItem', 'TSK-055', 'Item lama tercentang', 'Staff Data');
+const rowLama = ckLama.checklist[ckLama.checklist.length-1].row;
+SS.getSheetByName('CHECKLIST').getRange(rowLama, 4).setValue('Item lama tercentang'); // kolom D tertimpa
+eq('kolom D rusak dibaca sbg pembuat tak diketahui',
+  call('getChecklist', 'TSK-055').filter(function(x){return x.row===rowLama;})[0].createdBy, '');
+eq('orang luar tetap DITOLAK', call('deleteChecklistItem', 'TSK-055', rowLama, 'Staff Soal').success, false);
+eq('PIC task boleh hapus item lama itu', call('deleteChecklistItem', 'TSK-055', rowLama, 'Staff Data').success, true);
+
 const cm = call('addComment', { taskId: 'TSK-055', author: 'Manager', message: 'Halo @Staff Data tolong cek ini ya' });
 eq('tambah komentar sukses', cm.success, true);
 eq('komentar tersimpan', cm.comments.length, 1);
@@ -1244,7 +1254,9 @@ ok('ada tombol Simpan link per proses', commHtml.indexOf("onclick=\"saveCollabSt
 ok('izinnya sama dgn catatan proses (PIC boleh)', commHtml.indexOf("${editNote?`<div class=\"mt-1.5 flex justify-end\"><button type=\"button\" onclick=\"saveCollabStepLink(") >= 0);
 // Hapus item Ceklis Pengerjaan: pembuatnya, Leader, atau Manager.
 ok('izin hapus dinilai PER-ITEM', commHtml.indexOf("function canDeleteChecklistItem(c){") >= 0);
-ok('pembuat item termasuk yang boleh', commHtml.indexOf("return !!(c && c.createdBy) && same(c.createdBy, state.currentUser);") >= 0);
+ok('pembuat item termasuk yang boleh', commHtml.indexOf("return same(pembuat, state.currentUser);") >= 0);
+// Item lama bisa kehilangan jejak pembuatnya — jangan sampai terkunci selamanya.
+ok('pembuat tak diketahui -> jatuh ke hak ubah ceklis', commHtml.indexOf("if(!pembuat) return canEditChecklist();") >= 0);
 ok('Leader ikut boleh', commHtml.indexOf("if(isManager(state.currentUser) || isLeader(state.currentUser)) return true;") >= 0);
 ok('tombol hapus muncul per item', commHtml.indexOf("${(isNew||canDeleteChecklistItem(c))?`<button type=\"button\" onclick=\"removeChecklist(") >= 0);
 ok('tak ada lagi izin hapus tunggal utk seluruh daftar', !/const editable=canEditChecklist(), removable=/.test(commHtml));
