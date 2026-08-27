@@ -94,6 +94,7 @@ Di halaman import (atau **Project → Settings → Environment Variables**), tam
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | **Seluruh isi** file JSON service account, **dalam satu baris** |
 | `MANAGERS` | (opsional) daftar nama manager, pisah koma. Default `Nynda` |
 | `TIMEZONE_OFFSET_MINUTES` | (opsional) `420` = WIB, `480` = WITA, `540` = WIT |
+| `METRICS_TOKENS` | (opsional) token endpoint metrics read-only, format `nama:token` pisah koma. Lihat [docs/METRICS.md](docs/METRICS.md) |
 
 Tips mengisi `GOOGLE_SERVICE_ACCOUNT_JSON`:
 - Buka file `.json` dengan teks editor, **copy semua isinya** (termasuk tanda `{ }`),
@@ -135,6 +136,14 @@ vercel dev               # jalankan lokal; isi dulu .env.local sesuai .env.examp
 `vercel dev` akan menyajikan `public/index.html` di `/` dan menjalankan `api/rpc.js` di `/api/rpc`.
 
 ---
+
+## Endpoint metrics (read-only, untuk sistem luar)
+
+Selain `api/rpc.js` yang dipakai web app, ada `api/metrics.js` — pintu **baca-saja**
+untuk sistem lain (mis. sistem OKR manager) yang butuh angka tanpa boleh menulis
+apa pun dan tanpa menyentuh data pribadi tim.
+
+Panduan lengkap: **[docs/METRICS.md](docs/METRICS.md)**
 
 ## Cara kerja singkat (untuk developer)
 
