@@ -486,6 +486,83 @@ const VIEWS = ['summary', 'throughput', 'ontime', 'workload', 'aging', 'tasks'];
 // View yang menyaring rentang tanggal ke tanggal SELESAI, bukan Created Date.
 const RANGE_ON_COMPLETION = { throughput: 1, ontime: 1 };
 
+/**
+ * Hitung satu jawaban metrics dari sekumpulan parameter.
+ *
+ * Ini inti perhitungannya, sengaja dipisah dari lapisan HTTP supaya `api/mcp.js`
+ * bisa memakainya langsung — tanpa server memanggil dirinya sendiri lewat
+ * jaringan, yang cuma menambah latensi dan satu titik gagal baru.
+ *
+ * Melempar Error ber-`.code` (`UNKNOWN_VIEW` / `BAD_DATE`) untuk masukan yang
+ * salah; pemanggil yang menerjemahkannya jadi status HTTP atau pesan MCP.
+ */
+async function runQuery(query) {
+  const q = (query && typeof query === 'object') ? query : {};
+  const view = String(q.view || 'summary').trim() || 'summary';
+  if (!VIEWS.includes(view)) {
+    const e = new Error(`View "${view}" tidak dikenal.`);
+    e.code = 'UNKNOWN_VIEW';
+    e.available = VIEWS;
+    throw e;
+  }
+
+  const filters = readFilters(q);
+  for (const k of ['from', 'to']) {
+    if (filters[k] && !isDay(filters[k])) {
+      const e = new Error(`Parameter "${k}" harus format YYYY-MM-DD, dapat "${filters[k]}".`);
+      e.code = 'BAD_DATE';
+      throw e;
+    }
+  }
+
+  const source = await loadSource();
+  const completionMap = buildCompletionMap(source.activity);
+
+  // Saring atribut dulu, lalu rentang tanggal terhadap kolom yang sesuai view.
+  let rows = source.tasks.filter((t) => matchesFilters(t, filters));
+  const excluded = { no_completion_date: 0 };
+  if (filters.from || filters.to) {
+    if (RANGE_ON_COMPLETION[view]) {
+      // Dihitung SEBELUM penyaringan, karena setelah disaring jejaknya hilang.
+      excluded.no_completion_date = rows.filter(
+        (t) => norm(t.status) === 'done' && !completionDay(t, completionMap),
+      ).length;
+      rows = rows.filter((t) => inRange(completionDay(t, completionMap), filters));
+    } else {
+      rows = rows.filter((t) => inRange(t.createdDate, filters));
+    }
+  }
+
+  let data;
+  if (view === 'summary') data = viewSummary(rows);
+  else if (view === 'throughput') data = viewThroughput(rows, completionMap, q);
+  else if (view === 'ontime') data = viewOntime(rows, completionMap);
+  else if (view === 'workload') data = viewWorkload(rows);
+  else if (view === 'aging') data = viewAging(rows, q);
+  else data = viewTasks(rows, completionMap, q);
+
+  // Cakupan dihitung dari baris yang benar-benar dipakai, bukan seluruh sheet,
+  // supaya angkanya menjelaskan jawaban INI.
+  const coverage = coverageOf(rows, completionMap);
+
+  return {
+    ok: true,
+    view,
+    as_of: source.fetched_at,
+    from_cache: source.cached,
+    cache_age_seconds: source.age_seconds,
+    filters,
+    range_applied_to: (filters.from || filters.to)
+      ? (RANGE_ON_COMPLETION[view] ? 'completedOn' : 'createdDate')
+      : null,
+    coverage,
+    excluded,
+    status_logging: statusLoggingProgress(source.activity),
+    caveats: buildCaveats(view, filters, coverage, source, excluded),
+    data,
+  };
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
@@ -508,78 +585,28 @@ module.exports = async function handler(req, res) {
   }
 
   const query = (req.query && typeof req.query === 'object') ? req.query : {};
-  const view = String(query.view || 'summary').trim() || 'summary';
-  if (!VIEWS.includes(view)) {
-    return res.status(400).end(JSON.stringify({
-      ok: false, error: 'UNKNOWN_VIEW',
-      message: `View "${view}" tidak dikenal.`, available: VIEWS,
-    }));
-  }
-
-  const filters = readFilters(query);
-  for (const k of ['from', 'to']) {
-    if (filters[k] && !isDay(filters[k])) {
+  try {
+    return res.status(200).end(JSON.stringify(await runQuery(query)));
+  } catch (err) {
+    if (err && err.code === 'UNKNOWN_VIEW') {
       return res.status(400).end(JSON.stringify({
-        ok: false, error: 'BAD_DATE',
-        message: `Parameter "${k}" harus format YYYY-MM-DD, dapat "${filters[k]}".`,
+        ok: false, error: 'UNKNOWN_VIEW', message: err.message, available: err.available,
       }));
     }
-  }
-
-  try {
-    const source = await loadSource();
-    const completionMap = buildCompletionMap(source.activity);
-
-    // Saring atribut dulu, lalu rentang tanggal terhadap kolom yang sesuai view.
-    let rows = source.tasks.filter((t) => matchesFilters(t, filters));
-    const excluded = { no_completion_date: 0 };
-    if (filters.from || filters.to) {
-      if (RANGE_ON_COMPLETION[view]) {
-        // Dihitung SEBELUM penyaringan, karena setelah disaring jejaknya hilang.
-        excluded.no_completion_date = rows.filter(
-          (t) => norm(t.status) === 'done' && !completionDay(t, completionMap),
-        ).length;
-        rows = rows.filter((t) => inRange(completionDay(t, completionMap), filters));
-      } else {
-        rows = rows.filter((t) => inRange(t.createdDate, filters));
-      }
+    if (err && err.code === 'BAD_DATE') {
+      return res.status(400).end(JSON.stringify({ ok: false, error: 'BAD_DATE', message: err.message }));
     }
-
-    let data;
-    if (view === 'summary') data = viewSummary(rows);
-    else if (view === 'throughput') data = viewThroughput(rows, completionMap, query);
-    else if (view === 'ontime') data = viewOntime(rows, completionMap);
-    else if (view === 'workload') data = viewWorkload(rows);
-    else if (view === 'aging') data = viewAging(rows, query);
-    else data = viewTasks(rows, completionMap, query);
-
-    // Cakupan dihitung dari baris yang benar-benar dipakai, bukan seluruh sheet,
-    // supaya angkanya menjelaskan jawaban INI.
-    const coverage = coverageOf(rows, completionMap);
-
-    return res.status(200).end(JSON.stringify({
-      ok: true,
-      view,
-      as_of: source.fetched_at,
-      from_cache: source.cached,
-      cache_age_seconds: source.age_seconds,
-      filters,
-      range_applied_to: (filters.from || filters.to)
-        ? (RANGE_ON_COMPLETION[view] ? 'completedOn' : 'createdDate')
-        : null,
-      coverage,
-      excluded,
-      status_logging: statusLoggingProgress(source.activity),
-      caveats: buildCaveats(view, filters, coverage, source, excluded),
-      data,
-    }));
-  } catch (err) {
-    console.error('[metrics] view=%s caller=%s error:', view, auth.label, err && err.stack ? err.stack : err);
+    console.error('[metrics] view=%s caller=%s error:', query.view, auth.label, err && err.stack ? err.stack : err);
     return res.status(500).end(JSON.stringify({
       ok: false, error: 'SERVER', message: String((err && err.message) || err),
     }));
   }
 };
+
+// Dipakai api/mcp.js — inti perhitungan tanpa lapisan HTTP.
+module.exports.runQuery = runQuery;
+module.exports.identify = identify;
+module.exports.VIEWS = VIEWS;
 
 // Diekspor untuk pengujian — tidak dipakai jalur HTTP.
 module.exports._internals = {

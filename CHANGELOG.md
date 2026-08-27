@@ -10,6 +10,72 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.79.0 — MCP server: Claude di device manager bisa ditanyai langsung
+
+Bagian terakhir dari rangkaian. `api/mcp.js` menyatukan dua sumber — metrik task
+tracker dan sheet OKR — jadi satu MCP server, sehingga manager bisa bertanya
+dengan bahasa biasa alih-alih menjalankan perintah dari terminal.
+
+Tak ada perubahan tampilan aplikasi. Tim tidak akan melihat bedanya.
+
+### Kenapa server, bukan program yang dipasang di perangkat
+
+Protokolnya lewat Streamable HTTP, jadi device manapun cukup menempelkan URL.
+Tak ada yang perlu diinstal di perangkat manager, tak ada kredensial Google yang
+turun ke sana, dan perbaikan cukup di-deploy sekali untuk semua device.
+
+### Batas kemampuannya
+
+| Terhadap | Kemampuan | Ditegakkan oleh |
+|---|---|---|
+| Task tracker | baca saja | Hanya lewat `runQuery()` — tak ada jalur tulis |
+| Sheet OKR | baca saja | Scope `spreadsheets.readonly` |
+| Catatan pribadi | tak terjangkau | `metrics.js` hanya menyentuh `Main` & `ACTIVITY` |
+
+Baris kedua bukan sekadar niat baik: scope `readonly` ditegakkan Google, jadi
+salah kode sekalipun tak bisa merusak sheet OKR manager. Konsekuensinya manager
+tetap menyunting OKR-nya langsung di Google Sheets — pilihan sadar untuk versi
+pertama.
+
+Tokennya sama dengan endpoint metrics, jadi mencabut satu baris di
+`METRICS_TOKENS` menutup dua-duanya sekaligus.
+
+### Delapan tool
+
+Enam untuk task — `task_summary`, `task_throughput`, `task_ontime`,
+`task_workload`, `task_aging`, `task_list` — dan dua untuk OKR: `okr_list` dan
+`okr_progress`.
+
+`okr_progress` adalah intinya: menjalankan kolom `Query`/`Ambil` tiap Key Result
+ke data task, lalu membandingkan hasilnya terhadap baseline dan target. Tiap KR
+ditandai `auto`, `manual`, atau `error` — KR yang memang diukur di luar task
+tracker dilaporkan apa adanya sebagai tak berangka, **bukan dikarang jadi nol**.
+
+### Caveats dibawa sampai ke percakapan
+
+Deskripsi tiap tool memuat instruksi agar Claude selalu menyampaikan `caveats`
+bersama angkanya, dan `initialize` mengulang instruksi yang sama di tingkat
+server. Jadi yang sampai ke manager bukan "55,7%" telanjang, melainkan 55,7%
+beserta catatan bahwa 163 task Done tak terhitung karena tanggal selesainya tak
+diketahui.
+
+### Perubahan di metrics.js
+
+Inti perhitungan dipisah jadi `runQuery()`, terlepas dari lapisan HTTP-nya.
+Dengan begitu `api/mcp.js` memakainya langsung tanpa server memanggil dirinya
+sendiri lewat jaringan — yang cuma menambah latensi dan satu titik gagal baru.
+Perilaku endpoint HTTP tidak berubah sama sekali.
+
+### Setup
+
+Satu variabel baru: `OKR_SHEET_ID` (dan opsional `OKR_SHEET_TAB`, default `OKR`).
+Tanpa itu tool `task_*` tetap jalan normal; hanya `okr_*` yang gagal, dengan
+pesan yang menyebutkan apa yang kurang.
+
+Panduan lengkap: `docs/MCP.md`.
+
+---
+
 ## 1.78.1 — Kerangka sheet OKR: templat, jembatan ke metrics, dan pemeriksanya
 
 Tidak ada kode aplikasi yang berubah. Isinya templat, dokumentasi, dan satu alat

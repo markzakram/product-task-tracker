@@ -148,6 +148,9 @@ Panduan lengkap: **[docs/METRICS.md](docs/METRICS.md)**
 Di atasnya dibangun sistem OKR yang berdiri terpisah — spreadsheet sendiri,
 milik manager, tak menyentuh data operasional tim: **[docs/OKR.md](docs/OKR.md)**
 
+Dan  menyatukan keduanya jadi MCP server, supaya Claude di device
+manager bisa ditanyai dengan bahasa biasa: **[docs/MCP.md](docs/MCP.md)**
+
 ## Cara kerja singkat (untuk developer)
 
 - Frontend memakai pola yang sama seperti dulu: `GAS.withSuccessHandler(...).withFailureHandler(...).namaFungsi(args)`.

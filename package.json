@@ -5,11 +5,12 @@
   "description": "Product Task Tracker — UI statis + Vercel serverless API yang menulis ke Google Spreadsheet yang sama (pengganti deploy Apps Script).",
   "scripts": {
     "dev": "vercel dev",
-    "test": "node test/logic.test.js && node test/vercel-users.test.js && node test/gas.test.js && node test/metrics.test.js",
+    "test": "node test/logic.test.js && node test/vercel-users.test.js && node test/gas.test.js && node test/metrics.test.js && node test/mcp.test.js",
     "test:logic": "node test/logic.test.js",
     "test:vercel": "node test/vercel-users.test.js",
     "test:gas": "node test/gas.test.js",
     "test:metrics": "node test/metrics.test.js",
+    "test:mcp": "node test/mcp.test.js",
     "okr:check": "node okr/check.js"
   },
   "dependencies": {
