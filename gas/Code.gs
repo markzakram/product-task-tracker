@@ -1167,9 +1167,14 @@ function canEditChecklist_(taskId, actor) {
 // Boleh menghapus item:
 //  - Sub-ceklis kolaborasi: FLEKSIBEL.
 //  - Ceklis task biasa: manager/Dev SAJA (item dari PM tak boleh dihapus PIC).
-function canDeleteChecklist_(taskId, actor) {
+/* Boleh menghapus item ceklis?
+   - Sub-ceklis kolaborasi: fleksibel, seperti aturan mencentangnya.
+   - Ceklis task biasa: Manager, Leader, ATAU orang yang MEMBUAT item itu. */
+function canDeleteChecklist_(taskId, actor, createdBy) {
   if (parseCollabStep_(taskId)) return !!baseName_(actor);
-  return isManagerActor_(actor);
+  if (isManagerActor_(actor) || isLeaderActor_(actor)) return true;
+  var pembuat = baseName_(createdBy);
+  return !!pembuat && pembuat === baseName_(actor);
 }
 
 function getChecklist(taskId) {
@@ -1257,8 +1262,10 @@ function setChecklistDone(taskId, row, done, actor) {
   var cur = valuesGet_(CONFIG.CHECKLIST_SHEET + '!A' + row + ':B' + row);
   var owner = String((cur[0] && cur[0][0]) || '').trim();
   if (owner !== taskId) return { success: false, message: 'Item ceklis tidak cocok dengan task ini. Muat ulang.' };
-  valuesUpdate_(CONFIG.CHECKLIST_SHEET + '!C' + row + ':F' + row,
-    [[val ? 'TRUE' : 'FALSE', String((cur[0] && cur[0][1]) || ''), val ? actor : '', val ? nowStamp_() : '']]);
+  // JANGAN menulis kolom D di sini — itu "Created By". Menulis rentang C:F sekaligus dulu
+  // menimpanya dengan teks item, sehingga pembuat item hilang setiap kali dicentang.
+  valuesUpdate_(CONFIG.CHECKLIST_SHEET + '!C' + row, [[val ? 'TRUE' : 'FALSE']]);
+  valuesUpdate_(CONFIG.CHECKLIST_SHEET + '!E' + row + ':F' + row, [[val ? actor : '', val ? nowStamp_() : '']]);
   var list = getChecklist(taskId);
   var out = { success: true, message: val ? 'Item dicentang.' : 'Centang dibatalkan.', checklist: list };
   if (restampCollabStep_(taskId, list, actor)) { out.collabs = getCollabs(); out.stepRestamped = true; }
@@ -1311,10 +1318,14 @@ function deleteChecklistItem(taskId, row, actor) {
   row = parseInt(row, 10);
   actor = String(actor || '').trim() || 'Unknown';
   if (!row || row < 2) return { success: false, message: 'Baris tidak valid.' };
-  if (!canDeleteChecklist_(taskId, actor)) return { success: false, message: 'Anda tak berhak menghapus item ceklis ini.' };
-  var cur = valuesGet_(CONFIG.CHECKLIST_SHEET + '!A' + row + ':B' + row);
+  // Baca dulu barisnya: izin menghapus bergantung SIAPA yang membuat item itu.
+  var cur = valuesGet_(CONFIG.CHECKLIST_SHEET + '!A' + row + ':D' + row);
   var owner = String((cur[0] && cur[0][0]) || '').trim();
   if (owner !== taskId) return { success: false, message: 'Item ceklis tidak cocok dengan task ini. Muat ulang.' };
+  var pembuat = String((cur[0] && cur[0][3]) || '').trim();
+  if (!canDeleteChecklist_(taskId, actor, pembuat)) {
+    return { success: false, message: 'Hanya ' + (pembuat || 'pembuat item') + ', Leader, atau Manager yang bisa menghapus item ini.' };
+  }
   if (!sheet_(CONFIG.CHECKLIST_SHEET, false)) return { success: false, message: 'Sheet CHECKLIST tidak ditemukan.' };
   deleteRows_(CONFIG.CHECKLIST_SHEET, [row]);
   logActivity_(actor, 'Checklist Delete', taskId, String((cur[0] && cur[0][1]) || ''));

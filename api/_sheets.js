@@ -926,11 +926,17 @@ async function canEditChecklist(taskId, actor) {
 // Boleh menghapus item.
 //  - Sub-ceklis proses kolaborasi: FLEKSIBEL — siapa pun boleh.
 //  - Ceklis task biasa: manager/Dev SAJA (item dari PM tak boleh dihilangkan PIC).
-async function canDeleteChecklist(taskId, actor) {
+/* Boleh menghapus item ceklis?
+   - Sub-ceklis kolaborasi: fleksibel, seperti aturan mencentangnya.
+   - Ceklis task biasa: Manager, Leader, ATAU orang yang MEMBUAT item itu. Pembuatnya perlu
+     bisa membereskan salah ketiknya sendiri; sebelumnya hanya manager, jadi PIC terpaksa
+     menitip hapus. Item buatan orang lain tetap tak bisa dihapus sembarang PIC. */
+async function canDeleteChecklist(taskId, actor, createdBy) {
   if (parseCollabStep(taskId)) return !!baseName(actor);
   await loadUsers();
-  if (isManagerActor(actor)) return true;
-  return false;
+  if (isManagerActor(actor) || isLeaderActor(actor)) return true;
+  const pembuat = baseName(createdBy);
+  return !!pembuat && pembuat === baseName(actor);
 }
 
 async function getChecklist(taskId) {
@@ -1017,8 +1023,10 @@ async function setChecklistDone(taskId, row, done, actor) {
   const cur = await valuesGet(`${CONFIG.CHECKLIST_SHEET}!A${row}:B${row}`);
   const owner = String((cur[0] && cur[0][0]) || '').trim();
   if (owner !== taskId) return { success: false, message: 'Item ceklis tidak cocok dengan task ini. Muat ulang.' };
-  await valuesUpdate(`${CONFIG.CHECKLIST_SHEET}!C${row}:F${row}`,
-    [[val ? 'TRUE' : 'FALSE', String((cur[0] && cur[0][1]) || ''), val ? actor : '', val ? nowStamp() : '']]);
+  // JANGAN menulis kolom D di sini — itu "Created By". Menulis rentang C:F sekaligus dulu
+  // menimpanya dengan teks item, sehingga pembuat item hilang setiap kali dicentang.
+  await valuesUpdate(`${CONFIG.CHECKLIST_SHEET}!C${row}`, [[val ? 'TRUE' : 'FALSE']]);
+  await valuesUpdate(`${CONFIG.CHECKLIST_SHEET}!E${row}:F${row}`, [[val ? actor : '', val ? nowStamp() : '']]);
   const list = await getChecklist(taskId);
   const restamped = await restampCollabStep(taskId, list, actor);
   return {
@@ -1074,10 +1082,14 @@ async function deleteChecklistItem(taskId, row, actor) {
   row = parseInt(row, 10);
   actor = String(actor || '').trim() || 'Unknown';
   if (!row || row < 2) return { success: false, message: 'Baris tidak valid.' };
-  if (!(await canDeleteChecklist(taskId, actor))) return { success: false, message: 'Anda tak berhak menghapus item ceklis ini.' };
-  const cur = await valuesGet(`${CONFIG.CHECKLIST_SHEET}!A${row}:B${row}`);
+  // Baca dulu barisnya: izin menghapus bergantung SIAPA yang membuat item itu.
+  const cur = await valuesGet(`${CONFIG.CHECKLIST_SHEET}!A${row}:D${row}`);
   const owner = String((cur[0] && cur[0][0]) || '').trim();
   if (owner !== taskId) return { success: false, message: 'Item ceklis tidak cocok dengan task ini. Muat ulang.' };
+  const pembuat = String((cur[0] && cur[0][3]) || '').trim();
+  if (!(await canDeleteChecklist(taskId, actor, pembuat))) {
+    return { success: false, message: `Hanya ${pembuat || 'pembuat item'}, Leader, atau Manager yang bisa menghapus item ini.` };
+  }
   const meta = await getSheetMeta();
   const sheetId = meta[CONFIG.CHECKLIST_SHEET] && meta[CONFIG.CHECKLIST_SHEET].sheetId;
   if (sheetId == null) return { success: false, message: 'Sheet CHECKLIST tidak ditemukan.' };

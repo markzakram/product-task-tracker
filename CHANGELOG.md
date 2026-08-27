@@ -10,6 +10,41 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.77.0 — Tombol simpan di kanan + hapus item Ceklis Pengerjaan
+
+### "Simpan catatan" & "Simpan link" jadi tombol di kanan
+Sebelumnya keduanya tautan teks kecil di kiri — mudah terlewat dan tak terbaca sebagai aksi.
+Kini tombol indigo bertulisan putih dengan ikon, rata **kanan** di panel prosesnya.
+
+### Menghapus item Ceklis Pengerjaan
+Sebelumnya **hanya Manager**. Sekarang boleh dilakukan oleh:
+
+| Siapa | Boleh menghapus |
+|---|---|
+| **Pembuat item** | item buatannya sendiri |
+| **Leader** | item siapa pun |
+| **Manager / Dev** | item siapa pun |
+| Orang lain | tidak — pesannya menyebut siapa pembuatnya |
+
+Izinnya dinilai **per item**, bukan sekali untuk seluruh daftar, karena bergantung pada siapa
+yang membuatnya. Tombol hapus hanya muncul pada baris yang memang boleh dihapus, dan ada
+konfirmasi sebelum menghapus. Ditegakkan di **kedua backend**, bukan sekadar menyembunyikan
+tombolnya.
+
+### Bug lama yang tersingkap: mencentang menghapus jejak pembuat
+Aturan baru di atas sempat tak berfungsi, dan penyebabnya bukan aturannya.
+`setChecklistDone` menulis rentang **C:F** sekaligus dengan isi
+`[done, item, checkedBy, checkedAt]` — padahal **kolom D adalah `Created By`**. Jadi setiap
+kali item dicentang, nama pembuatnya **tertimpa oleh teks item itu sendiri**.
+
+Selama ini tak terasa karena `createdBy` tidak dipakai untuk apa pun. Begitu dipakai sebagai
+dasar izin, kerusakannya langsung terlihat. Sekarang penulisannya dipisah: kolom C untuk
+status centang, kolom E:F untuk pencentang & waktunya — **kolom D tidak pernah disentuh**.
+
+Ditambahkan tes yang memastikan `createdBy` bertahan setelah item dicentang.
+
+---
+
 ## 1.76.2 — Perbaikan: menu notifikasi tenggelam di bawah kartu task
 
 Membuka lonceng notifikasi menampilkan menunya **di belakang** kartu task, jadi isinya

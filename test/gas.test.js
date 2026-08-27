@@ -690,9 +690,19 @@ eq('checkedBy tercatat', setCk.checklist[0].checkedBy, 'Staff Data');
 ok('checkedAt rapi', /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(setCk.checklist[0].checkedAt));
 const ckOutsider = call('addChecklistItem', 'TSK-055', 'Item dari orang luar', 'Leader Sistem');
 eq('non-PIC tidak boleh tambah ceklis task', ckOutsider.success, false);
+// v1.77.0: yang boleh menghapus item = pembuatnya, Leader, atau Manager.
+// Mencentang TIDAK boleh menghapus jejak pembuat (dulu kolom D tertimpa teks item).
+eq('createdBy bertahan setelah dicentang', call('getChecklist', 'TSK-055')[0].createdBy, 'Staff Data');
+const delOrangLain = call('deleteChecklistItem', 'TSK-055', ckRow, 'Staff Soal');
+eq('bukan pembuat & bukan Leader/Manager: DITOLAK', delOrangLain.success, false);
+ok('pesannya menyebut pembuatnya', /Staff Data/.test(delOrangLain.message));
 const delByPic = call('deleteChecklistItem', 'TSK-055', ckRow, 'Staff Data');
-eq('PIC tidak boleh hapus item ceklis task', delByPic.success, false);
-const delByPm = call('deleteChecklistItem', 'TSK-055', ckRow, 'Manager');
+eq('pembuat item BOLEH menghapusnya', delByPic.success, true);
+// Leader & Manager tetap boleh menghapus item buatan siapa pun.
+const ck2 = call('addChecklistItem', 'TSK-055', 'Item kedua', 'Staff Data');
+eq('Leader boleh hapus item orang lain', call('deleteChecklistItem', 'TSK-055', ck2.checklist[ck2.checklist.length-1].row, 'Leader Sistem').success, true);
+const ck3 = call('addChecklistItem', 'TSK-055', 'Item ketiga', 'Staff Data');
+const delByPm = call('deleteChecklistItem', 'TSK-055', ck3.checklist[ck3.checklist.length-1].row, 'Manager');
 eq('PM boleh hapus item ceklis task', delByPm.success, true);
 
 const cm = call('addComment', { taskId: 'TSK-055', author: 'Manager', message: 'Halo @Staff Data tolong cek ini ya' });
@@ -1231,7 +1241,19 @@ ok('baris Task List punya ikon dokumen', commHtml.indexOf("linkIcon(t.document,'
 ok('link proses TIDAK lagi di editor manager', commHtml.indexOf('class="cs-link') < 0);
 ok('panel proses jadi satu-satunya pintu link', commHtml.indexOf("id=\"collab-steplink-${s.order}\"") >= 0);
 ok('ada tombol Simpan link per proses', commHtml.indexOf("onclick=\"saveCollabStepLink(${s.order})\"") >= 0);
-ok('izinnya sama dgn catatan proses (PIC boleh)', commHtml.indexOf("${editNote?`<button type=\"button\" onclick=\"saveCollabStepLink(") >= 0);
+ok('izinnya sama dgn catatan proses (PIC boleh)', commHtml.indexOf("${editNote?`<div class=\"mt-1.5 flex justify-end\"><button type=\"button\" onclick=\"saveCollabStepLink(") >= 0);
+// Hapus item Ceklis Pengerjaan: pembuatnya, Leader, atau Manager.
+ok('izin hapus dinilai PER-ITEM', commHtml.indexOf("function canDeleteChecklistItem(c){") >= 0);
+ok('pembuat item termasuk yang boleh', commHtml.indexOf("return !!(c && c.createdBy) && same(c.createdBy, state.currentUser);") >= 0);
+ok('Leader ikut boleh', commHtml.indexOf("if(isManager(state.currentUser) || isLeader(state.currentUser)) return true;") >= 0);
+ok('tombol hapus muncul per item', commHtml.indexOf("${(isNew||canDeleteChecklistItem(c))?`<button type=\"button\" onclick=\"removeChecklist(") >= 0);
+ok('tak ada lagi izin hapus tunggal utk seluruh daftar', !/const editable=canEditChecklist(), removable=/.test(commHtml));
+ok('penghapusan dikonfirmasi dulu', commHtml.indexOf("if(!confirm('Hapus item \"'+((it&&it.item)||'')+'\" dari ceklis?')) return;") >= 0);
+
+// Simpan catatan & link berupa TOMBOL di kanan, bukan tautan teks di kiri.
+ok('Simpan catatan jadi tombol kanan', commHtml.indexOf("${editNote?`<div class=\"mt-1.5 flex justify-end\"><button type=\"button\" onclick=\"saveCollabStepNote(") >= 0);
+ok('keduanya bergaya tombol', commHtml.indexOf("rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold shadow-sm") >= 0);
+ok('tak ada lagi tautan teks hover:underline utk simpan', !/onclick="saveCollabStep(Note|Link)(${s.order})" class="mt-1 text-[11px] font-semibold text-indigo-600 hover:underline"/.test(commHtml));
 ok('aksi setCollabStepLink terdaftar', commHtml.indexOf("'setCollabStepNote','setCollabStepLink'") >= 0);
 ok('baris proses menampilkan tautannya', commHtml.indexOf("s.link?linkIcon(s.link,'Buka hasil proses ini'):''") >= 0);
 ok('sub-item bisa dilampiri link', commHtml.indexOf("function promptSubLink(order, row){") >= 0);

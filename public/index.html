@@ -795,7 +795,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.76.2'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.77.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -2737,7 +2737,13 @@ function canEditChecklist(){
   if(!canEditTask(t)) return false;                     // task lintas divisi: manager saja
   return isManager(state.currentUser) || ownsTask(t,state.currentUser);
 }
-function canDeleteChecklist(){ return !isViewOnly() && isManager(state.currentUser); }
+/* Boleh menghapus SATU item ceklis task: Manager, Leader, atau pembuat item itu sendiri.
+   Dinilai per-item karena bergantung siapa yang membuatnya — bukan sekali untuk seluruh daftar. */
+function canDeleteChecklistItem(c){
+  if(isViewOnly()) return false;
+  if(isManager(state.currentUser) || isLeader(state.currentUser)) return true;
+  return !!(c && c.createdBy) && same(c.createdBy, state.currentUser);
+}
 function checklistProgress(list){ const total=list.length, done=list.filter(c=>c.done).length; return {done,total,pct: total?Math.round(done/total*100):0}; }
 function loadChecklist(id){
   if(!id){ state.checklist=[]; renderChecklist(); return; }
@@ -2769,7 +2775,7 @@ function renderChecklist(){
   const addRow=document.getElementById('checklistAddRow'); if(addRow) addRow.classList.toggle('hide', !canEditChecklist());
   const target=document.getElementById('checklistItems'); if(!target) return;
   if(!list.length){ target.innerHTML=`<div class="px-2 py-4 text-center text-xs text-gray-400">Belum ada item. PM bisa menuliskan langkah / output yang diharapkan.</div>`; return; }
-  const editable=canEditChecklist(), removable=canDeleteChecklist();
+  const editable=canEditChecklist();
   target.innerHTML=list.map((c,i)=>{
     const key=isNew?String(i):String(c.row);
     const meta=(c.done&&c.checkedBy)?`<span class="text-[10px] text-gray-400 shrink-0">${escapeHtml(c.checkedBy)}</span>`:'';
@@ -2779,7 +2785,7 @@ function renderChecklist(){
       ${meta}
       ${c.link?linkIcon(c.link,'Buka hasil item ini'):''}
       ${(editable&&!isNew)?`<button type="button" onclick="promptChecklistLink('${escapeAttr(key)}')" title="${c.link?'Ubah/hapus link hasil':'Lampirkan link hasil (opsional)'}" class="shrink-0 ${c.link?'text-indigo-400 hover:text-indigo-600':'opacity-0 group-hover:opacity-100 transition text-gray-300 hover:text-indigo-600'}"><span class="material-icons-round text-[15px]">link</span></button>`:''}
-      ${removable?`<button type="button" onclick="removeChecklist('${escapeAttr(key)}')" title="Hapus item" class="shrink-0 opacity-0 group-hover:opacity-100 transition text-gray-300 hover:text-rose-500"><span class="material-icons-round text-[16px]">close</span></button>`:''}
+      ${(isNew||canDeleteChecklistItem(c))?`<button type="button" onclick="removeChecklist('${escapeAttr(key)}')" title="${isNew?'Hapus item':'Hapus item (Anda pembuatnya / Leader / Manager)'}" class="shrink-0 opacity-0 group-hover:opacity-100 transition text-gray-300 hover:text-rose-500"><span class="material-icons-round text-[16px]">close</span></button>`:''}
     </div>`;
   }).join('');
 }
@@ -2826,7 +2832,9 @@ function toggleChecklist(key, done){
 function removeChecklist(key){
   const id=getVal('fieldId');
   if(!id){ const i=parseInt(key,10); (state._pendingChecklist||[]).splice(i,1); renderChecklist(); return; }
-  if(!canDeleteChecklist()){ showToast('Hanya PM/Dev yang bisa menghapus item ceklis.', false); return; }
+  const it=(state.checklist||[]).find(x=>String(x.row)===String(key));
+  if(!canDeleteChecklistItem(it)){ showToast('Hanya pembuat item, Leader, atau Manager yang bisa menghapusnya.', false); return; }
+  if(!confirm('Hapus item "'+((it&&it.item)||'')+'" dari ceklis?')) return;
   GAS.withSuccessHandler(res=>{
     if(!res||!res.success){ showToast((res&&res.message)||'Gagal menghapus item', false); return; }
     state.checklist=res.checklist||[]; syncChecklistSummary(id); renderChecklist(); renderAll();
@@ -3177,7 +3185,7 @@ function renderCollabSteps(c){
         <div>
           <div class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Catatan proses</div>
           <textarea id="collab-note-${s.order}" ${editNote?'':'readonly'} rows="2" class="w-full rounded bg-gray-100 dark:bg-slate-800 px-2 py-1 text-xs outline-none ${editNote?'':'opacity-70'}" placeholder="${editNote?'mis. butuh tambahan deadline…':'(belum ada catatan)'}">${escapeHtml(s.note||'')}</textarea>
-          ${editNote?`<button type="button" onclick="saveCollabStepNote(${s.order})" class="mt-1 text-[11px] font-semibold text-indigo-600 hover:underline">Simpan catatan</button>`:''}
+          ${editNote?`<div class="mt-1.5 flex justify-end"><button type="button" onclick="saveCollabStepNote(${s.order})" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan catatan</button></div>`:''}
           <!-- Link hasil per proses: izinnya sama dengan catatan, jadi PIC yang mengerjakan
                bisa menautkan hasilnya sendiri tanpa menunggu manager membuka mode Edit. -->
           <div class="mt-2">
@@ -3186,7 +3194,7 @@ function renderCollabSteps(c){
               <input id="collab-steplink-${s.order}" ${editNote?'':'disabled'} value="${escapeAttr(s.link||'')}" placeholder="${editNote?'Tempel link hasil pengerjaan…':'(belum ada link)'}" class="flex-1 min-w-0 rounded bg-gray-100 dark:bg-slate-800 px-2 py-1 text-xs outline-none ${editNote?'':'opacity-60'}">
               ${s.link?linkIcon(s.link,'Buka hasil proses ini'):''}
             </div>
-            ${editNote?`<button type="button" onclick="saveCollabStepLink(${s.order})" class="mt-1 text-[11px] font-semibold text-indigo-600 hover:underline">Simpan link</button>`:''}
+            ${editNote?`<div class="mt-1.5 flex justify-end"><button type="button" onclick="saveCollabStepLink(${s.order})" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan link</button></div>`:''}
           </div>
         </div>
         <div>
