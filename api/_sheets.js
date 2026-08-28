@@ -1316,12 +1316,24 @@ function packageFilled(p) {
   };
 }
 
-// Siapa boleh mengubah sisi mana. Manager/Leader bebas; selain itu harus PIC area itu.
-function canEditPackageArea(pkg, area, actor) {
+// Siapa boleh mengubah sisi mana. Manager/Leader bebas; kalau area sudah bertuan,
+// hanya PIC-nya. Kalau BELUM bertuan, siapa pun yang jadi PIC proses di collab itu boleh
+// mulai mengisi — tanpa ini paket baru jadi jalan buntu: tak ada PIC area, jadi cuma
+// manager yang bisa menyentuh, sementara yang mengerjakan justru staff-nya.
+function canEditPackageArea(pkg, area, actor, terlibat) {
   const a = baseName(actor); if (!a) return false;
   if (isManagerActor(actor) || isLeaderActor(actor)) return true;
   const pic = baseName(area === 'marsel' ? (pkg && pkg.marselPic) : (pkg && pkg.produkPic));
-  return !!pic && pic === a;
+  if (!pic) return !!terlibat;
+  return pic === a;
+}
+
+// Apakah actor memegang salah satu proses di collab ini (termasuk PIC berbentuk peran).
+async function isCollabParticipant(collabId, actor) {
+  if (!baseName(actor)) return false;
+  let srows = [];
+  try { srows = await valuesGet(`${CONFIG.COLLAB_STEP_SHEET}!A2:D`); } catch (e) { return false; }
+  return srows.some(r => String((r && r[0]) || '').trim() === collabId && canCheckStep((r && r[3]) || '', actor, false));
 }
 
 async function readPackages(prePkg, preVar) {
@@ -1364,8 +1376,9 @@ async function savePackage(collabId, payload, actor) {
   const semua = await readPackages();
   const lama = semua[collabId] || emptyPackage(collabId);
   const baru = Object.assign({}, lama);
-  const bolehMarsel = canEditPackageArea(lama, 'marsel', actor);
-  const bolehProduk = canEditPackageArea(lama, 'produk', actor);
+  const terlibat = await isCollabParticipant(collabId, actor);
+  const bolehMarsel = canEditPackageArea(lama, 'marsel', actor, terlibat);
+  const bolehProduk = canEditPackageArea(lama, 'produk', actor, terlibat);
   const bos = isManagerActor(actor) || isLeaderActor(actor);
   let sentuh = 0;
   if (payload.marsel) {

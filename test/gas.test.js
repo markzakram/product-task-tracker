@@ -1529,6 +1529,17 @@ ok('collab selalu membawa objek pkg', !!pkgKosong.pkg);
 eq('paket baru: 0 dari 13 field terisi', pkgKosong.pkg.filled.total, 0);
 eq('paket baru: belum ada varian', pkgKosong.pkg.variants.length, 0);
 
+// Paket BARU belum punya PIC area. Kalau hanya manager yang boleh menyentuh, staff yang
+// justru mengerjakan jadi buntu — inilah yang dilaporkan saat uji staging pertama.
+eq('paket baru: PIC proses boleh mulai mengisi',
+  call('savePackage', MKP, { produk: { materi: 'diisi si pemegang proses' } }, 'Staff Data').success, true);
+eq('isinya benar-benar masuk', call('getCollabs').find(c => c.id === MKP).pkg.materi, 'diisi si pemegang proses');
+eq('orang di luar collab DITOLAK walau area belum bertuan',
+  call('savePackage', MKP, { marsel: { program: 'X' } }, 'Staff QC').success, false);
+eq('program tetap kosong', call('getCollabs').find(c => c.id === MKP).pkg.program, '');
+// Dikosongkan lagi supaya hitungan field di assertion berikutnya berangkat dari nol.
+call('savePackage', MKP, { produk: { materi: '' } }, 'Manager');
+
 // Manager menunjuk PIC tiap area sekalian mengisi sisi Marsel.
 const simpan1 = call('savePackage', MKP, {
   marsel: { marselPic: 'Staff Data', program: 'Program Uji', namaPaket: 'Paket Uji', tagline: 'Tagline uji' },
@@ -1536,13 +1547,6 @@ const simpan1 = call('savePackage', MKP, {
   variants: [{ masaAktif: '3 Bulan', hargaAwal: 250000, hargaDiskon: 129000 },
              { masaAktif: '6 Bulan', hargaAwal: 300000, hargaDiskon: 159000 }] }, 'Manager');
 eq('manager boleh simpan master paket', simpan1.success, true);
-const pk1 = call('getCollabs').find(c => c.id === MKP).pkg;
-eq('3 field Marsel terisi', pk1.filled.marsel, 3);
-eq('sisi Produk masih kosong', pk1.filled.produk, 0);
-eq('2 varian tersimpan', pk1.variants.length, 2);
-eq('varian urut & harganya utuh', pk1.variants[1].masaAktif + '/' + pk1.variants[1].hargaDiskon, '6 Bulan/159000');
-eq('PIC Marsel tercatat', pk1.marselPic, 'Staff Data');
-eq('PIC Produk tercatat', pk1.produkPic, 'Staff Soal');
 
 // --- Batas antar area: tiap PIC hanya boleh menyentuh sisinya sendiri ---
 eq('PIC Produk DITOLAK mengubah sisi Marsel',

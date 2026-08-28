@@ -798,7 +798,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.81.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.81.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3161,13 +3161,22 @@ const PKG_FIELDS={
 // namanya yang dicocokkan, supaya statusnya punya nama pengerja dan tanggal.
 const PKG_GATES=['Input Fitur','QC VOC'];
 function pkgOf(c){ return (c && c.pkg) || null; }
-function pkgGateStep(c,nama){ return ((c&&c.steps)||[]).find(s=>same(s.name,nama))||null; }
+// Pencocokan nama proses gate sengaja pemaaf: "Input Fitur ke app" tetap dikenali.
+// Menuntut nama persis cuma membuat orang menebak-nebak ejaan yang benar.
+function pkgNorm(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
+function pkgGateStep(c,nama){
+  const g=pkgNorm(nama);
+  return ((c&&c.steps)||[]).find(s=>pkgNorm(s.name).indexOf(g)>=0)||null;
+}
+// Cermin aturan server. Area yang BELUM punya PIC boleh diisi siapa pun yang memegang
+// proses di collab ini — kalau tidak, paket baru jadi jalan buntu bagi yang mengerjakan.
 function canEditPkgArea(c,area){
   if(isViewOnly()) return false;
   if(isManager(state.currentUser) || isLeader(state.currentUser)) return true;
   const p=pkgOf(c); if(!p) return false;
-  const pic=area==='marsel'?p.marselPic:p.produkPic;
-  return !!String(pic||'').trim() && same(pic, state.currentUser);
+  const pic=String((area==='marsel'?p.marselPic:p.produkPic)||'').trim();
+  if(!pic) return ((c&&c.steps)||[]).some(s=>stepIsMine(s));
+  return same(pic, state.currentUser);
 }
 function fmtRupiah(n){ const v=Number(n||0)||0; return v?v.toLocaleString('id-ID'):''; }
 // Rentang harga diskon untuk ringkasan kartu: "Rp119–169rb".
@@ -3197,7 +3206,7 @@ function renderCollabPackage(c){
   const picSel=(id,sel,bisa)=>`<select id="${id}" ${bisa?'':'disabled'} class="text-[11px] rounded bg-white/70 dark:bg-slate-900/50 border-0 outline-none px-1 py-0.5 ${bisa?'':'opacity-70'}">${collabPicOptions(sel)}</select>`;
   const gates=PKG_GATES.map(g=>{
     const s=pkgGateStep(c,g);
-    if(!s) return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border border-dashed border-gray-300 dark:border-slate-600 text-gray-400" title="Belum ada proses bernama &quot;${escapeAttr(g)}&quot; di Proses Beruntun">${escapeHtml(g)} — belum ada prosesnya</span>`;
+    if(!s) return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border border-dashed border-gray-300 dark:border-slate-600 text-gray-400" title="Tambahkan proses bernama &quot;${escapeAttr(g)}&quot; di daftar Proses Beruntun di bawah — bukan task kolaborasi tersendiri.">${escapeHtml(g)} — belum ada prosesnya</span>`;
     const turn=isMyTurnStep(c,s);
     const cls=s.done?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
       :(turn?'bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-900/25 dark:text-rose-300':'bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400');
@@ -3250,7 +3259,7 @@ function renderCollabPackage(c){
       ${(bisaM||bisaP)?`<div class="flex items-center justify-between gap-2 flex-wrap">
         <span class="text-[11px] text-gray-400">${p.updatedBy?`Terakhir diubah ${escapeHtml(p.updatedBy)}${p.updatedAt?' · '+escapeHtml(p.updatedAt):''}`:'Belum pernah disimpan.'}</span>
         <button type="button" onclick="saveCollabPackage()" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan Master Paket</button>
-      </div>`:`<div class="text-[11px] text-gray-400">Anda bukan PIC area mana pun di paket ini — isinya hanya bisa dilihat.</div>`}
+      </div>`:`<div class="text-[11px] text-gray-400">Kedua area sudah punya PIC dan bukan Anda, jadi isinya hanya bisa dilihat. Area yang PIC-nya belum ditunjuk boleh diisi siapa pun yang memegang proses di task ini.</div>`}
     </div>`;
 }
 // Varian ditambah/dihapus di DOM dulu; baru masuk sheet saat Simpan Master Paket ditekan.

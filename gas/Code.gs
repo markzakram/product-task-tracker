@@ -1454,12 +1454,26 @@ function packageFilled_(p) {
   };
 }
 
-// Siapa boleh mengubah sisi mana. Manager/Leader bebas; selain itu harus PIC area itu.
-function canEditPackageArea_(pkg, area, actor) {
+// Siapa boleh mengubah sisi mana. Manager/Leader bebas; kalau area sudah bertuan,
+// hanya PIC-nya. Kalau BELUM bertuan, siapa pun yang jadi PIC proses di collab itu boleh
+// mulai mengisi — tanpa ini paket baru jadi jalan buntu: tak ada PIC area, jadi cuma
+// manager yang bisa menyentuh, sementara yang mengerjakan justru staff-nya.
+function canEditPackageArea_(pkg, area, actor, terlibat) {
   var a = baseName_(actor); if (!a) return false;
   if (isManagerActor_(actor) || isLeaderActor_(actor)) return true;
   var pic = baseName_(area === 'marsel' ? (pkg && pkg.marselPic) : (pkg && pkg.produkPic));
-  return !!pic && pic === a;
+  if (!pic) return !!terlibat;
+  return pic === a;
+}
+
+// Apakah actor memegang salah satu proses di collab ini (termasuk PIC berbentuk peran).
+function isCollabParticipant_(collabId, actor) {
+  if (!baseName_(actor)) return false;
+  var srows = [];
+  try { srows = valuesGet_(CONFIG.COLLAB_STEP_SHEET + '!A2:D'); } catch (e) { return false; }
+  return srows.some(function (r) {
+    return String((r && r[0]) || '').trim() === collabId && canCheckStep_((r && r[3]) || '', actor, false);
+  });
 }
 
 function readPackages_(prePkg, preVar) {
@@ -1503,8 +1517,9 @@ function savePackage(collabId, payload, actor) {
   var lama = semua[collabId] || emptyPackage_(collabId);
   var baru = {};
   Object.keys(lama).forEach(function (k) { baru[k] = lama[k]; });
-  var bolehMarsel = canEditPackageArea_(lama, 'marsel', actor);
-  var bolehProduk = canEditPackageArea_(lama, 'produk', actor);
+  var terlibat = isCollabParticipant_(collabId, actor);
+  var bolehMarsel = canEditPackageArea_(lama, 'marsel', actor, terlibat);
+  var bolehProduk = canEditPackageArea_(lama, 'produk', actor, terlibat);
   var bos = isManagerActor_(actor) || isLeaderActor_(actor);
   var sentuh = 0;
   if (payload.marsel) {
