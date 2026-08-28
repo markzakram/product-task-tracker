@@ -1183,6 +1183,14 @@ ok('item bertaut proses memakai pil status, bukan dropdown', commHtml.indexOf('p
 ok('blok bonus tetap teks bebas', commHtml.indexOf('Bonus angkatan lama') >= 0);
 ok('Area Marsel jadi rujukan, bukan sumber kebenaran kedua', commHtml.indexOf('Area Marsel <span') >= 0);
 
+// Penanda staging: preview memakai kode yang sama dgn produksi, pembedanya cuma alamat.
+ok('ada deteksi host staging', commHtml.indexOf('function isStagingHost()') >= 0);
+ok('host produksi ditulis eksplisit', commHtml.indexOf("'product-task-tracker.vercel.app'") >= 0);
+ok('selain itu dianggap staging', commHtml.indexOf('return !HOST_PRODUKSI.includes(h);') >= 0);
+ok('Apps Script tak ikut ditandai staging', commHtml.indexOf('if(GAS_NATIVE) return false;') >= 0);
+ok('penanda dipasang saat versi digambar', commHtml.indexOf('renderStagingMark();') >= 0);
+ok('ada garis penanda di tepi atas', commHtml.indexOf("id='stagingStrip'") >= 0 || commHtml.indexOf('stagingStrip') >= 0);
+
 console.log('\n=== 16d-1. UI: tanggal centang, stage opsional, Manager membatalkan ===');
 // Tanggal centang tampil di baris proses, lengkap dgn putusan tepat waktu / telat.
 ok('ada penampil tanggal centang', /function stepDoneStamp\(s\)/.test(commHtml));

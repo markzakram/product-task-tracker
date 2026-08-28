@@ -10,6 +10,25 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.82.1 — Penanda STAGING supaya tak tertukar dengan aplikasi utama
+
+Preview Vercel memakai kode yang sama persis dengan produksi, jadi satu-satunya
+pembeda yang tersedia di browser adalah alamatnya. Sekarang alamat di luar daftar
+host produksi otomatis menampilkan:
+
+- logo sidebar berubah **amber**, bukan indigo
+- tulisan **"STAGING · Divisi Produk"** menggantikan "Divisi Produk"
+- garis amber tipis di tepi atas layar — tetap terlihat walau sidebar disembunyikan
+- judul tab browser diawali `[STAGING]`
+
+Daftar host produksi ditulis eksplisit dan **sisanya dianggap staging**. Arah gagalnya
+sengaja begitu: keliru menandai produksi sebagai staging cuma bikin malu, sebaliknya
+bisa membuat orang mengira data uji coba itu nyata.
+
+Apps Script tidak ikut ditandai — deployment-nya dipasang manual, bukan preview.
+
+---
+
 ## 1.82.0 — Area Produk jadi daftar deliverable yang terhubung ke proses
 
 Kolom Area Produk berhenti jadi blok teks. Tiap deliverable kini satu baris tersendiri

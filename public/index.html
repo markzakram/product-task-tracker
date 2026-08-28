@@ -798,7 +798,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.82.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.82.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1060,7 +1060,36 @@ function init() {
   }
 }
 
-function renderAppVersion(){ const label='v'+APP_VERSION; ['appVersion','appVersionSettings'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=label; }); }
+function renderAppVersion(){ const label='v'+APP_VERSION; ['appVersion','appVersionSettings'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=label; }); renderStagingMark(); }
+/* Penanda staging. Preview Vercel memakai kode yang sama persis dengan produksi, jadi satu-
+   satunya pembeda yang tersedia di browser adalah alamatnya. Daftar host produksi ditulis
+   eksplisit dan SISANYA dianggap staging — arah gagal yang aman: keliru menandai produksi
+   sebagai staging cuma bikin malu, sebaliknya bisa bikin orang mengira data uji itu nyata. */
+const HOST_PRODUKSI=['product-task-tracker.vercel.app'];
+function isStagingHost(){
+  if(GAS_NATIVE) return false;                       // Apps Script: dipasang manual, bukan preview
+  const h=String((location&&location.hostname)||'').toLowerCase();
+  if(!h) return false;
+  return !HOST_PRODUKSI.includes(h);
+}
+function renderStagingMark(){
+  if(!isStagingHost()) return;
+  const logo=document.getElementById('brandLogo');
+  if(logo){ logo.classList.remove('bg-indigo-600'); logo.classList.add('bg-amber-500'); logo.title='ProductTrack — STAGING'; }
+  const merek=document.querySelector('#sidebar .text-indigo-600');
+  if(merek){ merek.classList.remove('text-indigo-600'); merek.classList.add('text-amber-600'); }
+  const sub=document.querySelector('#sidebar .uppercase.tracking-widest');
+  if(sub){ sub.innerHTML='<span class="text-amber-600 dark:text-amber-400">STAGING</span> · Divisi Produk'; }
+  // Garis di tepi atas layar: satu-satunya penanda yang tetap terlihat walau sidebar disembunyikan.
+  if(!document.getElementById('stagingStrip')){
+    const s=document.createElement('div');
+    s.id='stagingStrip';
+    s.className='fixed top-0 left-0 right-0 h-1 bg-amber-500 z-[200] pointer-events-none';
+    s.title='Ini lingkungan uji coba, bukan aplikasi utama.';
+    document.body.appendChild(s);
+  }
+  if(document.title.indexOf('STAGING')<0) document.title='[STAGING] '+document.title;
+}
 function afterLoad() {
   // Layar "Memuat…" WAJIB hilang apa pun yang terjadi. Kalau ada satu bagian yang gagal
   // (mis. library CDN diblokir jaringan kantor), aplikasi tetap bisa dipakai dan
