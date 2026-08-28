@@ -10,7 +10,28 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
-## 1.85.0 — Rancangan Paket: target yang dipenuhi banyak task
+## Catatan penomoran (28 Agustus 2026)
+
+Dua rangkaian pekerjaan berjalan paralel di satu working directory dan sempat memakai
+nomor yang sama untuk hal berbeda: **1.81.0** dan **1.82.0** masing-masing dipakai baik
+oleh garis *Laporan* maupun garis *Paket*.
+
+Saat digabung, nomor **garis Laporan dipertahankan** karena sudah terbit lewat `master`,
+dan entri garis Paket digeser ke atasnya:
+
+| Dulu (branch paket) | Sekarang |
+|---|---|
+| 1.81.0 Master Koordinasi Paket menempel | **1.83.0** |
+| 1.82.0 Area Produk jadi daftar deliverable | **1.84.0** |
+| 1.82.1 Penanda STAGING | **1.84.1** |
+| 1.83.0 Paket jadi entitas sendiri | **1.85.0** |
+| 1.85.0 Rancangan Paket | **1.86.0** |
+
+Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembalikan; ia
+sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
+
+---
+## 1.86.0 — Rancangan Paket: target yang dipenuhi banyak task
 
 "Master Koordinasi Paket" berganti nama jadi **Rancangan Paket**, dan isinya berubah
 dari daftar deliverable jadi daftar **target** yang disetor sedikit demi sedikit.
@@ -72,64 +93,7 @@ membawa serta setorannya.
 
 ---
 
-## 1.84.0 — Laporan manager ikut menghitung task kolaborasi
-
-Laporan hanya membaca `state.tasks`. Task kolaborasi disimpan di sheet lain
-(`COLLAB` + `COLLAB_STEPS`) dan tak pernah masuk ke sana, jadi seluruh kerja
-kolaborasi — yang di beberapa pekan justru bagian terbesarnya — tak terlihat sama
-sekali di rekap manager. Angka "Aktif", "Overdue", dan "Selesai minggu ini"
-melaporkan sebagian pekerjaan sebagai kalau itu seluruhnya.
-
-### Satu baris per (kolaborasi × PIC proses)
-Laporan memakai "pseudo-task" yang sudah dipakai Kanban & Task List
-(`collabPseudo`): pekerjaan **satu orang** pada satu task kolaborasi jadi satu
-baris, dengan status diturunkan dari proses miliknya. Jadi kolom Per PIC tetap
-berarti "beban orang itu", bukan "jumlah task kolaborasi".
-
-Konsekuensinya jumlah baris bukan lagi jumlah task — label di laporan & CSV
-diubah dari "Total task" jadi **"Total baris"**, dengan pecahan "Dari task
-kolaborasi" di bawahnya.
-
-### Tombol Sumber: Semua · Task · Kolaborasi
-Menambah baris kolaborasi mengubah arti angka yang selama ini dibaca manager.
-Tombol Sumber membuat keduanya bisa dibandingkan, dan tetap bisa dikembalikan ke
-"Task biasa saja" persis seperti laporan sebelum versi ini. Bawaannya **Semua**.
-
-Opsi PIC & Stage sengaja dibaca dari **seluruh** sumber, bukan dari sumber yang
-sedang dipilih — kalau tidak, memilih "Kolaborasi saja" membuat PIC yang sedang
-tersaring lenyap dari dropdown dan filternya tak bisa dilepas lagi.
-
-### "Selesai minggu ini" untuk kolaborasi
-Task biasa meninggalkan jejak `Status: … → Done` di log aktivitas; kolaborasi
-tidak — yang tercatat cuma `Collab Step Done`. Kelarnya kini dibaca dari **tanggal
-centang proses terakhir** milik orang itu (`doneAt`), lalu dijumlahkan dengan
-hitungan task biasa. Baris `COL-…` juga dikeluarkan dari pencarian jejak
-"→ Done" supaya tak terhitung dua kali.
-
-### Perbaikan: proses ber-PIC peran tak lagi hilang
-`allCollabTasks()` mengumpulkan PIC proses apa adanya. Untuk proses milik bersama
-satu peran (`@Magang`), nama itu **tak pernah** cocok dengan `stepBelongsTo` —
-`hasRole('@Magang','magang')` selalu salah — sehingga prosesnya menguap dari rekap
-se-tim. Sekarang PIC peran dipecah dulu jadi anggotanya yang aktif. Ini juga
-memperbaiki Kanban & Task List, bukan cuma Laporan.
-
-### Rincian lain
-- Kolom **Kolab** di tabel Per PIC: berapa banyak beban orang itu yang datang dari
-  kolaborasi.
-- Drill-down PIC: baris kolaborasi diberi lencana `KOLAB`, menampilkan nama proses
-  + progres (`2/3 proses`), dan membuka **modal kolaborasi**, bukan modal task.
-- Ekspor CSV: baris `Sumber`, pecahan `Dari task kolaborasi`, kolom `Kolaborasi` di
-  Per PIC, serta kolom `Jenis` & `Proses` pada daftar detail.
-
-### Berkas
-| Berkas | Perubahan |
-| --- | --- |
-| `public/index.html` (& salinan `gas/Index.html`) | seluruh perubahan di atas |
-| `test/gas.test.js` | 13 assertion baru |
-
----
-
-## 1.83.0 — Paket jadi entitas sendiri; satu paket digarap banyak task
+## 1.85.0 — Paket jadi entitas sendiri; satu paket digarap banyak task
 
 Master Koordinasi Paket tidak lagi menempel pada satu task kolaborasi. Ia punya
 nomor sendiri (`PKG-001`…) dan hidup lebih lama daripada task yang menggarapnya.
@@ -188,7 +152,7 @@ terhapus tiap kali task disimpan.
 
 ---
 
-## 1.82.1 — Penanda STAGING supaya tak tertukar dengan aplikasi utama
+## 1.84.1 — Penanda STAGING supaya tak tertukar dengan aplikasi utama
 
 Preview Vercel memakai kode yang sama persis dengan produksi, jadi satu-satunya
 pembeda yang tersedia di browser adalah alamatnya. Sekarang alamat di luar daftar
@@ -207,7 +171,7 @@ Apps Script tidak ikut ditandai — deployment-nya dipasang manual, bukan previe
 
 ---
 
-## 1.82.0 — Area Produk jadi daftar deliverable yang terhubung ke proses
+## 1.84.0 — Area Produk jadi daftar deliverable yang terhubung ke proses
 
 Kolom Area Produk berhenti jadi blok teks. Tiap deliverable kini satu baris tersendiri
 dengan nama, jumlah, satuan, dan **proses yang menghasilkannya**.
@@ -266,7 +230,7 @@ task (1.74.1), dan paket (1.81.0), supaya collab bernomor bekas tidak mewarisiny
 
 ---
 
-## 1.81.0 — Master Koordinasi Paket menempel pada Task Kolaborasi
+## 1.83.0 — Master Koordinasi Paket menempel pada Task Kolaborasi
 
 Isi sheet **Master Koordinasi Paket** sekarang hidup di dalam task kolaborasi yang
 menghasilkannya. Tidak ada tab baru: satu task kolaborasi = satu paket.
@@ -319,6 +283,118 @@ keluarga bug yang sama dengan sub-ceklis (1.64.0), komentar (1.69.1), dan task
 
 Paket ikut dibawa `getCollabs`, bukan lewat panggilan terpisah, sehingga setiap
 jalur yang menyegarkan daftar kolaborasi otomatis menyegarkan paketnya juga.
+
+---
+
+## 1.82.0 — Satuan baris Laporan: satu PROSES, bukan satu kolaborasi
+
+Lanjutan 1.81.0. Di sana kerja kolaborasi sudah masuk Laporan, tapi satuannya
+salah: semua proses milik satu orang di satu kolaborasi dilebur jadi **satu**
+baris (`collabPseudo`, yang memang dirancang untuk kartu Kanban).
+
+### Apa yang hilang karena peleburan
+Baris leburan hanya mengambil `stage` dan `deadline` dari **proses pertama yang
+belum selesai**. Dua akibatnya nyata:
+
+- **Stage proses lain lenyap.** Ali pegang proses #1 "Develop Soal" (selesai) dan
+  proses #4 "Finalisasi" (belum) di kolaborasi yang sama → rekap Per Stage hanya
+  melihat "Finalisasi". Pekerjaan di "Develop Soal" seolah tak pernah ada.
+- **Telat di urutan belakang tak terhitung.** Kalau proses yang lewat tenggat ada
+  di belakang antrean sementara proses terdepan masih aman, barisnya tidak pernah
+  ditandai overdue.
+
+### Sekarang
+`allCollabStepRows()` menghasilkan satu baris per **(proses × pemilik proses)**,
+ber-id `COL-xxx#N` — pola id yang sama dengan sub-ceklis proses di backend.
+Tiap baris memakai stage, deadline, dan tanggal centangnya sendiri:
+
+| | Model lama (1.81.0) | Sekarang (1.82.0) |
+| --- | --- | --- |
+| Satuan | kolaborasi × orang | **proses × orang** |
+| Stage | proses pertama yang belum selesai | milik proses itu |
+| Deadline | idem | milik proses itu |
+| Status | gabungan semua prosesnya | `Done` / `In progress` bila handoff sudah sampai / `Todo` |
+| Selesai minggu ini | seluruh proses orang itu harus tuntas | tiap proses dihitung sendiri |
+
+Angka "Aktif / Selesai / Overdue" otomatis naik dibanding 1.81.0 karena satuannya
+lebih halus — bukan pekerjaan baru, melainkan pekerjaan yang dulu tersembunyi di
+balik peleburan.
+
+### Yang TIDAK berubah
+Kanban dan Task List tetap memakai `collabPseudo` (satu kartu per kolaborasi per
+orang). Di sana peleburan justru benar: satu kartu = satu task yang bisa diklik.
+
+### Rincian lain
+- `stepOwners()` dipisah jadi fungsi sendiri — pemecah PIC peran (`@Magang`) jadi
+  anggota aktifnya. Dipakai bersama oleh rekap se-tim dan baris proses.
+- Cakupan aktivitas kini memuat **id proses dan id kolaborasinya**. Tanpa itu
+  komentar kolaborasi (dicatat atas nama `COL-xxx`) dianggap di luar cakupan dan
+  hilang dari KPI "Komentar minggu ini".
+- Drill-down PIC & CSV menyebut nomor prosesnya (`proses 4: Finalisasi`,
+  `#4 Finalisasi`), menggantikan progres `2/3 proses` yang tak lagi bermakna.
+
+### Berkas
+| Berkas | Perubahan |
+| --- | --- |
+| `public/index.html` (& salinan `gas/Index.html`) | seluruh perubahan di atas |
+| `test/gas.test.js` | 12 assertion baru, 2 disesuaikan (767 → 777) |
+
+---
+
+## 1.81.0 — Laporan manager ikut menghitung task kolaborasi
+
+Laporan hanya membaca `state.tasks`. Task kolaborasi disimpan di sheet lain
+(`COLLAB` + `COLLAB_STEPS`) dan tak pernah masuk ke sana, jadi seluruh kerja
+kolaborasi — yang di beberapa pekan justru bagian terbesarnya — tak terlihat sama
+sekali di rekap manager. Angka "Aktif", "Overdue", dan "Selesai minggu ini"
+melaporkan sebagian pekerjaan sebagai kalau itu seluruhnya.
+
+### Satu baris per (kolaborasi × PIC proses)
+Laporan memakai "pseudo-task" yang sudah dipakai Kanban & Task List
+(`collabPseudo`): pekerjaan **satu orang** pada satu task kolaborasi jadi satu
+baris, dengan status diturunkan dari proses miliknya. Jadi kolom Per PIC tetap
+berarti "beban orang itu", bukan "jumlah task kolaborasi".
+
+Konsekuensinya jumlah baris bukan lagi jumlah task — label di laporan & CSV
+diubah dari "Total task" jadi **"Total baris"**, dengan pecahan "Dari task
+kolaborasi" di bawahnya.
+
+### Tombol Sumber: Semua · Task · Kolaborasi
+Menambah baris kolaborasi mengubah arti angka yang selama ini dibaca manager.
+Tombol Sumber membuat keduanya bisa dibandingkan, dan tetap bisa dikembalikan ke
+"Task biasa saja" persis seperti laporan sebelum versi ini. Bawaannya **Semua**.
+
+Opsi PIC & Stage sengaja dibaca dari **seluruh** sumber, bukan dari sumber yang
+sedang dipilih — kalau tidak, memilih "Kolaborasi saja" membuat PIC yang sedang
+tersaring lenyap dari dropdown dan filternya tak bisa dilepas lagi.
+
+### "Selesai minggu ini" untuk kolaborasi
+Task biasa meninggalkan jejak `Status: … → Done` di log aktivitas; kolaborasi
+tidak — yang tercatat cuma `Collab Step Done`. Kelarnya kini dibaca dari **tanggal
+centang proses terakhir** milik orang itu (`doneAt`), lalu dijumlahkan dengan
+hitungan task biasa. Baris `COL-…` juga dikeluarkan dari pencarian jejak
+"→ Done" supaya tak terhitung dua kali.
+
+### Perbaikan: proses ber-PIC peran tak lagi hilang
+`allCollabTasks()` mengumpulkan PIC proses apa adanya. Untuk proses milik bersama
+satu peran (`@Magang`), nama itu **tak pernah** cocok dengan `stepBelongsTo` —
+`hasRole('@Magang','magang')` selalu salah — sehingga prosesnya menguap dari rekap
+se-tim. Sekarang PIC peran dipecah dulu jadi anggotanya yang aktif. Ini juga
+memperbaiki Kanban & Task List, bukan cuma Laporan.
+
+### Rincian lain
+- Kolom **Kolab** di tabel Per PIC: berapa banyak beban orang itu yang datang dari
+  kolaborasi.
+- Drill-down PIC: baris kolaborasi diberi lencana `KOLAB`, menampilkan nama proses
+  + progres (`2/3 proses`), dan membuka **modal kolaborasi**, bukan modal task.
+- Ekspor CSV: baris `Sumber`, pecahan `Dari task kolaborasi`, kolom `Kolaborasi` di
+  Per PIC, serta kolom `Jenis` & `Proses` pada daftar detail.
+
+### Berkas
+| Berkas | Perubahan |
+| --- | --- |
+| `public/index.html` (& salinan `gas/Index.html`) | seluruh perubahan di atas |
+| `test/gas.test.js` | 13 assertion baru |
 
 ---
 
