@@ -1,0 +1,46 @@
+name: CI
+
+# Gerbang sebelum merge ke master. Dua hal yang dijaga:
+#   1. Seluruh assertion di npm test lulus.
+#   2. gas/Index.html identik dengan public/index.html.
+# Poin 2 penting karena gas/Index.html adalah SALINAN TANGAN. Kalau lupa
+# disinkronkan, test/gas.test.js membaca berkas basi dan bisa melaporkan hijau
+# untuk kode yang sudah tak ada lagi.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Pasang dependency
+        run: npm install --no-audit --no-fund
+
+      - name: gas/Index.html harus sama dengan public/index.html
+        run: |
+          if ! diff -q public/index.html gas/Index.html > /dev/null; then
+            echo "::error file=gas/Index.html::gas/Index.html tertinggal dari public/index.html."
+            echo ""
+            echo "gas/Index.html adalah salinan tangan dari public/index.html."
+            echo "Perbaiki dengan satu perintah, lalu commit ulang:"
+            echo ""
+            echo "    cp public/index.html gas/Index.html"
+            echo ""
+            echo "Selisihnya:"
+            diff public/index.html gas/Index.html | head -40
+            exit 1
+          fi
+          echo "Sinkron."
+
+      - name: Jalankan seluruh tes
+        run: npm test
