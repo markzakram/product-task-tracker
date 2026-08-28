@@ -1162,6 +1162,16 @@ ok('giliran Anda peringkat teratas', /function collabRank\(c\)[\s\S]{0,200}?isMy
 ok('yang Selesai jatuh ke bawah', /function collabRank\(c\)[\s\S]{0,250}?c\.status==='Selesai' \? 2 : 1/.test(commHtml));
 ok('filteredCollabs mengurutkan', /arr\.sort\(\(a,b\)=>collabRank\(a\)-collabRank\(b\)\)/.test(commHtml));
 
+// Tombol filter kolaborasi: "Task Saya" = SEMUA kolaborasi ber-PIC saya,
+// bukan hanya yang gilirannya sudah tiba (dulu "Giliran Saya").
+ok('tombol filter berlabel Task Saya', commHtml.indexOf('assignment_ind</span>Task Saya</button>') >= 0);
+ok('label lama Giliran Saya sudah tak dipakai', commHtml.indexOf('Giliran Saya</button>') < 0);
+ok('filter Task Saya memakai stepIsMine', commHtml.indexOf('if(f.mine) arr=arr.filter(c=>(c.steps||[]).some(s=>stepIsMine(s)));') >= 0);
+ok('filter Task Saya tak lagi menyaring per giliran', commHtml.indexOf('arr.filter(c=>(c.steps||[]).some(s=>isMyTurnStep(c,s)))') < 0);
+// Spanduk & lencana "Giliran Anda" tetap ada — itu fitur terpisah dari filternya.
+ok('spanduk Giliran Anda tetap ada', commHtml.indexOf('<b>Giliran Anda:</b>') >= 0);
+ok('lencana giliran tetap dihitung', commHtml.indexOf('function updateCollabTurnBadge()') >= 0);
+
 console.log('\n=== 16d-1. UI: tanggal centang, stage opsional, Manager membatalkan ===');
 // Tanggal centang tampil di baris proses, lengkap dgn putusan tepat waktu / telat.
 ok('ada penampil tanggal centang', /function stepDoneStamp\(s\)/.test(commHtml));

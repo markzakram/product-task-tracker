@@ -10,6 +10,35 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.80.0 — Tombol "Task Saya" di Task Kolaborasi
+
+Tombol filter **"Giliran Saya"** diganti menjadi **"Task Saya"**.
+
+### Bedanya
+| | Dulu ("Giliran Saya") | Sekarang ("Task Saya") |
+|---|---|---|
+| Yang tampil | kolaborasi yang prosesnya **sudah tiba giliran** Anda | **semua** kolaborasi yang punya proses ber-PIC Anda |
+| Proses yang masih menunggu orang sebelumnya | tersembunyi | ikut tampil |
+| Kolaborasi yang sudah Selesai | tersembunyi | ikut tampil |
+
+Dulu tombol itu menjawab "apa yang harus saya kerjakan **sekarang**". Sekarang ia
+menjawab "kolaborasi apa saja yang **melibatkan saya**" — termasuk yang antreannya
+belum sampai dan yang sudah rampung.
+
+### Yang tidak berubah
+- Spanduk merah **"Giliran Anda: N proses siap dikerjakan"** tetap ada di atas daftar.
+- Lencana angka di menu Task Kolaborasi tetap menghitung giliran, bukan total task.
+- Kartu yang jadi giliran Anda tetap naik ke urutan teratas, juga saat filter ini menyala.
+- Filter lain (tipe, platform, PIC, status, pencarian) tetap bisa digabungkan.
+
+PIC berbentuk peran ikut dikenali: seorang magang tetap melihat proses ber-PIC
+`@Magang` sebagai tasknya, sama seperti di bagian lain aplikasi.
+
+Warna aktif tombol dipindah dari merah ke indigo — merah dipakai untuk nada
+mendesak ("giliran"), sedangkan ini sekadar filter cakupan.
+
+---
+
 ## 1.79.0 — MCP server: Claude di device manager bisa ditanyai langsung
 
 Bagian terakhir dari rangkaian. `api/mcp.js` menyatukan dua sumber — metrik task
