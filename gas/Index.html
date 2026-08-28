@@ -798,7 +798,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.81.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.81.2'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3188,9 +3188,21 @@ function pkgHargaRange(p){
 }
 function renderCollabPackage(c){
   const box=document.getElementById('collabPkgBox'); if(!box) return;
-  // Task kolaborasi baru belum punya ID — paket menyusul setelah disimpan.
-  if(!c){ box.classList.add('hide'); box.innerHTML=''; return; }
   box.classList.remove('hide');
+  // Task kolaborasi baru belum punya ID, jadi paketnya belum bisa disimpan. Panelnya tetap
+  // ditampilkan — kalau disembunyikan, orang tak tahu fitur ini ada dan mengira ada yang rusak.
+  if(!c){
+    box.innerHTML=`
+      <div class="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-900/50 flex items-center gap-1.5">
+        <span class="material-icons-round text-[18px] text-amber-800 dark:text-amber-200">inventory_2</span>
+        <span class="font-semibold text-sm text-amber-800 dark:text-amber-200">Master Koordinasi Paket</span>
+      </div>
+      <div class="px-4 py-4 text-xs text-gray-500 dark:text-slate-400">
+        Tersedia setelah task ini disimpan — datanya menempel pada nomor task-nya.
+        Klik <b>Simpan</b> di bawah, lalu buka lagi task ini untuk mengisi Area Marsel, Area Produk, dan varian harganya.
+      </div>`;
+    return;
+  }
   const p=pkgOf(c)||{}; const f=p.filled||{marsel:0,marselTotal:6,produk:0,produkTotal:7,total:0,grandTotal:13};
   const bisaM=canEditPkgArea(c,'marsel'), bisaP=canEditPkgArea(c,'produk');
   const bos=isManager(state.currentUser)||isLeader(state.currentUser);
