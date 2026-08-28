@@ -207,6 +207,9 @@
             <span class="material-icons-round text-[20px]">account_tree</span> <span class="flex-1">Task Kolaborasi</span>
             <span id="collabTurnBadge" class="hide inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold">0</span>
           </button>
+          <button onclick="switchView('paket')" id="nav-paket" class="nav-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left font-medium text-sm text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800">
+            <span class="material-icons-round text-[20px]">inventory_2</span> Master Paket
+          </button>
         </div>
 
         <div id="navgrp-ruangsaya" class="nav-group space-y-1 mt-4 first:mt-0">
@@ -419,6 +422,22 @@
 
         <!-- TASK KOLABORASI (alur proses beruntun antar-PIC) -->
         <!-- KERJAAN MAGANG (untuk karyawan — pola sama seperti view Lintas Divisi) -->
+
+        <!-- MASTER PAKET — paket berdiri sendiri, tak selalu punya task yang menggarapnya -->
+        <div id="paketView" class="view hide max-w-[1600px] mx-auto space-y-4">
+          <div class="flex items-center justify-between gap-3 flex-wrap">
+            <div class="text-sm text-gray-500 dark:text-slate-400 min-w-0">Paket hidup lebih lama daripada task yang menggarapnya — satu paket bisa dikerjakan beberapa task kolaborasi.</div>
+            <span id="paketCount" class="text-[11px] text-gray-400 shrink-0"></span>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <div class="relative flex-1 min-w-[180px] max-w-sm">
+              <span class="material-icons-round absolute left-2.5 top-2 text-gray-400 text-[18px]">search</span>
+              <input id="paketSearch" oninput="renderPaket()" placeholder="Cari nomor, nama paket, program…" class="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-slate-800 border-0 outline-none focus:ring-2 focus:ring-indigo-300 text-sm">
+            </div>
+            <select id="paketFilterPlatform" onchange="renderPaket()" class="px-2.5 py-2 rounded-lg text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 outline-none"><option value="">Semua Platform</option></select>
+          </div>
+          <div id="paketList" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+        </div>
 
         <div id="collabView" class="view hide max-w-[1600px] mx-auto space-y-4">
           <div id="collabTurnBanner"></div>
@@ -723,6 +742,26 @@
   </div>
 
   <!-- ===== Modal Task Kolaborasi (2 kolom: alur+sub-ceklis kiri, komentar/aktivitas kanan) ===== -->
+  <!-- Modal Master Paket: dipakai dari view Paket. Panelnya sama persis dengan yang di
+       modal task kolaborasi — renderPackagePanel() mencari wadahnya sendiri. -->
+  <div id="paketModal" class="hide fixed inset-0 z-[90] bg-gray-900/50 flex items-start justify-center overflow-y-auto p-4" onclick="closePaketModal()">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-[1200px] my-6 shadow-2xl flex flex-col" onclick="event.stopPropagation()">
+      <div class="shrink-0 px-5 py-4 border-b border-gray-100 dark:border-slate-800 flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h3 id="paketModalTitle" class="text-lg font-bold text-gray-900 dark:text-white">Master Paket</h3>
+          <p id="paketModalSub" class="text-xs text-gray-500 dark:text-slate-400 mt-0.5"></p>
+        </div>
+        <button onclick="closePaketModal()" class="shrink-0 w-8 h-8 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 flex items-center justify-center text-gray-400"><span class="material-icons-round text-[20px]">close</span></button>
+      </div>
+      <div class="px-5 py-4 overflow-y-auto scrollbar-thin">
+        <div id="paketPanelBox" class="border border-amber-200 dark:border-amber-900/50 rounded-xl overflow-hidden"></div>
+      </div>
+      <div class="shrink-0 px-5 py-3 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2">
+        <button id="paketDeleteBtn" onclick="deletePaketNow()" class="hide px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 text-xs font-semibold hover:bg-rose-50">Hapus Paket</button>
+        <button onclick="closePaketModal()" class="ml-auto px-4 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 text-sm font-semibold text-gray-600 dark:text-slate-300">Tutup</button>
+      </div>
+    </div>
+  </div>
   <div id="collabModal" class="hide fixed inset-0 z-[90] bg-gray-900/50 flex items-start justify-center overflow-y-auto p-4">
     <!-- Modal terlebar di aplikasi: memuat dua panel sekaligus (form + proses beruntun di kiri,
          komentar & aktivitas di kanan), jadi 1024px terlalu sempit dan isinya terpotong. -->
@@ -749,7 +788,7 @@
           </div>
           <div id="collabColorRow"><label class="form-label">Warna Kartu</label><div id="collabColorPicker" class="flex flex-wrap items-center gap-1.5"></div></div>
 
-          <!-- Master Koordinasi Paket — isinya digambar renderCollabPackage() -->
+          <!-- Master Koordinasi Paket — isinya digambar renderPackagePanel() -->
           <div id="collabPkgBox" class="hide border border-amber-200 dark:border-amber-900/50 rounded-xl overflow-hidden"></div>
 
           <div class="border border-gray-200 dark:border-slate-800 rounded-xl overflow-hidden">
@@ -798,7 +837,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.82.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.83.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -887,7 +926,7 @@ function onGoogleCredential(resp){
       else { var e=document.getElementById('googleErr'); if(e){ e.textContent=(d&&d.message)||'Email tidak diizinkan.'; e.classList.remove('hide'); } }
     }).catch(function(){ var e=document.getElementById('googleErr'); if(e) e.classList.remove('hide'); });
 }
-var BACKEND_ACTIONS = ['getBootstrapData','getTasks','getOptions','getActivityLog','getComments','saveTask','deleteTask','quickUpdateField','quickUpdateDates','addComment','getChecklist','addChecklistItem','copyChecklist','setChecklistLink','setChecklistDone','deleteChecklistItem','getCollabs','saveCollab','setCollabStepDone','setCollabStepNote','setCollabStepLink','setCollabType','deleteCollab','savePackage','getNotifications','markNotificationsRead','saveOption','deleteOption','setupTaskTracker','assignMissingTaskIds','verifyPin','setUserPin','deleteUserPin','listPinUsers','editOption','addUserLink','updateUserLink','deleteUserLink','renameUserFolder','deleteUserFolder','addDashboard','updateDashboard','deleteDashboard','seedFormulaTemplate','addNote','updateNote','deleteNote','renameNoteFolder','deleteNoteFolder','getUsers','saveUser','deleteUser','renameUser'];
+var BACKEND_ACTIONS = ['getBootstrapData','getTasks','getOptions','getActivityLog','getComments','saveTask','deleteTask','quickUpdateField','quickUpdateDates','addComment','getChecklist','addChecklistItem','copyChecklist','setChecklistLink','setChecklistDone','deleteChecklistItem','getCollabs','saveCollab','setCollabStepDone','setCollabStepNote','setCollabStepLink','setCollabType','deleteCollab','savePackage','getPackages','deletePackage','setCollabPackage','getNotifications','markNotificationsRead','saveOption','deleteOption','setupTaskTracker','assignMissingTaskIds','verifyPin','setUserPin','deleteUserPin','listPinUsers','editOption','addUserLink','updateUserLink','deleteUserLink','renameUserFolder','deleteUserFolder','addDashboard','updateDashboard','deleteDashboard','seedFormulaTemplate','addNote','updateNote','deleteNote','renameNoteFolder','deleteNoteFolder','getUsers','saveUser','deleteUser','renameUser'];
 function makeRunner(){
   var onSuccess = null, onFailure = null;
   var runner = {
@@ -912,7 +951,8 @@ function makeRunner(){
    (Apps Script native maupun API Vercel). Tanpa ini, Dev bisa tak sengaja mencentang atau
    menutup task ATAS NAMA orang yang sedang ia intip. */
 const PREVIEW_BOLEH = { getBootstrapData:1, getTasks:1, getOptions:1, getActivityLog:1,
-  getComments:1, getChecklist:1, getCollabs:1, getNotifications:1, getUsers:1, listPinUsers:1 };
+  getComments:1, getChecklist:1, getCollabs:1, getNotifications:1, getUsers:1, listPinUsers:1,
+  getPackages:1 };
 function guardPreview(inner){
   const g={}; let ok=null, fail=null;
   g.withSuccessHandler=function(fn){ ok=fn; return g; };
@@ -1096,7 +1136,7 @@ function afterLoad() {
   // pesan errornya ditampilkan — bukan layar loading yang menggantung selamanya.
   try {
     renderAppVersion(); applySidebar(); renderPreviewBar();
-    populateUserSelect(); populateManagerFocus(); populateModalDropdowns(); applyRoleUI(); renderAll(); updateCommNavBadge(); renderDeadlineReminder(); notifyUnreadOnLoad(); loadNotifications(); if(needIdentityPick()) showIdentityGate();
+    populateUserSelect(); populateManagerFocus(); populateModalDropdowns(); applyRoleUI(); renderAll(); updateCommNavBadge(); renderDeadlineReminder(); notifyUnreadOnLoad(); loadNotifications(); loadPackages(()=>{ if(state.activeView==='paket') renderPaket(); if(state.activeView==='collab') renderCollab(); }); if(needIdentityPick()) showIdentityGate();
     if(!state._msBound){state._msBound=true; document.addEventListener('click', msOutsideClose); document.addEventListener('click', notifOutsideClose); window.addEventListener('resize', ()=>{ if(window.innerWidth>=768) closeMobileSidebar(); }); document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.activeView==='communication' && state.selectedTaskId && document.getElementById('taskModal').classList.contains('hide')){ closeCommChat(); } });}
   } catch(e) {
     try{ console.error('[ProductTrack] afterLoad gagal:', e); }catch(_){ }
@@ -1741,6 +1781,7 @@ function switchView(view){
     dashboard:['Dashboard','Pantau progress, deadline, dan komunikasi task tim.','space_dashboard'],
     extdash:['Dashboard Lain','Kumpulan dashboard & monitoring eksternal.','dashboard_customize'],
     mylinks:['Link Saya','Kumpulan link pribadi Anda yang sering diakses.','bookmark'],
+    paket:['Master Paket','Daftar paket beserta deliverable dan task yang menggarapnya.','inventory_2'],
     kanban:['Kanban Status','Kelola task per status. Tarik kartu untuk ubah status.','view_kanban'],
     list:['Task List','Lihat dan filter seluruh database task.','table_rows'],
     timeline:['Timeline','Lihat jadwal task sebagai Gantt. Tarik untuk ubah jadwal.','view_timeline'],
@@ -1767,6 +1808,7 @@ function renderActiveView(){
   else if(v==='calendar') renderCalendar();
   else if(v==='communication'){ state.selectedTaskId=null; renderCommunicationTasks(); renderCommunicationPanel(); }
   else if(v==='collab') renderCollab();
+  else if(v==='paket') renderPaket();
   else if(v==='settings'){ renderSettings(); renderUserAdmin(); renderPinAdmin(); renderCatSubManager(); }
   else if(v==='activity') renderActivity();
   else if(v==='extdash') renderExternalDashboards();
@@ -3067,11 +3109,13 @@ function collabPkgStrip(c){
   const p=(c&&c.pkg)||null; if(!p) return '';
   const f=p.filled||{total:0,grandTotal:13};
   const nv=(p.variants||[]).length;
-  const gateStep=(g)=>((c&&c.steps)||[]).find(s=>same(s.name,g));
+  const gateStep=(g)=>pkgGateStep(c,g);
   const adaGate=PKG_GATES.some(g=>gateStep(g));
-  if(!f.total && !nv && !adaGate) return '';
+  if(!f.total && !nv && !adaGate && !((p.items||[]).length)) return '';
   const harga=pkgHargaRange(p);
-  const bagian=[nv?`${nv} varian`:'belum ada varian'].concat(harga?[harga]:[]);
+  const rk=p.ringkas||{siap:0,total:0};
+  const bagian=[p.id].concat(nv?[nv+' varian']:[]).concat(harga?[harga]:[])
+    .concat(rk.total?[rk.siap+'/'+rk.total+' siap']:[]);
   const gates=PKG_GATES.map(g=>{
     const s=gateStep(g); if(!s) return '';
     const turn=isMyTurnStep(c,s);
@@ -3159,14 +3203,15 @@ function openCollabModal(id=''){
   state._collabExpanded={};   // reset sub-ceklis yang terbuka
   if(c) loadCollabFeed(c.id); else document.getElementById('collabComments').innerHTML=emptyState('Komentar tersedia setelah task disimpan.');
   renderCollabSteps(c);
-  renderCollabPackage(c);
+  state._paketId=null; renderPackagePanel();
 }
 
-/* ---------- Master Koordinasi Paket (menempel pada task kolaborasi) ----------
-   Satu task kolaborasi = satu paket. Field dibagi dua area berpemilik, meniru pita
-   "AREA MARSEL" / "AREA PRODUK" di sheet Master aslinya. Server yang menentukan hak
-   ubah per area; di sini hanya cerminannya supaya field yang bukan milik Anda tampil
-   terkunci, bukan tampak bisa diisi lalu ditolak saat disimpan. */
+/* ---------- Master Koordinasi Paket (entitas sendiri, PKG-xxx) ----------
+   Paket hidup lebih lama daripada task yang menggarapnya, dan SATU paket dikerjakan
+   banyak task kolaborasi. Karena itu panel ini digambar dari sebuah PAKET, bukan dari
+   collab: modal task cuma menumpang menampilkan paket yang ditautkan padanya.
+   Server yang menentukan hak ubah per area; di sini cerminannya saja, supaya field yang
+   bukan milik Anda tampil terkunci alih-alih tampak bisa diisi lalu ditolak. */
 const PKG_FIELDS={
   marsel:[
     {k:'program',   l:'Program',        ph:'mis. Program Super Intensif Lolos Polri TA 2026'},
@@ -3178,46 +3223,53 @@ const PKG_FIELDS={
   ],
   produk:[
     {k:'dibimbing', l:'Dibimbing',   ph:'nama journey/bimbingan'},
-    {k:'latsol',    l:'Latsol',      ph:'satu paket per baris', area:1},
-    {k:'materi',    l:'Materi',      ph:'satu materi per baris', area:1},
-    {k:'tryout',    l:'Tryout',      ph:'satu paket per baris', area:1},
+    {k:'latsol',    l:'Latsol',      ph:'bonus angkatan lama & catatan', area:1},
+    {k:'materi',    l:'Materi',      ph:'bonus angkatan lama & catatan', area:1},
+    {k:'tryout',    l:'Tryout',      ph:'bonus angkatan lama & catatan', area:1},
     {k:'drilling',  l:'Drilling',    ph:'kosongkan kalau tak dipakai'},
-    {k:'liveClass', l:'Live Class',  ph:'satu sesi per baris', area:1},
+    {k:'liveClass', l:'Live Class',  ph:'bonus angkatan lama & catatan', area:1},
     {k:'catatan',   l:'Catatan Produk', ph:'catatan bebas', area:1},
   ],
 };
-// Dua gerbang yang di sheet Master jadi kolom T & U. Di sini keduanya PROSES biasa —
-// namanya yang dicocokkan, supaya statusnya punya nama pengerja dan tanggal.
+// Dua gerbang yang di sheet Master jadi kolom T & U. Di sini keduanya PROSES biasa.
 const PKG_GATES=['Input Fitur','QC VOC'];
-function pkgOf(c){ return (c && c.pkg) || null; }
-// Pencocokan nama proses gate sengaja pemaaf: "Input Fitur ke app" tetap dikenali.
-// Menuntut nama persis cuma membuat orang menebak-nebak ejaan yang benar.
+const PKG_KATEGORI=['Dibimbing','Latsol','Materi','Tryout','Drilling','Live Class'];
+const PKG_SATUAN=['Paket','BAB','Sesi','Video','Ebook'];
+
+function allPackages(){ return state.packages||[]; }
+function packageById(id){ return allPackages().find(p=>String(p.id)===String(id))||null; }
+// Paket yang sedang dibuka: dari modal paket, atau dari collab yang tertaut.
+function currentPackage(){
+  if(state._paketId) return packageById(state._paketId);
+  const c=currentCollab();
+  return (c&&c.paketId)?packageById(c.paketId):null;
+}
 function pkgNorm(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
 function pkgGateStep(c,nama){
   const g=pkgNorm(nama);
   return ((c&&c.steps)||[]).find(s=>pkgNorm(s.name).indexOf(g)>=0)||null;
 }
-// Cermin aturan server. Area yang BELUM punya PIC boleh diisi siapa pun yang memegang
-// proses di collab ini — kalau tidak, paket baru jadi jalan buntu bagi yang mengerjakan.
-function canEditPkgArea(c,area){
+/* Cermin aturan server. Area yang BELUM punya PIC boleh diisi siapa pun yang memegang
+   proses di salah satu task yang menyuplai paket ini — tanpa itu paket baru jadi jalan
+   buntu bagi yang mengerjakan. */
+function canEditPkgArea(p,area){
   if(isViewOnly()) return false;
   if(isManager(state.currentUser) || isLeader(state.currentUser)) return true;
-  const p=pkgOf(c); if(!p) return false;
+  if(!p) return false;
   const pic=String((area==='marsel'?p.marselPic:p.produkPic)||'').trim();
-  if(!pic) return ((c&&c.steps)||[]).some(s=>stepIsMine(s));
-  return same(pic, state.currentUser);
+  if(pic) return same(pic, state.currentUser);
+  return (p.collabIds||[]).some(cid=>{
+    const c=(state.collabs||[]).find(x=>x.id===cid);
+    return c && (c.steps||[]).some(s=>stepIsMine(s));
+  });
 }
 function fmtRupiah(n){ const v=Number(n||0)||0; return v?v.toLocaleString('id-ID'):''; }
-// Rentang harga diskon untuk ringkasan kartu: "Rp119–169rb".
 function pkgHargaRange(p){
   const hs=((p&&p.variants)||[]).map(v=>Number(v.hargaDiskon||0)||0).filter(x=>x>0);
   if(!hs.length) return '';
   const mn=Math.min(...hs), mx=Math.max(...hs), rb=x=>Math.round(x/1000);
   return 'Rp'+(mn===mx?rb(mn):rb(mn)+'–'+rb(mx))+'rb';
 }
-/* Kategori deliverable = kolom Area Produk di sheet Master aslinya. */
-const PKG_KATEGORI=['Dibimbing','Latsol','Materi','Tryout','Drilling','Live Class'];
-const PKG_SATUAN=['Paket','BAB','Sesi','Video','Ebook'];
 function pkgStatusPil(it){
   const s=String(it&&it.status||'belum');
   const peta={siap:['bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300','siap'],
@@ -3226,21 +3278,33 @@ function pkgStatusPil(it){
   const [cls,lbl]=peta[s]||peta.belum;
   return `<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-semibold shrink-0 ${cls}">${lbl}</span>`;
 }
-/* Satu blok per kategori, dengan subtotal yang DIHITUNG — menggantikan baris
-   "Total: 40 Paket" yang selama ini diketik tangan dan gampang basi. */
-function pkgKategoriBlok(c,p,bisa){
+/* Pilihan proses sumber: dikelompokkan per task kolaborasi, karena satu paket disuplai
+   banyak task. Nilainya "COL-012#3" — gabungan collab + nomor proses. */
+function pkgStepOptions(p, selCollab, selOrder){
+  const dipakai=new Set((p&&p.collabIds)||[]);
+  const cNow=currentCollab(); if(cNow) dipakai.add(cNow.id);
+  if(selCollab) dipakai.add(selCollab);
+  const sel=(selCollab&&selOrder)?(selCollab+'#'+selOrder):'';
+  let html=`<option value="" ${sel?'':'selected'}>— tanpa proses —</option>`;
+  let ketemu=false;
+  [...dipakai].sort().forEach(cid=>{
+    const c=(state.collabs||[]).find(x=>x.id===cid); if(!c) return;
+    html+=`<optgroup label="${escapeAttr(c.id+' · '+c.title)}">`;
+    (c.steps||[]).forEach(s=>{
+      const v=c.id+'#'+s.order;
+      if(v===sel) ketemu=true;
+      html+=`<option value="${escapeAttr(v)}" ${v===sel?'selected':''}>${escapeHtml(s.order+'. '+s.name)}</option>`;
+    });
+    html+='</optgroup>';
+  });
+  // Proses sumber bisa lenyap (collabnya dihapus / prosesnya diringkas). Nomornya tetap
+  // ditawarkan supaya tautan yang putus tidak terhapus diam-diam saat disimpan ulang.
+  if(sel && !ketemu) html+=`<option value="${escapeAttr(sel)}" selected>${escapeHtml(sel+' (proses sudah dihapus)')}</option>`;
+  return html;
+}
+/* Satu blok per kategori, subtotalnya DIHITUNG — menggantikan "Total: 40 Paket". */
+function pkgKategoriBlok(p,bisa){
   const items=(p&&p.items)||[];
-  const stepOpt=(sel)=>{
-    const daftar=((c&&c.steps)||[]);
-    const ada=daftar.some(s=>Number(s.order)===Number(sel));
-    // Proses yang ditunjuk bisa sudah dihapus dari Proses Beruntun. Nomornya tetap
-    // ditawarkan sebagai pilihan terpilih — kalau tidak, dropdown jatuh ke "tanpa proses"
-    // dan tautan yang putus itu terhapus diam-diam pada penyimpanan berikutnya.
-    const yatim=(Number(sel)>0 && !ada)
-      ? `<option value="${Number(sel)}" selected>${escapeHtml(String(sel)+'. (proses sudah dihapus)')}</option>` : '';
-    return `<option value="0" ${Number(sel)?'':'selected'}>— tanpa proses —</option>`+yatim+daftar.map(s=>
-      `<option value="${s.order}" ${Number(sel)===Number(s.order)?'selected':''}>${escapeHtml(String(s.order)+'. '+s.name)}</option>`).join('');
-  };
   const kats=PKG_KATEGORI.filter(k=>items.some(x=>same(x.kategori,k))||bisa);
   if(!kats.length) return '<div class="text-[11px] text-gray-400 px-1 py-2">Belum ada deliverable.</div>';
   return kats.map(kat=>{
@@ -3257,17 +3321,17 @@ function pkgKategoriBlok(c,p,bisa){
         </span>
       </div>
       <div class="divide-y divide-gray-100 dark:divide-slate-800">${list.map(o=>{
-        const it=o.x, tautan=Number(it.stepOrder)>0;
+        const it=o.x, tautan=!!(it.collabId&&it.stepOrder);
         return `<div class="flex items-center gap-1 px-1.5 py-1" data-pkgi="${o.i}">
           <input class="pkgi-nama form-control text-xs py-0.5 flex-1 min-w-0" ${bisa?'':'disabled'} value="${escapeAttr(it.nama||'')}" placeholder="nama deliverable">
           <input class="pkgi-grup form-control text-xs py-0.5 w-[5.5rem] shrink-0" ${bisa?'':'disabled'} value="${escapeAttr(it.grup||'')}" placeholder="grup" title="mis. Tahap 1">
           <input class="pkgi-jumlah form-control text-xs py-0.5 w-[3.2rem] shrink-0 text-right" ${bisa?'':'disabled'} value="${escapeAttr(String(it.jumlah||''))}" inputmode="numeric" placeholder="0">
           <select class="pkgi-satuan form-control text-xs py-0.5 w-[4.2rem] shrink-0" ${bisa?'':'disabled'}>${PKG_SATUAN.map(u=>`<option ${same(u,it.satuan)?'selected':''}>${escapeHtml(u)}</option>`).join('')}</select>
-          <select class="pkgi-step form-control text-xs py-0.5 w-[8.5rem] shrink-0" ${bisa?'':'disabled'} onchange="pkgSyncItems()" title="Proses yang menghasilkan item ini">${stepOpt(it.stepOrder)}</select>
+          <select class="pkgi-step form-control text-xs py-0.5 w-[10rem] shrink-0" ${bisa?'':'disabled'} onchange="pkgSyncItems()" title="Proses yang menghasilkan item ini">${pkgStepOptions(p, it.collabId, it.stepOrder)}</select>
           ${tautan
             ? pkgStatusPil(it)
             : `<select class="pkgi-status form-control text-xs py-0.5 w-[4.8rem] shrink-0" ${bisa?'':'disabled'} onchange="pkgSyncItems()" title="Item tanpa proses: statusnya diisi manual"><option value="belum" ${it.status!=='siap'?'selected':''}>belum</option><option value="siap" ${it.status==='siap'?'selected':''}>siap</option></select>`}
-          ${it.stepHilang?`<span class="material-icons-round text-[14px] text-rose-500 shrink-0" title="Proses nomor ${escapeAttr(String(it.stepOrder))} sudah tak ada di Proses Beruntun">link_off</span>`:''}
+          ${it.stepHilang?`<span class="material-icons-round text-[14px] text-rose-500 shrink-0" title="Proses sumbernya sudah tak ada">link_off</span>`:''}
           ${bisa?`<button type="button" onclick="pkgRemoveItem(${o.i})" title="Hapus item" class="shrink-0 text-gray-300 hover:text-rose-500"><span class="material-icons-round text-[15px]">close</span></button>`:''}
         </div>`;
       }).join('')||`<div class="px-2 py-1.5 text-[11px] text-gray-400">—</div>`}</div>
@@ -3280,90 +3344,102 @@ function pkgReadItems(){
   [...box.querySelectorAll('[data-pkgkat]')].forEach(blok=>{
     const kat=blok.getAttribute('data-pkgkat')||'';
     [...blok.querySelectorAll('[data-pkgi]')].forEach(tr=>{
-      const st=Number((tr.querySelector('.pkgi-step')||{}).value||0)||0;
+      const raw=String((tr.querySelector('.pkgi-step')||{}).value||'');
+      const m=/^(COL-\d+)#(\d+)$/.exec(raw);
       out.push({
         kategori:kat.trim(),
         nama:((tr.querySelector('.pkgi-nama')||{}).value||'').trim(),
         grup:((tr.querySelector('.pkgi-grup')||{}).value||'').trim(),
         jumlah:Number(((tr.querySelector('.pkgi-jumlah')||{}).value||'').replace(/[^0-9]/g,''))||0,
         satuan:((tr.querySelector('.pkgi-satuan')||{}).value||'Paket'),
-        stepOrder:st,
-        status:st?'':(((tr.querySelector('.pkgi-status')||{}).value)||'belum'),
+        collabId:m?m[1]:'', stepOrder:m?Number(m[2]):0,
+        status:m?'':(((tr.querySelector('.pkgi-status')||{}).value)||'belum'),
       });
     });
   });
   return out;
 }
-// Gambar ulang dari isi form supaya subtotal & pil status ikut bergerak sebelum disimpan.
-// Status item bertaut proses dihitung dari proses itu — cerminan aturan server.
+// Gambar ulang dari isi form supaya subtotal & pil status bergerak sebelum disimpan.
 function pkgSyncItems(){
-  const c=currentCollab(); if(!c) return;
-  const p=pkgOf(c)||{};
-  const steps={}; ((c.steps)||[]).forEach(s=>{ steps[s.order]=s; });
+  const p=currentPackage(); if(!p) return;
   p.items=pkgReadItems().map((it,i)=>{
-    const s=it.stepOrder?steps[it.stepOrder]:null;
-    return Object.assign({}, it, { order:i+1, step:s||null, stepHilang:!!(it.stepOrder&&!s),
+    const c=it.collabId?(state.collabs||[]).find(x=>x.id===it.collabId):null;
+    const s=(c&&it.stepOrder)?(c.steps||[]).find(x=>Number(x.order)===Number(it.stepOrder)):null;
+    return Object.assign({}, it, { order:i+1, step:s||null, stepHilang:!!(it.collabId&&it.stepOrder&&!s),
       status: s ? (s.done?'siap':'proses') : (it.status==='siap'?'siap':'belum') });
   });
-  c.pkg=Object.assign({}, p); renderCollabPackage(c);
+  renderPackagePanel();
 }
 function pkgAddItem(kategori){
-  const c=currentCollab(); if(!c) return;
-  const p=pkgOf(c)||{};
-  p.items=pkgReadItems().concat([{kategori:kategori,nama:'',grup:'',jumlah:0,satuan:'Paket',stepOrder:0,status:'belum'}]);
-  c.pkg=Object.assign({}, p); renderCollabPackage(c);
+  const p=currentPackage(); if(!p) return;
+  p.items=pkgReadItems().concat([{kategori:kategori,nama:'',grup:'',jumlah:0,satuan:'Paket',collabId:'',stepOrder:0,status:'belum'}]);
+  renderPackagePanel();
 }
 function pkgRemoveItem(i){
-  const c=currentCollab(); if(!c) return;
-  const p=pkgOf(c)||{}; const list=pkgReadItems(); list.splice(i,1);
-  p.items=list; c.pkg=Object.assign({}, p); renderCollabPackage(c);
+  const p=currentPackage(); if(!p) return;
+  const list=pkgReadItems(); list.splice(i,1); p.items=list; renderPackagePanel();
 }
-function renderCollabPackage(c){
-  const box=document.getElementById('collabPkgBox'); if(!box) return;
+function pkgReadVariants(){
+  const body=document.getElementById('pkgVariantBody'); if(!body) return [];
+  return [...body.querySelectorAll('tr[data-vrow]')].map(tr=>({
+    masaAktif:(tr.querySelector('.pkgv-masa')||{}).value||'',
+    hargaAwal:Number(((tr.querySelector('.pkgv-awal')||{}).value||'').replace(/[^0-9]/g,''))||0,
+    hargaDiskon:Number(((tr.querySelector('.pkgv-diskon')||{}).value||'').replace(/[^0-9]/g,''))||0,
+    status:'aktif',
+  }));
+}
+function pkgAddVariant(){
+  const p=currentPackage(); if(!p) return;
+  p.variants=pkgReadVariants().concat([{masaAktif:'',hargaAwal:0,hargaDiskon:0,status:'aktif'}]);
+  renderPackagePanel();
+}
+function pkgRemoveVariant(i){
+  const p=currentPackage(); if(!p) return;
+  const list=pkgReadVariants(); list.splice(i,1); p.variants=list; renderPackagePanel();
+}
+
+/* Panel dipakai di DUA tempat: modal task kolaborasi (paket yang tertaut) dan modal
+   Paket tersendiri. Karena itu ia menggambar dari paket, dan wadahnya dicari dinamis. */
+/* Kedua wadah SELALU ada di DOM (modal yang tertutup cuma disembunyikan), jadi pemilihan
+   harus lewat modal mana yang sedang terbuka — bukan sekadar getElementById yang pertama
+   ketemu, karena itu akan menggambar panel ke kotak yang tak terlihat. */
+function pkgPanelBox(){
+  const pm=document.getElementById('paketModal');
+  if(pm && !pm.classList.contains('hide')) return document.getElementById('paketPanelBox');
+  return document.getElementById('collabPkgBox');
+}
+function renderPackagePanel(){
+  const box=pkgPanelBox(); if(!box) return;
+  const p=currentPackage();
+  const c=currentCollab();
   box.classList.remove('hide');
-  // Task kolaborasi baru belum punya ID, jadi paketnya belum bisa disimpan. Panelnya tetap
-  // ditampilkan — kalau disembunyikan, orang tak tahu fitur ini ada dan mengira ada yang rusak.
-  if(!c){
-    box.innerHTML=`
-      <div class="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-900/50 flex items-center gap-1.5">
-        <span class="material-icons-round text-[18px] text-amber-800 dark:text-amber-200">inventory_2</span>
-        <span class="font-semibold text-sm text-amber-800 dark:text-amber-200">Master Koordinasi Paket</span>
-      </div>
-      <div class="px-4 py-4 text-xs text-gray-500 dark:text-slate-400">
-        Tersedia setelah task ini disimpan — datanya menempel pada nomor task-nya.
-        Klik <b>Simpan</b> di bawah, lalu buka lagi task ini untuk mengisi Area Marsel, Area Produk, dan varian harganya.
-      </div>`;
-    return;
-  }
-  const p=pkgOf(c)||{}; const f=p.filled||{marsel:0,marselTotal:6,produk:0,produkTotal:7,total:0,grandTotal:13};
+  if(!p){ box.innerHTML=pkgPickerHtml(c); return; }
+  const f=p.filled||{marsel:0,marselTotal:6,produk:0,produkTotal:7,total:0,grandTotal:13};
   const rk=p.ringkas||{siap:0,proses:0,belum:0,total:0};
-  // Satuan yang paling sering dipakai jadi label ringkasan — paket, BAB, atau sesi.
   const hitungSatuan={};
   ((p.items)||[]).forEach(it=>{ const u=String(it.satuan||'Paket'); hitungSatuan[u]=(hitungSatuan[u]||0)+1; });
   const satuanUtama=(Object.keys(hitungSatuan).sort((a,b)=>hitungSatuan[b]-hitungSatuan[a])[0]||'Paket').toLowerCase();
-  const bisaM=canEditPkgArea(c,'marsel'), bisaP=canEditPkgArea(c,'produk');
+  const bisaM=canEditPkgArea(p,'marsel'), bisaP=canEditPkgArea(p,'produk');
   const bos=isManager(state.currentUser)||isLeader(state.currentUser);
   const field=(fd,area,bisa)=>{
-    const v=String(p[fd.k]||'');
-    const dis=bisa?'':'disabled';
-    const kosong=!v.trim();
+    const v=String(p[fd.k]||''); const dis=bisa?'':'disabled'; const kosong=!v.trim();
     const ctl=fd.area
       ? `<textarea id="pkg-${fd.k}" rows="2" ${dis} class="form-control text-xs ${bisa?'':'opacity-70'}" placeholder="${escapeAttr(bisa?fd.ph:'(belum diisi)')}">${escapeHtml(v)}</textarea>`
       : `<input id="pkg-${fd.k}" ${fd.tipe==='date'?'type="date"':''} value="${escapeAttr(v)}" ${dis} class="form-control text-xs ${bisa?'':'opacity-70'}" placeholder="${escapeAttr(bisa?fd.ph:'(belum diisi)')}">`;
     return `<div><label class="form-label flex items-center gap-1">${escapeHtml(fd.l)}${kosong?'<span class="text-[10px] font-normal text-rose-500">belum diisi</span>':''}</label>${ctl}</div>`;
   };
   const picSel=(id,sel,bisa)=>`<select id="${id}" ${bisa?'':'disabled'} class="text-[11px] rounded bg-white/70 dark:bg-slate-900/50 border-0 outline-none px-1 py-0.5 ${bisa?'':'opacity-70'}">${collabPicOptions(sel)}</select>`;
-  const gates=PKG_GATES.map(g=>{
+  const gates=c?PKG_GATES.map(g=>{
     const s=pkgGateStep(c,g);
-    if(!s) return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border border-dashed border-gray-300 dark:border-slate-600 text-gray-400" title="Tambahkan proses bernama &quot;${escapeAttr(g)}&quot; di daftar Proses Beruntun di bawah — bukan task kolaborasi tersendiri.">${escapeHtml(g)} — belum ada prosesnya</span>`;
+    if(!s) return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border border-dashed border-gray-300 dark:border-slate-600 text-gray-400" title="Tambahkan proses bernama &quot;${escapeAttr(g)}&quot; di Proses Beruntun di bawah.">${escapeHtml(g)} — belum ada prosesnya</span>`;
     const turn=isMyTurnStep(c,s);
     const cls=s.done?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
       :(turn?'bg-rose-50 text-rose-600 border border-rose-200 dark:bg-rose-900/25 dark:text-rose-300':'bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400');
     const ic=s.done?'check_circle':(turn?'play_circle':'radio_button_unchecked');
     const ket=s.done?(s.doneBy||''):(stepPicLabel(s.pic)||'');
     return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold ${cls}"><span class="material-icons-round text-[12px]">${ic}</span>${escapeHtml(g)}${ket?` · ${escapeHtml(ket)}`:''}</span>`;
-  }).join('');
-  const vrows=((p.variants||[]).length?p.variants:[]).map((v,i)=>{
+  }).join(''):'';
+  const vrows=(p.variants||[]).map((v,i)=>{
     const pot=(Number(v.hargaAwal)>0&&Number(v.hargaDiskon)>0)?Math.round((1-v.hargaDiskon/v.hargaAwal)*100)+'%':'—';
     return `<tr data-vrow="${i}">
       <td class="px-2 py-1"><input class="pkgv-masa form-control text-xs py-0.5" ${bisaM?'':'disabled'} value="${escapeAttr(v.masaAktif||'')}" placeholder="mis. 3 Bulan"></td>
@@ -3373,16 +3449,24 @@ function renderCollabPackage(c){
       <td class="px-2 py-1 text-right">${bisaM?`<button type="button" onclick="pkgRemoveVariant(${i})" title="Hapus varian" class="text-gray-300 hover:text-rose-500"><span class="material-icons-round text-[15px]">close</span></button>`:''}</td>
     </tr>`;
   }).join('');
+  const suplai=(p.collabIds||[]).map(cid=>{
+    const cc=(state.collabs||[]).find(x=>x.id===cid);
+    return `<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300" title="${escapeAttr(cc?cc.title:'')}">${escapeHtml(cid)}</span>`;
+  }).join('');
   box.innerHTML=`
     <div class="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-900/50 flex items-center justify-between gap-3 flex-wrap">
-      <div class="font-semibold text-sm flex items-center gap-1.5 text-amber-800 dark:text-amber-200"><span class="material-icons-round text-[18px]">inventory_2</span> Master Koordinasi Paket</div>
+      <div class="font-semibold text-sm flex items-center gap-1.5 text-amber-800 dark:text-amber-200"><span class="material-icons-round text-[18px]">inventory_2</span> Master Koordinasi Paket
+        <span class="font-mono text-[11px] font-normal text-amber-700 dark:text-amber-300">${escapeHtml(p.id)}</span>
+        ${p.platform?`<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-white/70 dark:bg-slate-900/40 text-amber-800 dark:text-amber-200">${escapeHtml(p.platform)}</span>`:''}</div>
       <div class="flex items-center gap-2 flex-wrap">${gates}<span class="text-[11px] font-bold text-amber-700 dark:text-amber-300">${f.total}/${f.grandTotal} field</span></div>
     </div>
     <div class="p-4 space-y-4">
+      ${(c&&canManageCollab())?`<div class="flex items-center gap-2 flex-wrap text-[11px] text-gray-500 dark:text-slate-400">
+        <span>Task ini tertaut ke paket di atas.</span>
+        <button type="button" onclick="unlinkCollabPackage()" class="font-semibold text-rose-600 hover:underline">Lepas tautan</button>
+      </div>`:''}
+      ${suplai?`<div class="flex items-center gap-1.5 flex-wrap text-[11px] text-gray-500 dark:text-slate-400"><span class="material-icons-round text-[13px]">account_tree</span>Disuplai ${(p.collabIds||[]).length} task:${suplai}</div>`:''}
 
-      <!-- Inti panelnya: deliverable Area Produk, bersanding dengan proses yang menghasilkannya.
-           Kiri sengaja cermin ringkas Proses Beruntun (bukan salinan penuh) supaya kaitannya
-           terlihat tanpa harus menggulung bolak-balik. -->
       <div class="rounded-lg border border-indigo-200 dark:border-indigo-900/50 overflow-hidden">
         <div class="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/25 flex items-center justify-between gap-2 flex-wrap">
           <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Area Produk — Deliverable</span>
@@ -3391,29 +3475,25 @@ function renderCollabPackage(c){
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
           <div class="p-2 bg-gray-50 dark:bg-slate-800/50 border-b lg:border-b-0 lg:border-r border-gray-100 dark:border-slate-700">
             <div class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5 px-1">Proses</div>
-            ${((c.steps||[]).length?c.steps:[]).map(s=>{
-              const n=(p.items||[]).filter(x=>Number(x.stepOrder)===Number(s.order)).length;
+            ${(c&&(c.steps||[]).length)?c.steps.map(s=>{
+              const n=(p.items||[]).filter(x=>x.collabId===c.id&&Number(x.stepOrder)===Number(s.order)).length;
               return `<div class="flex items-start gap-1.5 px-1 py-1 rounded text-[11px] ${s.done?'text-gray-400':'text-gray-600 dark:text-slate-300'}">
                 <span class="material-icons-round text-[13px] shrink-0 mt-px ${s.done?'text-emerald-500':'text-gray-300 dark:text-slate-600'}">${s.done?'check_circle':'radio_button_unchecked'}</span>
                 <span class="flex-1 min-w-0 ${s.done?'line-through':''}">${escapeHtml(s.name)}</span>
                 ${n?`<span class="shrink-0 text-[9px] font-bold text-indigo-600 bg-indigo-100 dark:bg-indigo-900/40 dark:text-indigo-300 rounded px-1">${n}</span>`:''}
               </div>`;
-            }).join('')||'<div class="px-1 text-[11px] text-gray-400">Belum ada proses.</div>'}
+            }).join(''):'<div class="px-1 text-[11px] text-gray-400">Buka lewat task kolaborasi untuk melihat prosesnya.</div>'}
             <div class="mt-1.5 pt-1.5 border-t border-gray-200 dark:border-slate-700 text-[9px] text-gray-400 px-1">Angka = deliverable yang menunggunya.</div>
           </div>
-          <div class="p-2 space-y-2" id="pkgItemBox">${pkgKategoriBlok(c,p,bisaP)}</div>
+          <div class="p-2 space-y-2" id="pkgItemBox">${pkgKategoriBlok(p,bisaP)}</div>
         </div>
       </div>
 
-      <!-- Bonus angkatan lama & catatan: sengaja TETAP teks bebas. Ratusan paket yang sudah
-           jadi, tak pernah menahan apa pun — mengetiknya ulang satu per satu cuma ongkos. -->
       <details class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden" ${(PKG_FIELDS.produk.some(fd=>String(p[fd.k]||'').trim()))?'open':''}>
         <summary class="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 cursor-pointer text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400 select-none">Bonus angkatan lama &amp; catatan <span class="font-normal normal-case tracking-normal text-gray-400">— teks bebas, tidak dihitung sebagai pekerjaan</span></summary>
         <div class="p-3 space-y-2">${PKG_FIELDS.produk.map(fd=>field(fd,'produk',bisaP)).join('')}</div>
       </details>
 
-      <!-- Area Marsel: milik tim lain yang tak memakai ProductTrack. Ditampilkan sebagai
-           rujukan supaya konteksnya ada, tapi tidak jadi sumber kebenaran kedua. -->
       <details class="rounded-lg border border-amber-200 dark:border-amber-900/50 overflow-hidden">
         <summary class="px-3 py-1.5 bg-amber-100/70 dark:bg-amber-900/25 cursor-pointer text-[11px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-200 select-none">Area Marsel <span class="font-normal normal-case tracking-normal">— rujukan${bisaM?'':', baca-saja'}</span> <span class="font-normal">${f.marsel}/${f.marselTotal}</span></summary>
         <div class="p-3 space-y-2">
@@ -3431,35 +3511,83 @@ function renderCollabPackage(c){
           </div>
         </div>
       </details>
+
       ${(bisaM||bisaP)?`<div class="flex items-center justify-between gap-2 flex-wrap">
         <span class="text-[11px] text-gray-400">${p.updatedBy?`Terakhir diubah ${escapeHtml(p.updatedBy)}${p.updatedAt?' · '+escapeHtml(p.updatedAt):''}`:'Belum pernah disimpan.'}</span>
-        <button type="button" onclick="saveCollabPackage()" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan Master Paket</button>
-      </div>`:`<div class="text-[11px] text-gray-400">Kedua area sudah punya PIC dan bukan Anda, jadi isinya hanya bisa dilihat. Area yang PIC-nya belum ditunjuk boleh diisi siapa pun yang memegang proses di task ini.</div>`}
+        <button type="button" onclick="savePackagePanel()" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan Master Paket</button>
+      </div>`:`<div class="text-[11px] text-gray-400">Kedua area sudah punya PIC dan bukan Anda, jadi isinya hanya bisa dilihat.</div>`}
     </div>`;
 }
-// Varian ditambah/dihapus di DOM dulu; baru masuk sheet saat Simpan Master Paket ditekan.
-function pkgReadVariants(){
-  const body=document.getElementById('pkgVariantBody'); if(!body) return [];
-  return [...body.querySelectorAll('tr[data-vrow]')].map(tr=>({
-    masaAktif:(tr.querySelector('.pkgv-masa')||{}).value||'',
-    hargaAwal:Number(((tr.querySelector('.pkgv-awal')||{}).value||'').replace(/[^0-9]/g,''))||0,
-    hargaDiskon:Number(((tr.querySelector('.pkgv-diskon')||{}).value||'').replace(/[^0-9]/g,''))||0,
-    status:'aktif',
-  }));
+/* Pemilih paket — muncul setelah Platform dipilih, persis di modal task kolaborasi.
+   Platform menyempitkan daftar; tanpa itu memilih dari puluhan paket jadi menyiksa. */
+function pkgPickerHtml(c){
+  if(!c) return `
+    <div class="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-900/50 flex items-center gap-1.5">
+      <span class="material-icons-round text-[18px] text-amber-800 dark:text-amber-200">inventory_2</span>
+      <span class="font-semibold text-sm text-amber-800 dark:text-amber-200">Master Koordinasi Paket</span>
+    </div>
+    <div class="px-4 py-4 text-xs text-gray-500 dark:text-slate-400">Tersedia setelah task ini disimpan. Klik <b>Simpan</b> di bawah, lalu buka lagi task ini untuk menautkannya ke sebuah paket.</div>`;
+  const plats=String(c.platform||'').split(',').map(x=>x.trim()).filter(Boolean);
+  const cocok=allPackages().filter(p=>!plats.length || !p.platform || plats.some(pl=>same(pl,p.platform)));
+  const boleh=canManageCollab();
+  return `
+    <div class="px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-900/50 flex items-center gap-1.5">
+      <span class="material-icons-round text-[18px] text-amber-800 dark:text-amber-200">inventory_2</span>
+      <span class="font-semibold text-sm text-amber-800 dark:text-amber-200">Master Koordinasi Paket</span>
+    </div>
+    <div class="p-4 space-y-2">
+      <p class="text-xs text-gray-500 dark:text-slate-400">Task ini belum tertaut ke paket mana pun. Satu paket boleh digarap beberapa task${plats.length?`, dan daftarnya disaring untuk platform <b>${escapeHtml(plats.join(', '))}</b>`:''}.</p>
+      ${boleh?`<div class="flex items-center gap-2 flex-wrap">
+        <select id="pkgPick" class="form-control text-xs flex-1 min-w-[12rem]">
+          <option value="">— pilih paket —</option>
+          ${cocok.map(p=>`<option value="${escapeAttr(p.id)}">${escapeHtml(p.id+' · '+(p.namaPaket||p.program||'(tanpa nama)'))}</option>`).join('')}
+        </select>
+        <button type="button" onclick="linkCollabPackage()" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold">Tautkan</button>
+        <button type="button" onclick="createPackageForCollab()" class="px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 dark:text-amber-300 text-[11px] font-semibold">+ Paket baru</button>
+      </div>
+      ${cocok.length?'':'<p class="text-[11px] text-gray-400">Belum ada paket untuk platform itu — buat baru.</p>'}`
+      :'<p class="text-[11px] text-gray-400">Hanya Leader atau Manager yang bisa menautkan task ke paket.</p>'}
+    </div>`;
 }
-function pkgAddVariant(){
+function linkCollabPackage(){
+  const c=currentCollab(); const el=document.getElementById('pkgPick');
+  if(!c||!el||!el.value){ showToast('Pilih paketnya dulu.', false); return; }
+  GAS.withSuccessHandler(res=>{
+    if(!res||!res.success){ showToast((res&&res.message)||'Gagal menautkan', false); return; }
+    state.collabs=res.collabs||state.collabs; state.packages=res.packages||state.packages;
+    showToast(res.message); renderPackagePanel(); if(state.activeView==='collab') renderCollab();
+  }).withFailureHandler(err=>showToast('Gagal: '+(err.message||err), false))
+    .setCollabPackage(c.id, el.value, state.currentUser);
+}
+function unlinkCollabPackage(){
   const c=currentCollab(); if(!c) return;
-  const p=pkgOf(c)||{}; p.variants=pkgReadVariants().concat([{masaAktif:'',hargaAwal:0,hargaDiskon:0,status:'aktif'}]);
-  c.pkg=Object.assign({}, p); renderCollabPackage(c);
+  if(!confirm('Lepas tautan task ini dari paketnya? Paket dan deliverablenya tidak ikut terhapus.')) return;
+  GAS.withSuccessHandler(res=>{
+    if(!res||!res.success){ showToast((res&&res.message)||'Gagal melepas', false); return; }
+    state.collabs=res.collabs||state.collabs; state.packages=res.packages||state.packages;
+    showToast(res.message); renderPackagePanel(); if(state.activeView==='collab') renderCollab();
+  }).withFailureHandler(err=>showToast('Gagal: '+(err.message||err), false))
+    .setCollabPackage(c.id, '', state.currentUser);
 }
-function pkgRemoveVariant(i){
+function createPackageForCollab(){
   const c=currentCollab(); if(!c) return;
-  const p=pkgOf(c)||{}; const list=pkgReadVariants(); list.splice(i,1);
-  p.variants=list; c.pkg=Object.assign({}, p); renderCollabPackage(c);
+  const nama=prompt('Nama paket baru:', c.title||''); if(nama===null) return;
+  const plat=String(c.platform||'').split(',').map(x=>x.trim()).filter(Boolean)[0]||'';
+  GAS.withSuccessHandler(res=>{
+    if(!res||!res.success){ showToast((res&&res.message)||'Gagal membuat paket', false); return; }
+    state.packages=res.packages||state.packages; state.collabs=res.collabs||state.collabs;
+    GAS.withSuccessHandler(r2=>{
+      if(r2&&r2.success){ state.collabs=r2.collabs||state.collabs; state.packages=r2.packages||state.packages; }
+      showToast('Paket '+res.paketId+' dibuat & ditautkan.');
+      renderPackagePanel(); if(state.activeView==='collab') renderCollab();
+    }).withFailureHandler(()=>renderPackagePanel())
+      .setCollabPackage(c.id, res.paketId, state.currentUser);
+  }).withFailureHandler(err=>showToast('Gagal: '+(err.message||err), false))
+    .savePackage('', { platform: plat, marsel: { namaPaket: String(nama||'').trim() } }, state.currentUser);
 }
-function saveCollabPackage(){
-  const c=currentCollab(); if(!c){ showToast('Simpan task kolaborasinya dulu.', false); return; }
-  const bisaM=canEditPkgArea(c,'marsel'), bisaP=canEditPkgArea(c,'produk');
+function savePackagePanel(){
+  const p=currentPackage(); if(!p){ showToast('Tautkan ke sebuah paket dulu.', false); return; }
+  const bisaM=canEditPkgArea(p,'marsel'), bisaP=canEditPkgArea(p,'produk');
   if(!bisaM && !bisaP){ showToast('Anda bukan PIC area mana pun di paket ini.', false); return; }
   const bos=isManager(state.currentUser)||isLeader(state.currentUser);
   const ambil=(list)=>{ const o={}; list.forEach(fd=>{ const el=document.getElementById('pkg-'+fd.k); if(el) o[fd.k]=el.value; }); return o; };
@@ -3476,11 +3604,93 @@ function saveCollabPackage(){
   }
   GAS.withSuccessHandler(res=>{
     if(!res||!res.success){ showToast((res&&res.message)||'Gagal simpan master paket', false); return; }
-    state.collabs=res.collabs||state.collabs; showToast(res.message);
-    renderCollabPackage(currentCollab()); if(state.activeView==='collab') renderCollab();
+    state.packages=res.packages||state.packages; state.collabs=res.collabs||state.collabs;
+    showToast(res.message); renderPackagePanel();
+    if(state.activeView==='collab') renderCollab();
+    if(state.activeView==='paket') renderPaket();
   }).withFailureHandler(err=>showToast('Gagal: '+(err.message||err), false))
-    .savePackage(c.id, payload, state.currentUser);
+    .savePackage(p.id, payload, state.currentUser);
 }
+function loadPackages(cb){
+  GAS.withSuccessHandler(list=>{ state.packages=list||[]; if(cb) cb(); })
+     .withFailureHandler(()=>{ state.packages=state.packages||[]; if(cb) cb(); })
+     .getPackages();
+}
+
+/* ---------- View Master Paket ----------
+   Perlu berdiri sendiri karena paket TIDAK selalu punya task yang menggarapnya: 35 paket
+   hasil impor lahir tanpa satu pun task. Tanpa view ini mereka tak terjangkau sama sekali. */
+function renderPaket(){
+  const list=document.getElementById('paketList'); if(!list) return;
+  const pf=document.getElementById('paketFilterPlatform');
+  if(pf && pf.options.length<=1){
+    const v=pf.value;
+    pf.innerHTML='<option value="">Semua Platform</option>'+(state.options.platform||[]).map(x=>`<option value="${escapeAttr(x)}">${escapeHtml(x)}</option>`).join('');
+    pf.value=v;
+  }
+  const q=String((document.getElementById('paketSearch')||{}).value||'').toLowerCase().trim();
+  const plat=String((pf||{}).value||'');
+  let arr=allPackages().slice();
+  if(q) arr=arr.filter(p=>[p.id,p.namaPaket,p.program,p.tagline,p.platform].join(' ').toLowerCase().includes(q));
+  if(plat) arr=arr.filter(p=>same(p.platform,plat));
+  const cnt=document.getElementById('paketCount');
+  if(cnt) cnt.textContent=arr.length+' dari '+allPackages().length+' paket';
+  if(!arr.length){ list.innerHTML=`<div class="md:col-span-2 xl:col-span-3">${emptyState(allPackages().length?'Tak ada paket yang cocok.':'Belum ada paket. Buat lewat task kolaborasi, atau impor dari sheet Master.')}</div>`; return; }
+  list.innerHTML=arr.map(p=>{
+    const rk=p.ringkas||{siap:0,total:0};
+    const f=p.filled||{total:0,grandTotal:13};
+    const pct=rk.total?Math.round(rk.siap/rk.total*100):0;
+    const harga=pkgHargaRange(p);
+    const nc=(p.collabIds||[]).length;
+    return `<div onclick="openPaketModal('${escapeAttr(p.id)}')" class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 cursor-pointer hover:ring-2 hover:ring-indigo-200 transition">
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <div class="flex items-center flex-wrap gap-1">
+            <span class="text-[10px] font-mono text-gray-400">${escapeHtml(p.id)}</span>
+            ${p.platform?`<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">${escapeHtml(p.platform)}</span>`:''}
+          </div>
+          <div class="font-semibold text-sm text-gray-900 dark:text-white mt-0.5 line-clamp-2">${escapeHtml(p.namaPaket||p.program||'(tanpa nama)')}</div>
+        </div>
+        <span class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${rk.total&&rk.siap>=rk.total?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300':'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}">${f.total}/${f.grandTotal} field</span>
+      </div>
+      <div class="mt-2 flex items-center gap-2">
+        <div class="flex-1 h-1.5 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden"><div class="h-full ${pct>=100?'bg-emerald-500':'bg-indigo-500'}" style="width:${pct}%"></div></div>
+        <span class="text-[11px] font-semibold text-gray-500 dark:text-slate-400 shrink-0">${rk.siap}/${rk.total}</span>
+      </div>
+      <div class="mt-1.5 flex items-center gap-2 flex-wrap text-[11px] text-gray-500 dark:text-slate-400">
+        <span>${(p.variants||[]).length} varian</span>${harga?`<span>· ${escapeHtml(harga)}</span>`:''}
+        <span class="ml-auto flex items-center gap-0.5 ${nc?'':'text-gray-300 dark:text-slate-600'}"><span class="material-icons-round text-[13px]">account_tree</span>${nc} task</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+function openPaketModal(id){
+  state._paketId=id;
+  const m=document.getElementById('paketModal'); if(!m) return;
+  const p=packageById(id);
+  const t=document.getElementById('paketModalTitle'); if(t) t.textContent=(p&&(p.namaPaket||p.program))||id;
+  const sub=document.getElementById('paketModalSub');
+  if(sub) sub.textContent=p?(p.id+(p.platform?' · '+p.platform:'')+' · disuplai '+((p.collabIds||[]).length)+' task kolaborasi'):id;
+  const del=document.getElementById('paketDeleteBtn');
+  if(del) del.classList.toggle('hide', !(isManager(state.currentUser)||isLeader(state.currentUser)));
+  m.classList.remove('hide');
+  renderPackagePanel();
+}
+function closePaketModal(){
+  const m=document.getElementById('paketModal'); if(m) m.classList.add('hide');
+  state._paketId=null; renderPaket();
+}
+function deletePaketNow(){
+  const p=currentPackage(); if(!p) return;
+  if(!confirm('Hapus paket '+p.id+' beserta varian & deliverablenya?\n\nTask kolaborasi yang menggarapnya TIDAK ikut terhapus.')) return;
+  GAS.withSuccessHandler(res=>{
+    if(!res||!res.success){ showToast((res&&res.message)||'Gagal menghapus paket', false); return; }
+    state.packages=res.packages||state.packages; state.collabs=res.collabs||state.collabs;
+    showToast(res.message); closePaketModal(); if(state.activeView==='collab') renderCollab();
+  }).withFailureHandler(err=>showToast('Gagal: '+(err.message||err), false))
+    .deletePackage(p.id, state.currentUser);
+}
+
 function closeCollabModal(){ document.getElementById('collabModal').classList.add('hide'); const mm=document.getElementById('collabMentionMenu'); if(mm) mm.classList.add('hide'); state._collabId=null; state._collabEdit=false; state._collabDirty=false; state._collabDraft=[]; if(state.activeView==='collab') renderCollab(); }
 function notifOutsideClose(e){ const bell=document.getElementById('notifBell'), menu=document.getElementById('notifMenu'); if(!menu||menu.classList.contains('hide')) return; if(bell&&bell.contains(e.target)) return; if(menu.contains(e.target)) return; menu.classList.add('hide'); }
 /* PENTING: keluar dari mode Edit TIDAK boleh membuang isian. Dulu "Selesai edit" langsung

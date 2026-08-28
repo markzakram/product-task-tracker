@@ -10,6 +10,65 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.83.0 — Paket jadi entitas sendiri; satu paket digarap banyak task
+
+Master Koordinasi Paket tidak lagi menempel pada satu task kolaborasi. Ia punya
+nomor sendiri (`PKG-001`…) dan hidup lebih lama daripada task yang menggarapnya.
+
+### Kenapa dibongkar
+Di data nyata, **PCPM BI 41 digarap enam task kolaborasi** — Tahap I TO, Tahap I
+Video & Modul, Tahap II TO, Tahap II Video, penambahan TO & latsol, dan seterusnya.
+Model 1:1 memaksa paket itu disalin enam kali lalu melenceng satu per satu, persis
+penyakit yang mau diobati.
+
+Yang lebih berbahaya: `deleteCollab` dulu ikut menghapus paketnya. Begitu satu paket
+digarap banyak task, menghapus satu batch pekerjaan yang sudah rampung akan
+memusnahkan seluruh paket — harga, deliverable, semuanya.
+
+### Relasinya ada di item, bukan di collab
+Tiap deliverable menunjuk **(Collab ID, Step Order)** yang menghasilkannya. Dari situ
+dua arah terpenuhi sekaligus:
+
+- satu paket menerima deliverable dari **banyak** task
+- satu task menyuplai **banyak** paket — nyata: `COL-007 "Jadwal Liveclass bulan
+  Agustus"` mencakup JadiASN, JadiBUMN, JadiSekdin, dan JadiPrajurit sekaligus
+
+Kolom `Paket ID` di COLLAB tetap ada, tapi perannya cuma menentukan paket mana yang
+tampil di modal task itu — bukan relasinya.
+
+### Menghapus task tidak lagi merusak paket
+`deleteCollab` sekarang melepas tautan deliverable-nya saja, **dan mengawetkan
+hasilnya**: deliverable yang prosesnya sudah selesai tetap `siap`. Pekerjaannya memang
+terjadi; yang hilang cuma catatan tasknya.
+
+### Menu baru: Master Paket
+Paket tidak selalu punya task yang menggarapnya — 36 paket hasil impor lahir tanpa
+satu pun. Tanpa menu sendiri mereka tak terjangkau. Panel di dalamnya sama persis
+dengan yang muncul di modal task kolaborasi.
+
+### Pemilih paket di modal task
+Setelah Platform dipilih, muncul pilihan paket yang disaring untuk platform itu, plus
+**+ Paket baru**. Membuat paket baru dibatasi Leader/Manager — kalau tidak, daftarnya
+cepat penuh duplikat karena tiap orang membuat sendiri alih-alih menautkan yang ada.
+
+### Kolom J di COLLAB dijaga polanya
+Sebelum jadi `Paket ID`, kolom itu sempat diisi orang dengan hal lain (ditemukan berisi
+nama stage). Hanya nilai berpola `PKG-xxx` yang diakui sebagai tautan; sisanya diabaikan
+alih-alih memunculkan paket hantu yang tak pernah ada.
+
+### Perubahan sheet
+| Sheet | Perubahan |
+|---|---|
+| `PACKAGES` | kunci jadi **Paket ID**, dapat kolom **Platform** (A..S) |
+| `PACKAGE_VARIANTS` | kunci ikut jadi Paket ID |
+| `PACKAGE_ITEMS` | kunci jadi Paket ID; sumbernya jadi **dua kolom**: Collab ID + Step Order (A..J) |
+| `COLLAB` | dapat kolom **Paket ID** (J) |
+
+Menyimpan task sengaja berhenti menulis di kolom I — kalau tidak, tautan paketnya
+terhapus tiap kali task disimpan.
+
+---
+
 ## 1.82.1 — Penanda STAGING supaya tak tertukar dengan aplikasi utama
 
 Preview Vercel memakai kode yang sama persis dengan produksi, jadi satu-satunya
