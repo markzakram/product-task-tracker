@@ -795,7 +795,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.80.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.81.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -943,7 +943,7 @@ let state = {
   filters: {status:[], priority:[], stage:[], platform:[], pic:[], dueStart:'', dueEnd:''}, openFilter:'',
   kanbanSelect:false, selected:[],
   dashFilters: {preset:'all', start:'', end:'', field:'due', status:[], pic:[], priority:[]}, openDashFilter:'',
-  repFilters: {preset:'all', start:'', end:'', field:'created', pic:[], stage:[]}, openRepFilter:'', repPic:'',
+  repFilters: {preset:'all', start:'', end:'', field:'created', pic:[], stage:[], src:'all'}, openRepFilter:'', repPic:'',
   selectedTaskId: null, comments: [], commentsSummary: [], checklist: [], checklistSummary: {}, _pendingChecklist: [], collabs: [], _collabId: null, _collabEdit: false, _collabDraft: [], _collabDirty: false, _collabViz: 'grid', _collabFilter: {q:'',type:'',pic:'',status:'',mine:false}, notifications: [], _lastRefresh: 0, pinUsers: [], links: [], dashboards: [], notes: [], commFilters: {unreadOnly:false, pic:'', status:''}, deadlineFocus: false, chartPic: null, chartStatus: null, sortables: [],
   gantt: null, calendar: null, ganttMode: 'Day'
 };
@@ -1704,7 +1704,7 @@ function switchView(view){
   const meta={
     hariini:['Hari Ini','Fokus harian Anda: overdue, jatuh tempo hari ini, dan yang sedang dikerjakan.','wb_sunny'],
     mynotes:['Catatan Saya','Catatan pribadi Anda (hanya Anda yang bisa lihat).','sticky_note_2'],
-    report:['Laporan','Filter rentang tanggal, PIC, & stage — klik PIC untuk lihat detail stage-nya.','summarize'],
+    report:['Laporan','Task biasa + proses task kolaborasi. Filter rentang, sumber, PIC, & stage — klik PIC untuk detailnya.','summarize'],
     magang:['Kerjaan Magang','Task yang dikerjakan anak magang, dikelompokkan per orang.','school'],
     dashboard:['Dashboard','Pantau progress, deadline, dan komunikasi task tim.','space_dashboard'],
     extdash:['Dashboard Lain','Kumpulan dashboard & monitoring eksternal.','dashboard_customize'],
@@ -1914,10 +1914,17 @@ function collabPseudo(c, user){
   const isTurn=(s)=>{ if(s.done) return false; const prev=(c.steps||[]).find(x=>x.order===s.order-1); return !prev||prev.done; };
   const undone=mySteps.filter(s=>!s.done).sort((a,b)=>a.order-b.order);
   const myStep=undone[0]||mySteps[mySteps.length-1];
-  const status = mySteps.every(s=>s.done) ? 'Done' : (mySteps.some(isTurn) ? 'In progress' : 'Todo');
+  const beres=mySteps.every(s=>s.done);
+  const status = beres ? 'Done' : (mySteps.some(isTurn) ? 'In progress' : 'Todo');
   return { _collab:true, id:c.id, collabId:c.id, taskName:c.title, status, priority:'Normal',
     pic:user, platform:c.platform||'', stage:(myStep&&myStep.stage)||'', dueDate:(myStep&&myStep.deadline)||c.deadline||'',
     startDate:(myStep&&myStep.deadline)||c.deadline||'', document:(myStep&&myStep.link)||'',
+    /* Dipakai Laporan. "Dibuat" = tanggal kolaborasinya dibuat. "Selesai" dibaca dari
+       centang proses terakhir milik orang ini, karena kolaborasi tak pernah menulis
+       jejak "-> Done" di log aktivitas seperti task biasa. */
+    createdDate:dateKey(c.createdAt||''),
+    _doneAt: beres ? (mySteps.map(s=>String(s.doneAt||'')).filter(Boolean).sort().pop()||'') : '',
+    _stepTotal:mySteps.length, _stepDone:mySteps.filter(s=>s.done).length,
     _projectDeadline:c.deadline||'', _myStepName:(myStep&&myStep.name)||'',
     _myStepDeadline:(myStep&&myStep.deadline)||'', _collabColor:c.color||'', _stepOwner:user };
 }
@@ -1938,7 +1945,15 @@ function allCollabTasks(){
   const out=[];
   (state.collabs||[]).forEach(c=>{
     const pics=[];
-    (c.steps||[]).forEach(s=>{ const v=String(s.pic||'').trim(); if(v && !pics.some(x=>same(x,v))) pics.push(v); });
+    const tambah=v=>{ v=String(v||'').trim(); if(v && !pics.some(x=>same(x,v))) pics.push(v); };
+    /* PIC proses boleh berupa peran ("@Magang"). Dipakai apa adanya nama itu tak pernah
+       cocok dengan stepBelongsTo — hasRole('@Magang','magang') selalu salah — sehingga
+       prosesnya lenyap dari rekap se-tim. Pecah dulu jadi anggota perannya. */
+    (c.steps||[]).forEach(s=>{
+      const r=rolePicOf(s.pic);
+      if(r) (state.users||[]).forEach(u=>{ if(u.active!==false && same(u.role,r)) tambah(u.name); });
+      else tambah(s.pic);
+    });
     pics.forEach(v=>{ const row=collabPseudo(c, v); if(row) out.push(row); });
   });
   return out;
@@ -3781,38 +3796,58 @@ function renderReport(){
   const inScope=a=>!a.taskId||ids.has(a.taskId);
   const done=tasks.filter(isDone), active=tasks.filter(t=>!isDone(t)), overdue=tasks.filter(isLate);
   const newThisWeek=tasks.filter(t=>inWin(t.createdDate));
-  const doneEvents=(state.activity||[]).filter(a=>/→\s*done/i.test(String(a.detail||''))&&inWin(a.timestamp)&&inScope(a));
-  const doneThisWeek=[...new Set(doneEvents.map(a=>a.taskId).filter(Boolean))].length;
+  const doneEvents=(state.activity||[]).filter(a=>/→\s*done/i.test(String(a.detail||''))&&inWin(a.timestamp)&&inScope(a)&&String(a.taskId||'').indexOf('COL-')!==0);
+  /* Kolaborasi tak pernah menulis "-> Done" di log aktivitas; kelarnya dibaca dari
+     tanggal centang proses terakhir milik orang itu (_doneAt), lalu dijumlahkan. */
+  const collabRows=tasks.filter(t=>t._collab);
+  const collabDoneThisWeek=collabRows.filter(t=>t._doneAt&&inWin(t._doneAt)).length;
+  const doneThisWeek=[...new Set(doneEvents.map(a=>a.taskId).filter(Boolean))].length+collabDoneThisWeek;
   const commentsThisWeek=(state.activity||[]).filter(a=>String(a.action||'').toLowerCase()==='comment'&&inWin(a.timestamp)&&inScope(a)).length;
   const pics=[...new Set(tasks.map(t=>String(t.pic||'').trim()).filter(Boolean))].sort();
-  const picRows=pics.map(p=>({pic:p, aktif:tasks.filter(t=>same(t.pic,p)&&!isDone(t)).length, selesai:tasks.filter(t=>same(t.pic,p)&&isDone(t)).length, overdue:tasks.filter(t=>same(t.pic,p)&&isLate(t)).length, baru:newThisWeek.filter(t=>same(t.pic,p)).length}));
+  const picRows=pics.map(p=>{ const g=tasks.filter(t=>same(t.pic,p));
+    return {pic:p, aktif:g.filter(t=>!isDone(t)).length, selesai:g.filter(isDone).length, overdue:g.filter(isLate).length, baru:newThisWeek.filter(t=>same(t.pic,p)).length, kolab:g.filter(t=>t._collab).length}; });
   const stages=[...new Set(tasks.map(t=>String(t.stage||'').trim()).filter(Boolean))];
   const stageRows=stages.map(s=>({stage:s, jumlah:tasks.filter(t=>same(t.stage,s)&&!isDone(t)).length})).filter(r=>r.jumlah>0).sort((a,b)=>b.jumlah-a.jumlah);
-  const summary={total:tasks.length, active:active.length, done:done.length, overdue:overdue.length, newThisWeek:newThisWeek.length, doneThisWeek, commentsThisWeek};
+  const summary={total:tasks.length, active:active.length, done:done.length, overdue:overdue.length, newThisWeek:newThisWeek.length, doneThisWeek, commentsThisWeek, collab:collabRows.length, collabDone:collabRows.filter(isDone).length};
   if(state.repPic && !pics.some(p=>same(p,state.repPic))) state.repPic='';   // PIC terpilih hilang karena filter
-  window._reportData={picRows, stageRows, summary, range:rangeLabel(f), windowLabel:wl, detailPic:state.repPic, tasks};
+  window._reportData={picRows, stageRows, summary, range:rangeLabel(f), windowLabel:wl, detailPic:state.repPic, tasks, srcLabel:repSrcLabel(f.src)};
   const kpis=[['Total',summary.total,''],['Aktif',summary.active,'text-indigo-600'],['Selesai',summary.done,'text-emerald-600'],['Overdue',summary.overdue,'text-rose-600'],['Baru '+wl,summary.newThisWeek,'text-blue-600'],['Selesai '+wl,summary.doneThisWeek,'text-emerald-600'],['Komentar '+wl,summary.commentsThisWeek,'text-amber-600']];
   const filterBar=`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-3 flex flex-wrap items-center gap-2">
     <span class="material-icons-round text-[18px] text-indigo-500">filter_alt</span>
     ${fieldToggle(f,'setRepField')}
+    ${repSrcToggle(f,'setRepSrc')}
     <div class="flex items-center gap-1.5 flex-wrap">${rangePills(f,'setRepPreset')}</div>
     ${dateInputs(f,'setRepDate')}
     <span class="w-px h-6 bg-gray-200 dark:bg-slate-700 mx-1 hidden lg:inline-block"></span>
     ${msDropdown({key:'pic',label:'PIC',options:repPicOptions(),selected:f.pic,open:state.openRepFilter==='pic',onToggle:'toggleRepFilter',onOpen:'toggleRepPanel'})}
     ${msDropdown({key:'stage',label:'Stage',options:repStageOptions(),selected:f.stage,open:state.openRepFilter==='stage',onToggle:'toggleRepFilter',onOpen:'toggleRepPanel'})}
     ${repFilterCount()?`<button onclick="resetRepFilters()" class="h-9 px-3 rounded-lg border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-1"><span class="material-icons-round text-[15px]">filter_alt_off</span>Reset</button>`:''}
-    <span class="ml-auto text-xs text-gray-400 font-medium whitespace-nowrap">${tasks.length} dari ${state.tasks.length} task • ${escapeHtml(rangeLabel(f))}</span>
+    <span class="ml-auto text-xs text-gray-400 font-medium whitespace-nowrap">${tasks.length} dari ${repSourceTasks('all').length} baris (${collabRows.length} kolaborasi) • ${escapeHtml(rangeLabel(f))}</span>
   </div>`;
   const kpiHtml=kpis.map(k=>`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-3"><div class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">${k[0]}</div><div class="text-2xl font-bold mt-0.5 ${k[2]||'text-gray-900 dark:text-white'}">${k[1]}</div></div>`).join('');
-  const picTable=`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden"><div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2"><span class="font-semibold text-sm text-gray-900 dark:text-white">Per PIC</span><span class="text-[11px] text-gray-400 font-medium">Klik baris untuk lihat detail stage</span></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-[11px] uppercase tracking-wider text-gray-400"><th class="px-4 py-2">PIC</th><th class="px-4 py-2">Aktif</th><th class="px-4 py-2">Selesai</th><th class="px-4 py-2">Overdue</th><th class="px-4 py-2">Baru ${wl}</th></tr></thead><tbody>${picRows.length?picRows.map((r,i)=>{const on=same(state.repPic,r.pic); return `<tr onclick="selectReportPic(${i})" class="border-t border-gray-100 dark:border-slate-800 cursor-pointer ${on?'bg-indigo-50 dark:bg-indigo-900/30':'hover:bg-gray-50 dark:hover:bg-slate-800/60'}"><td class="px-4 py-2 font-medium text-gray-800 dark:text-slate-200 flex items-center gap-1.5"><span class="material-icons-round text-[16px] ${on?'text-indigo-600':'text-gray-300 dark:text-slate-600'}">${on?'expand_more':'chevron_right'}</span>${escapeHtml(r.pic)}</td><td class="px-4 py-2">${r.aktif}</td><td class="px-4 py-2 text-emerald-600">${r.selesai}</td><td class="px-4 py-2 ${r.overdue?'text-rose-600 font-semibold':''}">${r.overdue}</td><td class="px-4 py-2">${r.baru}</td></tr>`;}).join(''):`<tr><td colspan="5" class="px-4 py-6 text-center text-gray-400">Tidak ada data.</td></tr>`}</tbody></table></div></div>`;
+  const picTable=`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden"><div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2"><span class="font-semibold text-sm text-gray-900 dark:text-white">Per PIC</span><span class="text-[11px] text-gray-400 font-medium">Klik baris untuk lihat detail stage</span></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-[11px] uppercase tracking-wider text-gray-400"><th class="px-4 py-2">PIC</th><th class="px-4 py-2">Aktif</th><th class="px-4 py-2">Selesai</th><th class="px-4 py-2">Overdue</th><th class="px-4 py-2">Baru ${wl}</th><th class="px-4 py-2" title="Baris yang berasal dari task kolaborasi">Kolab</th></tr></thead><tbody>${picRows.length?picRows.map((r,i)=>{const on=same(state.repPic,r.pic); return `<tr onclick="selectReportPic(${i})" class="border-t border-gray-100 dark:border-slate-800 cursor-pointer ${on?'bg-indigo-50 dark:bg-indigo-900/30':'hover:bg-gray-50 dark:hover:bg-slate-800/60'}"><td class="px-4 py-2 font-medium text-gray-800 dark:text-slate-200 flex items-center gap-1.5"><span class="material-icons-round text-[16px] ${on?'text-indigo-600':'text-gray-300 dark:text-slate-600'}">${on?'expand_more':'chevron_right'}</span>${escapeHtml(r.pic)}</td><td class="px-4 py-2">${r.aktif}</td><td class="px-4 py-2 text-emerald-600">${r.selesai}</td><td class="px-4 py-2 ${r.overdue?'text-rose-600 font-semibold':''}">${r.overdue}</td><td class="px-4 py-2">${r.baru}</td><td class="px-4 py-2 ${r.kolab?'text-violet-600 font-semibold':'text-gray-400'}">${r.kolab}</td></tr>`;}).join(''):`<tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">Tidak ada data.</td></tr>`}</tbody></table></div></div>`;
   const stageTable=`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden"><div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2"><span class="font-semibold text-sm text-gray-900 dark:text-white">Per Stage (task aktif)</span><span class="text-[11px] text-gray-400 font-medium">Klik untuk filter stage</span></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-[11px] uppercase tracking-wider text-gray-400"><th class="px-4 py-2">Stage</th><th class="px-4 py-2">Jumlah aktif</th></tr></thead><tbody>${stageRows.length?stageRows.map((r,i)=>{const on=f.stage.some(v=>same(v,r.stage)); return `<tr onclick="toggleRepStageIdx(${i})" class="border-t border-gray-100 dark:border-slate-800 cursor-pointer ${on?'bg-indigo-50 dark:bg-indigo-900/30':'hover:bg-gray-50 dark:hover:bg-slate-800/60'}"><td class="px-4 py-2 font-medium text-gray-800 dark:text-slate-200">${escapeHtml(r.stage)}${on?' <span class="material-icons-round text-[14px] text-indigo-600 align-middle">check</span>':''}</td><td class="px-4 py-2">${r.jumlah}</td></tr>`;}).join(''):`<tr><td colspan="2" class="px-4 py-6 text-center text-gray-400">Tidak ada data.</td></tr>`}</tbody></table></div></div>`;
   const detail=state.repPic?repDetailHtml(state.repPic,tasks):'';
-  box.innerHTML=`<div class="flex items-center justify-between gap-3 flex-wrap"><div><h2 class="text-lg font-semibold text-gray-900 dark:text-white">Laporan</h2><p class="text-sm text-gray-500">${escapeHtml(rangeLabel(f))} • klik PIC untuk lihat stage yang dikerjakan.</p></div><div class="flex gap-2"><button onclick="exportReportCSV()" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold flex items-center gap-1.5"><span class="material-icons-round text-[18px]">download</span> Export CSV</button><button onclick="window.print()" class="px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold flex items-center gap-1.5"><span class="material-icons-round text-[18px]">print</span> Print/PDF</button></div></div>${filterBar}<div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">${kpiHtml}</div><div class="grid grid-cols-1 lg:grid-cols-2 gap-4">${picTable}${stageTable}</div>${detail}`;
+  box.innerHTML=`<div class="flex items-center justify-between gap-3 flex-wrap"><div><h2 class="text-lg font-semibold text-gray-900 dark:text-white">Laporan</h2><p class="text-sm text-gray-500">${escapeHtml(rangeLabel(f))} • ${escapeHtml(repSrcLabel(f.src))} • klik PIC untuk lihat stage yang dikerjakan.</p></div><div class="flex gap-2"><button onclick="exportReportCSV()" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold flex items-center gap-1.5"><span class="material-icons-round text-[18px]">download</span> Export CSV</button><button onclick="window.print()" class="px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold flex items-center gap-1.5"><span class="material-icons-round text-[18px]">print</span> Print/PDF</button></div></div>${filterBar}<div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">${kpiHtml}</div><div class="grid grid-cols-1 lg:grid-cols-2 gap-4">${picTable}${stageTable}</div>${detail}`;
 }
 /* ---------- Laporan: filter (rentang · PIC · stage) + drill-down per PIC ---------- */
 function repDateOf(t){ return state.repFilters.field==='due' ? t.dueDate : (t.createdDate||t.startDate); }
+/* Sumber baris Laporan: task biasa + "pseudo-task" kolaborasi (satu baris per
+   kolaborasi x PIC proses, lihat collabPseudo). Laporan hanya dibuka manager/dev dan
+   membaca state.tasks apa adanya tanpa Fokus PIC, jadi cakupan kolaborasinya pun se-tim.
+   Tombol Sumber memakai fungsi ini juga, supaya angka & daftar opsi selalu sepadan. */
+const REP_SRC=[['all','Task + Kolaborasi'],['task','Task biasa saja'],['collab','Kolaborasi saja']];
+function repSrcLabel(v){ const h=REP_SRC.find(x=>x[0]===(v||'all')); return h?h[1]:REP_SRC[0][1]; }
+function repSourceTasks(src){
+  const v=src||state.repFilters.src||'all';
+  return (v==='collab'?[]:[...state.tasks]).concat(v==='task'?[]:allCollabTasks());
+}
+function repSrcToggle(f,fn){
+  const b=(v,l)=>`<button onclick="${fn}('${v}')" class="px-3 text-[13px] font-medium ${(f.src||'all')===v?'bg-violet-600 text-white':'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'}">${l}</button>`;
+  return `<div class="inline-flex h-9 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden divide-x divide-gray-200 dark:divide-slate-700" title="Baris mana yang dihitung: task biasa, proses task kolaborasi, atau keduanya">${b('all','Semua')}${b('task','Task')}${b('collab','Kolaborasi')}</div>`;
+}
 function repFilteredTasks(){
-  let arr=[...state.tasks];
+  let arr=repSourceTasks();
   const f=state.repFilters, r=effRange(f);
   if(r.start||r.end) arr=arr.filter(t=>inDateRange(repDateOf(t),r.start,r.end));
   if(f.pic.length)   arr=arr.filter(t=>f.pic.some(v=>same(t.pic,v)));
@@ -3825,15 +3860,19 @@ function repWindow(){
   if(r.start||r.end) return {start:r.start||'0000-01-01', end:r.end||'9999-12-31', custom:true};
   return {start:isoShift(-7), end:isoLocal(new Date()), custom:false};
 }
-function repPicOptions(){ const out=[]; state.tasks.forEach(t=>{const p=String(t.pic||'').trim(); if(p&&!out.some(x=>same(x,p))) out.push(p);}); return out.sort((a,b)=>a.localeCompare(b)); }
-function repStageOptions(){ const out=(state.options.stage||[]).slice(); state.tasks.forEach(t=>{const s=String(t.stage||'').trim(); if(s&&!out.some(x=>same(x,s))) out.push(s);}); return out; }
-function repFilterCount(){ const f=state.repFilters; return f.pic.length+f.stage.length+(f.preset!=='all'?1:0); }
+// Opsi PIC & Stage dibaca dari SELURUH sumber ('all'), bukan dari sumber yang sedang
+// dipilih — kalau tidak, memilih "Kolaborasi saja" membuat PIC yang tersaring lenyap
+// dari dropdown dan filternya tak bisa dilepas lagi.
+function repPicOptions(){ const out=[]; repSourceTasks('all').forEach(t=>{const p=String(t.pic||'').trim(); if(p&&!out.some(x=>same(x,p))) out.push(p);}); return out.sort((a,b)=>a.localeCompare(b)); }
+function repStageOptions(){ const out=(state.options.stage||[]).slice(); repSourceTasks('all').forEach(t=>{const s=String(t.stage||'').trim(); if(s&&!out.some(x=>same(x,s))) out.push(s);}); return out; }
+function repFilterCount(){ const f=state.repFilters; return f.pic.length+f.stage.length+(f.preset!=='all'?1:0)+((f.src||'all')!=='all'?1:0); }
 function toggleRepPanel(field){ state.openRepFilter=(state.openRepFilter===field?'':field); renderReport(); }
 function toggleRepFilter(field,value,checked){ toggleInArr(state.repFilters[field],value,checked); state.openRepFilter=field; renderReport(); }
 function setRepPreset(p){ state.repFilters.preset=p; syncPresetDates(state.repFilters); renderReport(); }
 function setRepField(v){ state.repFilters.field=v; syncPresetDates(state.repFilters); renderReport(); }
+function setRepSrc(v){ state.repFilters.src=v; renderReport(); }
 function setRepDate(key,val){ const f=state.repFilters; const r=effRange(f); f.start=r.start; f.end=r.end; f[key]=val; f.preset='custom'; renderReport(); }
-function resetRepFilters(){ state.repFilters={preset:'all',start:'',end:'',field:'created',pic:[],stage:[]}; state.openRepFilter=''; state.repPic=''; renderReport(); }
+function resetRepFilters(){ state.repFilters={preset:'all',start:'',end:'',field:'created',pic:[],stage:[],src:'all'}; state.openRepFilter=''; state.repPic=''; renderReport(); }
 function closeRepDetail(){ state.repPic=''; renderReport(); }
 // Pakai indeks baris (bukan nama) supaya nama ber-tanda kutip tidak merusak atribut onclick.
 function selectReportPic(i){
@@ -3869,9 +3908,10 @@ function repDetailHtml(picName,tasks){
       </div>
       <div class="h-1.5 rounded-full bg-gray-100 dark:bg-slate-800 overflow-hidden mb-2"><div class="h-full rounded-full bg-indigo-500" style="width:${Math.round(r.total/max*100)}%"></div></div>
       <div class="space-y-0.5">${r.tasks.map(t=>`
-        <div onclick="openTaskModal('${escapeAttr(t.id)}')" class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer">
+        <div onclick="${t._collab?`openCollabModal('${escapeAttr(t.collabId)}')`:`openTaskModal('${escapeAttr(t.id)}')`}" class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer">
           <span class="text-[11px] font-mono text-gray-400 shrink-0">${escapeHtml(t.id)}</span>
-          <span class="text-[13px] text-gray-700 dark:text-slate-300 truncate flex-1">${escapeHtml(t.taskName||'-')}</span>
+          ${t._collab?`<span title="Task kolaborasi" class="inline-flex items-center gap-0.5 h-[18px] px-1 rounded text-[9px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 shrink-0"><span class="material-icons-round text-[11px]">account_tree</span>KOLAB</span>`:''}
+          <span class="text-[13px] text-gray-700 dark:text-slate-300 truncate flex-1">${escapeHtml(t.taskName||'-')}${t._collab?` <span class="text-gray-400">· ${escapeHtml(t._myStepName||'—')} (${t._stepDone}/${t._stepTotal} proses)</span>`:''}</span>
           ${statusChip(t.status)}
           <span class="text-[11px] shrink-0 ${isLate(t)?'text-rose-600 font-semibold':'text-gray-400'}">${t.dueDate?escapeHtml(t.dueDate):'—'}${isLate(t)?' • telat':''}</span>
         </div>`).join('')}</div>
@@ -3881,7 +3921,7 @@ function repDetailHtml(picName,tasks){
       <div class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style="background:${pal[0]};color:${pal[1]}">${escapeHtml(String(picName).trim().charAt(0).toUpperCase())}</div>
       <div class="min-w-0">
         <div class="font-semibold text-gray-900 dark:text-white truncate">${escapeHtml(picName)}</div>
-        <div class="text-[11px] text-gray-500 dark:text-slate-400">${mine.length} task • ${rows.length} stage • ${escapeHtml(rangeLabel(state.repFilters))}</div>
+        <div class="text-[11px] text-gray-500 dark:text-slate-400">${mine.length} baris${mine.filter(t=>t._collab).length?` (${mine.filter(t=>t._collab).length} kolaborasi)`:''} • ${rows.length} stage • ${escapeHtml(rangeLabel(state.repFilters))}</div>
       </div>
       <button onclick="closeRepDetail()" class="ml-auto h-8 px-3 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-1"><span class="material-icons-round text-[16px]">close</span>Tutup</button>
     </div>${body}</div>`;
@@ -3893,13 +3933,17 @@ function exportReportCSV(){
   rows.push(['Laporan — ProductTrack']);
   rows.push(['Diekspor', new Date().toLocaleString('id-ID')]);
   rows.push(['Rentang', d.range||'Semua waktu']);
+  rows.push(['Sumber', d.srcLabel||'Task + Kolaborasi']);
   rows.push([]);
   rows.push(['Ringkasan']);
-  rows.push(['Total task', S.total]); rows.push(['Aktif', S.active]); rows.push(['Selesai', S.done]); rows.push(['Overdue', S.overdue]);
+  rows.push(['Total baris', S.total]); rows.push(['Aktif', S.active]); rows.push(['Selesai', S.done]); rows.push(['Overdue', S.overdue]);
   rows.push(['Baru '+wl, S.newThisWeek]); rows.push(['Selesai '+wl, S.doneThisWeek]); rows.push(['Komentar '+wl, S.commentsThisWeek]);
+  // Satu baris kolaborasi = pekerjaan SATU orang pada satu task kolaborasi, bukan
+  // task kolaborasinya; angkanya tak bisa langsung dibandingkan dengan jumlah task.
+  rows.push(['Dari task kolaborasi', S.collab||0]); rows.push(['— sudah selesai', S.collabDone||0]);
   rows.push([]);
-  rows.push(['Per PIC','Aktif','Selesai','Overdue','Baru '+wl]);
-  d.picRows.forEach(r=>rows.push([r.pic, r.aktif, r.selesai, r.overdue, r.baru]));
+  rows.push(['Per PIC','Aktif','Selesai','Overdue','Baru '+wl,'Kolaborasi']);
+  d.picRows.forEach(r=>rows.push([r.pic, r.aktif, r.selesai, r.overdue, r.baru, r.kolab||0]));
   rows.push([]);
   rows.push(['Per Stage (aktif)','Jumlah']);
   d.stageRows.forEach(r=>rows.push([r.stage, r.jumlah]));
@@ -3913,8 +3957,8 @@ function exportReportCSV(){
     names.forEach(s=>{ const g=mine.filter(t=>repStageName(t)===s);
       rows.push([s, g.length, g.filter(t=>!isDone(t)).length, g.filter(isDone).length, g.filter(isLate).length]); });
     rows.push([]);
-    rows.push(['ID','Task','Stage','Status','Priority','Deadline','Overdue']);
-    mine.forEach(t=>rows.push([t.id, t.taskName, repStageName(t), t.status, t.priority, t.dueDate||'', isLate(t)?'Ya':'']));
+    rows.push(['ID','Jenis','Task','Proses','Stage','Status','Priority','Deadline','Overdue']);
+    mine.forEach(t=>rows.push([t.id, t._collab?'Kolaborasi':'Task', t.taskName, t._collab?`${t._myStepName||'—'} (${t._stepDone}/${t._stepTotal})`:'', repStageName(t), t.status, t.priority, t.dueDate||'', isLate(t)?'Ya':'']));
   }
   const csv=rows.map(r=>r.map(c=>{ const s=String(c==null?'':c); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',')).join('\r\n');
   const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob);

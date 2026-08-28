@@ -1337,6 +1337,22 @@ ok('hanya Kanban & List yang menyisipkan collab', commHtml.indexOf("function vie
 // Ekspor CSV: cakupan collab harus sama dgn task, termasuk filter cepat.
 ok('ekspor collab hormati filter cepat', commHtml.indexOf("if(state.quickFilter==='mine' && !stepBelongsTo(st, state.currentUser)) return;") >= 0);
 ok('ekspor collab hormati fokus deadline', commHtml.indexOf("if(state.deadlineFocus && !(telat || (!st.done && sisa===0))) return;") >= 0);
+// Laporan manager ikut menghitung kerja kolaborasi, bukan cuma task biasa.
+ok('sumber baris Laporan = task + kolaborasi', commHtml.indexOf("return (v==='collab'?[]:[...state.tasks]).concat(v==='task'?[]:allCollabTasks());") >= 0);
+ok('Laporan memakai sumber itu', commHtml.indexOf("function repFilteredTasks(){\n  let arr=repSourceTasks();") >= 0);
+ok('ada tombol pemilih sumber', commHtml.indexOf("function repSrcToggle(f,fn){") >= 0 && commHtml.indexOf("function setRepSrc(v){") >= 0);
+ok('tiga pilihan sumber', /REP_SRC=\[\['all','Task \+ Kolaborasi'\],\['task','Task biasa saja'\],\['collab','Kolaborasi saja'\]\]/.test(commHtml));
+ok('opsi PIC & Stage dibaca dari seluruh sumber', (commHtml.match(/repSourceTasks\('all'\)/g) || []).length >= 3);
+ok('pseudo-task collab membawa tanggal dibuat', commHtml.indexOf("createdDate:dateKey(c.createdAt||'')") >= 0);
+ok('kelarnya collab dibaca dari centang proses', commHtml.indexOf("_doneAt: beres ? (mySteps.map(s=>String(s.doneAt||'')).filter(Boolean).sort().pop()||'') : ''") >= 0);
+ok('"Selesai minggu ini" menjumlahkan keduanya', commHtml.indexOf("const doneThisWeek=[...new Set(doneEvents.map(a=>a.taskId).filter(Boolean))].length+collabDoneThisWeek;") >= 0);
+ok('jejak "-> Done" tidak diambil dari baris collab', commHtml.indexOf("String(a.taskId||'').indexOf('COL-')!==0") >= 0);
+ok('tabel Per PIC punya kolom Kolab', commHtml.indexOf("kolab:g.filter(t=>t._collab).length") >= 0);
+ok('baris collab di drill-down membuka modal kolaborasi', commHtml.indexOf("t._collab?`openCollabModal('${escapeAttr(t.collabId)}')`:`openTaskModal('${escapeAttr(t.id)}')`") >= 0);
+ok('ekspor CSV menandai jenis barisnya', commHtml.indexOf("t._collab?'Kolaborasi':'Task'") >= 0);
+// PIC proses berupa peran ("@Magang") harus pecah jadi anggotanya, kalau tidak
+// prosesnya lenyap dari rekap se-tim (stepBelongsTo tak pernah cocok dgn "@Magang").
+ok('PIC peran dipecah ke anggotanya di rekap se-tim', commHtml.indexOf("if(r) (state.users||[]).forEach(u=>{ if(u.active!==false && same(u.role,r)) tambah(u.name); });") >= 0);
 ok('pseudo-task menyimpan pemilik prosesnya', commHtml.indexOf("_stepOwner:user") >= 0);
 ok('label bukan selalu "Proses Anda"', commHtml.indexOf("same(t._stepOwner,state.currentUser)?'Anda':(stepPicLabel(t._stepOwner)||t.pic||'—')") >= 0);
 ok('stage & link proses ikut ke pseudo-task', commHtml.indexOf("stage:(myStep&&myStep.stage)||'', dueDate:(myStep&&myStep.deadline)||c.deadline||''") >= 0);
