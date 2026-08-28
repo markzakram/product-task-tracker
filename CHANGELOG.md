@@ -31,6 +31,26 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.86.1 — Tombol buat rancangan + urutan menu mengikuti alur kerja
+
+### Rancangan bisa dibuat dari menunya sendiri
+Sebelumnya paket hanya bisa lahir dari dalam task kolaborasi (`+ Paket baru`), padahal
+alurnya justru terbalik: **Manager menyusun rancangan dulu, tasknya menyusul.** Kini ada
+tombol **+ Rancangan Paket** di menu Rancangan Paket, khusus Leader/Manager.
+
+Platform diambil dari filter yang sedang aktif supaya tak perlu diketik dua kali, dan
+paket yang baru dibuat langsung dibuka agar targetnya bisa segera disusun — bukan
+dicari lagi di daftar.
+
+### Urutan menu grup Kolaborasi
+Dari `Komunikasi → Task Kolaborasi → Rancangan Paket` menjadi:
+
+**Rancangan Paket → Task Kolaborasi → Komunikasi**
+
+Urutannya mengikuti alur kerja sebenarnya: rencana disusun, dikerjakan, baru dibicarakan.
+
+---
+
 ## 1.86.0 — Rancangan Paket: target yang dipenuhi banyak task
 
 "Master Koordinasi Paket" berganti nama jadi **Rancangan Paket**, dan isinya berubah

@@ -1174,6 +1174,17 @@ ok('lencana giliran tetap dihitung', commHtml.indexOf('function updateCollabTurn
 
 // Panel Master Paket: deliverable Area Produk.
 ok('panel rancangan digambar per kategori', commHtml.indexOf('function pkgKategoriBlok(') >= 0);
+
+// Manager menyusun rancangan lebih dulu, jadi membuatnya harus bisa dari menunya sendiri —
+// bukan cuma dari dalam task kolaborasi, karena alurnya justru terbalik.
+ok('ada tombol buat rancangan di menunya', commHtml.indexOf('onclick="createPackageBaru()"') >= 0);
+ok('tombolnya hanya untuk Leader/Manager', commHtml.indexOf("add.classList.toggle('hide', !(isManager(state.currentUser)||isLeader(state.currentUser)) || isViewOnly())") >= 0);
+ok('paket baru langsung dibuka utk diisi targetnya', commHtml.indexOf('openPaketModal(res.paketId)') >= 0);
+// Urutan menu mengikuti alur kerja: rencana -> pengerjaan -> pembicaraan.
+ok('menu Rancangan Paket di atas Task Kolaborasi',
+  commHtml.indexOf("switchView('paket')") < commHtml.indexOf("switchView('collab')"));
+ok('Task Kolaborasi di atas Komunikasi',
+  commHtml.indexOf("switchView('collab')") < commHtml.indexOf("switchView('communication')"));
 ok('blok kategori diberi penanda data', commHtml.indexOf('data-pkgkat=') >= 0);
 ok('pembacaan balik memakai penanda itu', commHtml.indexOf("querySelectorAll('[data-pkgkat]')") >= 0);
 // Tautan ke proses yang sudah dihapus harus tetap terbawa, bukan diam-diam jadi "tanpa proses".

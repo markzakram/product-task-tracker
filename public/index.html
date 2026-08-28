@@ -200,15 +200,15 @@
 
         <div id="navgrp-kolaborasi" class="nav-group space-y-1 mt-4 first:mt-0">
           <div class="nav-group-title px-3 pb-1 text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest select-none">Kolaborasi</div>
-          <button onclick="switchView('communication')" id="nav-communication" class="nav-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left font-medium text-sm text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800">
-            <span class="material-icons-round text-[20px]">forum</span> Komunikasi
+          <button onclick="switchView('paket')" id="nav-paket" class="nav-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left font-medium text-sm text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800">
+            <span class="material-icons-round text-[20px]">inventory_2</span> Rancangan Paket
           </button>
           <button onclick="switchView('collab')" id="nav-collab" class="nav-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left font-medium text-sm text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800">
             <span class="material-icons-round text-[20px]">account_tree</span> <span class="flex-1">Task Kolaborasi</span>
             <span id="collabTurnBadge" class="hide inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold">0</span>
           </button>
-          <button onclick="switchView('paket')" id="nav-paket" class="nav-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left font-medium text-sm text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800">
-            <span class="material-icons-round text-[20px]">inventory_2</span> Rancangan Paket
+          <button onclick="switchView('communication')" id="nav-communication" class="nav-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left font-medium text-sm text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800">
+            <span class="material-icons-round text-[20px]">forum</span> Komunikasi
           </button>
         </div>
 
@@ -427,7 +427,10 @@
         <div id="paketView" class="view hide max-w-[1600px] mx-auto space-y-4">
           <div class="flex items-center justify-between gap-3 flex-wrap">
             <div class="text-sm text-gray-500 dark:text-slate-400 min-w-0">Paket hidup lebih lama daripada task yang menggarapnya — satu paket bisa dikerjakan beberapa task kolaborasi.</div>
-            <span id="paketCount" class="text-[11px] text-gray-400 shrink-0"></span>
+            <div class="flex items-center gap-2 shrink-0">
+              <span id="paketCount" class="text-[11px] text-gray-400"></span>
+              <button id="paketAddBtn" onclick="createPackageBaru()" class="hide px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm flex items-center gap-1.5"><span class="material-icons-round text-[18px]">add</span>Rancangan Paket</button>
+            </div>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
             <div class="relative flex-1 min-w-[180px] max-w-sm">
@@ -837,7 +840,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.86.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.86.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3699,8 +3702,28 @@ function loadPackages(cb){
 /* ---------- View Master Paket ----------
    Perlu berdiri sendiri karena paket TIDAK selalu punya task yang menggarapnya: 35 paket
    hasil impor lahir tanpa satu pun task. Tanpa view ini mereka tak terjangkau sama sekali. */
+/* Membuat rancangan dari menunya sendiri — tanpa ini paket hanya bisa lahir dari dalam
+   task kolaborasi, padahal alurnya justru terbalik: Manager menyusun rancangan DULU,
+   tasknya menyusul. Platform diambil dari filter yang sedang aktif supaya tak perlu
+   diketik dua kali. */
+function createPackageBaru(){
+  if(!(isManager(state.currentUser)||isLeader(state.currentUser))){ showToast('Hanya Leader atau Manager yang bisa membuat rancangan paket.', false); return; }
+  const nama=prompt('Nama paket baru:', ''); if(nama===null) return;
+  if(!String(nama).trim()){ showToast('Nama paket tak boleh kosong.', false); return; }
+  const plat=String((document.getElementById('paketFilterPlatform')||{}).value||'');
+  GAS.withSuccessHandler(res=>{
+    if(!res||!res.success){ showToast((res&&res.message)||'Gagal membuat paket', false); return; }
+    state.packages=res.packages||state.packages; state.collabs=res.collabs||state.collabs;
+    showToast(res.message); renderPaket();
+    // Langsung dibuka supaya targetnya bisa segera disusun, bukan dicari lagi di daftar.
+    openPaketModal(res.paketId);
+  }).withFailureHandler(err=>showToast('Gagal: '+(err.message||err), false))
+    .savePackage('', { platform: plat, marsel: { namaPaket: String(nama).trim() } }, state.currentUser);
+}
 function renderPaket(){
   const list=document.getElementById('paketList'); if(!list) return;
+  const add=document.getElementById('paketAddBtn');
+  if(add) add.classList.toggle('hide', !(isManager(state.currentUser)||isLeader(state.currentUser)) || isViewOnly());
   const pf=document.getElementById('paketFilterPlatform');
   if(pf && pf.options.length<=1){
     const v=pf.value;
