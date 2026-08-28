@@ -42,6 +42,7 @@ const CONFIG = {
   PACKAGE_SHEET: 'PACKAGES',
   PACKAGE_VARIANT_SHEET: 'PACKAGE_VARIANTS',
   PACKAGE_ITEM_SHEET: 'PACKAGE_ITEMS',
+  PACKAGE_CONTRIB_SHEET: 'PACKAGE_CONTRIB',
   NOTIF_SHEET: 'NOTIFICATIONS',
   USERS_SHEET: 'USERS',
   HEADER_ROW: 3,
@@ -1263,20 +1264,21 @@ async function getCollabs(preC, preS) {
 }
 
 /* ------------------------------------------------------------------ */
-/* MASTER KOORDINASI PAKET — entitas tersendiri (PKG-xxx).             */
+/* RANCANGAN PAKET — entitas tersendiri (PKG-xxx).                     */
 /*                                                                     */
-/* Paket hidup lebih lama daripada task yang menggarapnya. Satu paket   */
-/* dikerjakan BANYAK task kolaborasi — di data nyata, PCPM BI 41 punya  */
-/* enam (Tahap I TO, Tahap I Video, Tahap II TO, penambahan, dst).      */
-/* Karena itu kuncinya bukan Collab ID: menghapus satu batch pekerjaan  */
-/* yang sudah rampung tidak boleh ikut memusnahkan paketnya.            */
+/* Manager menyusun RANCANGAN lebih dulu: daftar target per paket,      */
+/* mis. "Latsol Verbal PCPM BI 41 — 10 Paket". Task kolaborasi lalu     */
+/* MENYETOR sebagian demi sebagian: satu task 5 paket, task lain 5      */
+/* paket, sampai targetnya terpenuhi.                                   */
 /*                                                                     */
-/* Relasi sesungguhnya ada di ITEM, bukan di collab: tiap deliverable   */
-/* menunjuk (Collab ID, Step Order) yang menghasilkannya. Dari situ     */
-/* satu collab bisa menyuplai beberapa paket sekaligus — mis. "Jadwal   */
-/* Liveclass bulan Agustus" yang mencakup empat platform.               */
-/* Kolom Paket ID di COLLAB hanyalah penentu paket mana yang tampil di  */
-/* modal task itu, bukan relasinya.                                     */
+/* Pola itu sudah terjadi hari ini, cuma dihitung di kepala orang lalu  */
+/* diketik ke sel: COL-009 "5 Paket TO" + COL-010 "TO 15 paket" = 20,   */
+/* dan sheet Master menuliskan "Tahap 1 – 20 paket". Yang hilang cuma   */
+/* penjumlahan otomatisnya, dan itulah yang dikembalikan di sini.       */
+/*                                                                     */
+/* Target = wewenang Manager. Kontribusi = milik task, jadi siapa pun   */
+/* yang mengelola task itu boleh mengaturnya; kalau tidak, tiap task    */
+/* baru harus menunggu Manager.                                         */
 /* ------------------------------------------------------------------ */
 const PKG_MARSEL = ['program', 'namaPaket', 'tagline', 'benefit', 'tanggal', 'tujuan'];
 const PKG_PRODUK = ['dibimbing', 'latsol', 'materi', 'tryout', 'drilling', 'liveClass', 'catatan'];
@@ -1284,13 +1286,14 @@ const PKG_HEADERS = ['Paket ID', 'Platform', 'Marsel PIC', 'Program', 'Nama Pake
   'Tanggal', 'Tujuan', 'Produk PIC', 'Dibimbing', 'Latsol', 'Materi', 'Tryout', 'Drilling',
   'Live Class', 'Catatan', 'Updated By', 'Updated At'];
 const PKGV_HEADERS = ['Paket ID', 'Order', 'Masa Aktif', 'Harga Awal', 'Harga Diskon', 'Status'];
-/* Deliverable Area Produk, satu baris satu item. Kolom H+I menunjuk proses yang
-   menghasilkannya. Penunjuknya sengaja di sisi ITEM: satu proses boleh menghasilkan
-   beberapa deliverable (mis. "Generate 10 paket latsol (Numerik & digit symbol)"). */
-const PKGI_HEADERS = ['Paket ID', 'Order', 'Kategori', 'Grup', 'Nama', 'Jumlah', 'Satuan', 'Collab ID', 'Step Order', 'Status'];
+/* Target rancangan. "Awal" = yang sudah tersedia sebelum task apa pun (mis. warisan
+   angkatan lalu) — dihitung sebagai terpenuhi tanpa perlu kontribusi palsu. */
+const PKGI_HEADERS = ['Item ID', 'Paket ID', 'Order', 'Kategori', 'Grup', 'Nama', 'Target', 'Satuan', 'Awal', 'Catatan'];
+/* Setoran satu task terhadap satu target. Step Order 0 = dihitung saat TASK-nya Selesai,
+   bukan per proses — dipakai kalau setorannya memang hasil seluruh task. */
+const PKGC_HEADERS = ['Paket ID', 'Item ID', 'Collab ID', 'Step Order', 'Jumlah', 'Catatan'];
 const PKG_KATEGORI = ['Dibimbing', 'Latsol', 'Materi', 'Tryout', 'Drilling', 'Live Class'];
-// Dipakai menyaring kolom J COLLAB: di sheet lama kolom itu sempat diisi orang dengan hal
-// lain (mis. nama stage), dan menganggapnya tautan paket memunculkan paket hantu.
+// Kolom J COLLAB sempat diisi orang dengan hal lain (nama stage) sebelum jadi Paket ID.
 const PKG_ID_RE = new RegExp('^PKG-[0-9]+$');
 
 async function ensurePackageSheets() {
@@ -1304,25 +1307,10 @@ async function ensurePackageSheets() {
   await ensureSheetExists(CONFIG.PACKAGE_ITEM_SHEET);
   head = await valuesGet(`${CONFIG.PACKAGE_ITEM_SHEET}!A1:J1`);
   if (!((head[0] || [])[0])) await valuesUpdate(`${CONFIG.PACKAGE_ITEM_SHEET}!A1:J1`, [PKGI_HEADERS]);
+  await ensureSheetExists(CONFIG.PACKAGE_CONTRIB_SHEET);
+  head = await valuesGet(`${CONFIG.PACKAGE_CONTRIB_SHEET}!A1:F1`);
+  if (!((head[0] || [])[0])) await valuesUpdate(`${CONFIG.PACKAGE_CONTRIB_SHEET}!A1:F1`, [PKGC_HEADERS]);
   _ensured.add('package');
-}
-
-/* Status item: kalau ditautkan ke sebuah proses, statusnya IKUT proses itu dan tak bisa
-   diketik manual — itu inti integrasinya. Item tanpa proses (mis. produksi angkatan lalu
-   yang sudah jadi) memakai status tersimpannya sendiri. */
-function itemStatus(it, step) {
-  if (step) return step.done ? 'siap' : 'proses';
-  return String((it && it.status) || '').trim().toLowerCase() === 'siap' ? 'siap' : 'belum';
-}
-// Ringkasan jumlah per status — menggantikan baris "Total: 40 Paket" yang diketik tangan.
-function itemRingkas(items) {
-  const r = { siap: 0, proses: 0, belum: 0, total: 0, jml: (items || []).length };
-  (items || []).forEach(it => {
-    const n = Number(it.jumlah || 0) || 0;
-    r.total += n;
-    if (r[it.status] !== undefined) r[it.status] += n;
-  });
-  return r;
 }
 
 function emptyPackage(paketId) {
@@ -1355,7 +1343,6 @@ function packageToRow(p) {
     p.updatedBy, p.updatedAt];
 }
 
-// Berapa dari 13 field isi yang sudah terisi, dipecah per area.
 function packageFilled(p) {
   const hit = list => list.filter(k => String((p && p[k]) || '').trim()).length;
   const m = hit(PKG_MARSEL), d = hit(PKG_PRODUK);
@@ -1366,9 +1353,36 @@ function packageFilled(p) {
   };
 }
 
-// Siapa boleh mengubah sisi mana. Manager/Leader bebas; kalau area sudah bertuan, hanya
-// PIC-nya. Kalau BELUM bertuan, siapa pun yang memegang proses di salah satu task yang
-// menggarap paket ini boleh mulai — tanpa itu paket baru jadi jalan buntu bagi pengerjanya.
+/* Status target dihitung, tak pernah diketik:
+     terpenuhi = Awal + setoran yang prosesnya sudah selesai
+     menunggu  = setoran yang prosesnya belum selesai
+   "lebih" sengaja TIDAK dibulatkan jadi "done" — kelebihan biasanya berarti salah hitung
+   atau ada setoran dobel, dan justru itu yang perlu terlihat. */
+function itemHitung(it) {
+  const target = Number(it.target || 0) || 0;
+  const awal = Number(it.awal || 0) || 0;
+  let terpenuhi = awal, menunggu = 0;
+  (it.kontrib || []).forEach(k => { if (k.selesai) terpenuhi += Number(k.jumlah || 0) || 0; else menunggu += Number(k.jumlah || 0) || 0; });
+  const sisa = Math.max(0, target - terpenuhi);
+  let status = 'belum';
+  if (target > 0 && terpenuhi > target) status = 'lebih';
+  else if (target > 0 && terpenuhi >= target) status = 'done';
+  else if (menunggu > 0) status = 'proses';
+  else if (terpenuhi > 0) status = 'sebagian';
+  return { target, awal, terpenuhi, menunggu, sisa, lebih: Math.max(0, terpenuhi - target), status };
+}
+function itemRingkas(items) {
+  const r = { target: 0, terpenuhi: 0, menunggu: 0, sisa: 0, jml: (items || []).length,
+    done: 0, lebih: 0, kurang: 0 };
+  (items || []).forEach(it => {
+    r.target += it.target; r.terpenuhi += it.terpenuhi; r.menunggu += it.menunggu; r.sisa += it.sisa;
+    if (it.status === 'done') r.done++;
+    else if (it.status === 'lebih') r.lebih++;
+    else r.kurang++;
+  });
+  return r;
+}
+
 function canEditPackageArea(pkg, area, actor, terlibat) {
   const a = baseName(actor); if (!a) return false;
   if (isManagerActor(actor) || isLeaderActor(actor)) return true;
@@ -1384,31 +1398,40 @@ async function genPackageId() {
   rows.forEach(r => { const m = /^PKG-(\d+)$/.exec(String((r && r[0]) || '').trim()); if (m) maks = Math.max(maks, Number(m[1])); });
   return 'PKG-' + String(maks + 1).padStart(3, '0');
 }
+async function nextItemIds(n) {
+  let rows = [];
+  try { rows = await valuesGet(`${CONFIG.PACKAGE_ITEM_SHEET}!A2:A`); } catch (e) { rows = []; }
+  let maks = 0;
+  rows.forEach(r => { const m = /^ITM-(\d+)$/.exec(String((r && r[0]) || '').trim()); if (m) maks = Math.max(maks, Number(m[1])); });
+  const out = [];
+  for (let i = 1; i <= n; i++) out.push('ITM-' + String(maks + i).padStart(4, '0'));
+  return out;
+}
 
-// Indeks proses seluruh collab: stepIndex[collabId][order] = step. Dipakai menurunkan
-// status item, yang sumbernya bisa berasal dari collab mana pun.
+// Indeks proses + status task, dipakai menentukan setoran mana yang sudah terhitung.
 function buildStepIndex(collabs) {
-  const idx = {};
+  const idx = { step: {}, collab: {} };
   (collabs || []).forEach(c => {
-    idx[c.id] = {};
-    (c.steps || []).forEach(s => { idx[c.id][s.order] = { order: s.order, name: s.name, pic: s.pic, done: s.done, doneBy: s.doneBy, collabId: c.id, collabTitle: c.title }; });
+    idx.collab[c.id] = { id: c.id, title: c.title, status: c.status, done: c.done, total: c.total };
+    idx.step[c.id] = {};
+    (c.steps || []).forEach(s => { idx.step[c.id][s.order] = { order: s.order, name: s.name, pic: s.pic, done: s.done, doneBy: s.doneBy, collabId: c.id, collabTitle: c.title }; });
   });
   return idx;
 }
 
 async function readPackages(stepIndex) {
-  let prows = [], vrows = [], irows = [];
+  let prows = [], vrows = [], irows = [], crows = [];
   try {
-    const b = await valuesBatchGet([`${CONFIG.PACKAGE_SHEET}!A2:S`, `${CONFIG.PACKAGE_VARIANT_SHEET}!A2:F`, `${CONFIG.PACKAGE_ITEM_SHEET}!A2:J`]);
+    const b = await valuesBatchGet([`${CONFIG.PACKAGE_SHEET}!A2:S`, `${CONFIG.PACKAGE_VARIANT_SHEET}!A2:F`,
+      `${CONFIG.PACKAGE_ITEM_SHEET}!A2:J`, `${CONFIG.PACKAGE_CONTRIB_SHEET}!A2:F`]);
     prows = b[`${CONFIG.PACKAGE_SHEET}!A2:S`] || [];
     vrows = b[`${CONFIG.PACKAGE_VARIANT_SHEET}!A2:F`] || [];
     irows = b[`${CONFIG.PACKAGE_ITEM_SHEET}!A2:J`] || [];
+    crows = b[`${CONFIG.PACKAGE_CONTRIB_SHEET}!A2:F`] || [];
   } catch (e) { return {}; }
+  const idx = stepIndex || { step: {}, collab: {} };
   const out = {};
-  prows.forEach((r, i) => {
-    const p = rowToPackage(r, i + 2);
-    if (p.id) out[p.id] = p;
-  });
+  prows.forEach((r, i) => { const p = rowToPackage(r, i + 2); if (p.id) out[p.id] = p; });
   vrows.forEach((r, i) => {
     const pid = String((r && r[0]) || '').trim(); if (!pid || !out[pid]) return;
     out[pid].variants.push({
@@ -1419,36 +1442,55 @@ async function readPackages(stepIndex) {
       status: String((r && r[5]) || '').trim() || 'aktif',
     });
   });
+  const itemById = {};
   irows.forEach((r, i) => {
-    const pid = String((r && r[0]) || '').trim(); if (!pid || !out[pid]) return;
-    out[pid].items.push({
-      row: i + 2, order: Number((r && r[1]) || 0),
-      kategori: String((r && r[2]) || '').trim(),
-      grup: String((r && r[3]) || '').trim(),
-      nama: String((r && r[4]) || '').trim(),
-      jumlah: Number((r && r[5]) || 0) || 0,
-      satuan: String((r && r[6]) || '').trim() || 'Paket',
-      collabId: String((r && r[7]) || '').trim(),
-      stepOrder: Number((r && r[8]) || 0) || 0,
-      status: String((r && r[9]) || '').trim().toLowerCase() || 'belum',
+    const iid = String((r && r[0]) || '').trim();
+    const pid = String((r && r[1]) || '').trim();
+    if (!iid || !pid || !out[pid]) return;
+    const it = {
+      row: i + 2, itemId: iid, paketId: pid,
+      order: Number((r && r[2]) || 0),
+      kategori: String((r && r[3]) || '').trim(),
+      grup: String((r && r[4]) || '').trim(),
+      nama: String((r && r[5]) || '').trim(),
+      target: Number((r && r[6]) || 0) || 0,
+      satuan: String((r && r[7]) || '').trim() || 'Paket',
+      awal: Number((r && r[8]) || 0) || 0,
+      catatan: String((r && r[9]) || '').trim(),
+      kontrib: [],
+    };
+    itemById[iid] = it;
+    out[pid].items.push(it);
+  });
+  crows.forEach((r, i) => {
+    const iid = String((r && r[1]) || '').trim();
+    const it = itemById[iid]; if (!it) return;
+    const cid = String((r && r[2]) || '').trim();
+    const so = Number((r && r[3]) || 0) || 0;
+    const step = (cid && so) ? ((idx.step[cid] || {})[so] || null) : null;
+    const col = cid ? (idx.collab[cid] || null) : null;
+    // Setoran tanpa collab = catatan sejarah (tasknya sudah dihapus, kerjanya sudah terjadi).
+    // Setoran tanpa nomor proses = dihitung saat TASK-nya Selesai.
+    const selesai = !cid ? true : (so ? !!(step && step.done) : !!(col && col.status === 'Selesai'));
+    it.kontrib.push({
+      row: i + 2, paketId: String((r && r[0]) || '').trim(), itemId: iid,
+      collabId: cid, stepOrder: so,
+      jumlah: Number((r && r[4]) || 0) || 0,
+      catatan: String((r && r[5]) || '').trim(),
+      step, collabTitle: col ? col.title : '', selesai,
+      // Sumbernya bisa lenyap (collab dihapus / proses diringkas) — ditandai, tak didiamkan.
+      hilang: !!(cid && !col) || !!(cid && so && !step),
     });
   });
-  const idx = stepIndex || {};
   Object.values(out).forEach(p => {
     p.variants.sort((a, b) => a.order - b.order);
     p.items.sort((a, b) => a.order - b.order);
     p.filled = packageFilled(p);
-    p.items.forEach(it => {
-      const s = (it.collabId && it.stepOrder && idx[it.collabId]) ? idx[it.collabId][it.stepOrder] : null;
-      it.step = s || null;
-      // Proses sumber bisa lenyap: collabnya dihapus, atau daftar prosesnya diringkas.
-      // Ditandai, bukan didiamkan — kalau tidak, itemnya menggantung tanpa jejak.
-      it.stepHilang = !!(it.collabId && it.stepOrder && !s);
-      it.status = itemStatus(it, s);
-    });
+    p.items.forEach(it => { Object.assign(it, itemHitung(it)); });
     p.ringkas = itemRingkas(p.items);
-    // Task kolaborasi mana saja yang menyuplai paket ini — dipakai memilih proses sumber.
-    p.collabIds = [...new Set(p.items.map(it => it.collabId).filter(Boolean))];
+    const cid = {};
+    p.items.forEach(it => (it.kontrib || []).forEach(k => { if (k.collabId) cid[k.collabId] = 1; }));
+    p.collabIds = Object.keys(cid);
   });
   return out;
 }
@@ -1469,23 +1511,20 @@ async function savePackage(paketId, payload, actor) {
   const collabs = await loadCollabsRaw();
   const semua = await readPackages(buildStepIndex(collabs));
   const baruSekali = !paketId;
+  const bos = isManagerActor(actor) || isLeaderActor(actor);
   if (baruSekali) {
-    // Membuat paket = wewenang manager/leader. Kalau tidak, daftar paket cepat penuh
-    // duplikat karena tiap orang membuat sendiri alih-alih menautkan yang sudah ada.
-    if (!isManagerActor(actor) && !isLeaderActor(actor)) return { success: false, message: 'Hanya Leader atau Manager yang bisa membuat paket baru.' };
+    if (!bos) return { success: false, message: 'Hanya Leader atau Manager yang bisa membuat paket baru.' };
     paketId = await genPackageId();
   }
   const lama = semua[paketId] || emptyPackage(paketId);
   if (!baruSekali && !lama.row) return { success: false, message: 'Paket tidak ditemukan: ' + paketId };
   const baru = Object.assign({}, lama);
-  // "Terlibat" = memegang proses di salah satu task yang menyuplai paket ini.
   const terlibat = (lama.collabIds || []).some(cid => {
     const c = collabs.find(x => x.id === cid);
     return c && (c.steps || []).some(s => canCheckStep(s.pic, actor, false));
   });
   const bolehMarsel = canEditPackageArea(lama, 'marsel', actor, terlibat || baruSekali);
   const bolehProduk = canEditPackageArea(lama, 'produk', actor, terlibat || baruSekali);
-  const bos = isManagerActor(actor) || isLeaderActor(actor);
   let sentuh = 0;
   if (payload.platform !== undefined) {
     if (!bos) return { success: false, message: 'Platform paket hanya bisa diubah Leader atau Manager.' };
@@ -1507,8 +1546,9 @@ async function savePackage(paketId, payload, actor) {
     if (!bolehMarsel) return { success: false, message: 'Varian & harga hanya bisa diubah PIC Area Marsel, Leader, atau Manager.' };
     sentuh++;
   }
+  // RANCANGAN (daftar target) = wewenang Manager. Yang lain hanya melihat.
   if (payload.items !== undefined) {
-    if (!bolehProduk) return { success: false, message: 'Daftar deliverable hanya bisa diubah PIC Area Produk, Leader, atau Manager.' };
+    if (!isManagerActor(actor)) return { success: false, message: 'Rancangan paket (daftar target) hanya bisa diubah Manager.' };
     sentuh++;
   }
   if (!sentuh) return { success: false, message: 'Tak ada yang diubah.' };
@@ -1528,29 +1568,87 @@ async function savePackage(paketId, payload, actor) {
     }
   }
   if (payload.items !== undefined) {
-    await purgeRowsForRef(CONFIG.PACKAGE_ITEM_SHEET, 'J', 0, paketId);
-    const list = (payload.items || []).filter(v => v && String(v.nama || '').trim());
-    if (list.length) {
-      await valuesAppend(`${CONFIG.PACKAGE_ITEM_SHEET}!A:J`, list.map((v, i) => {
-        const cid = String(v.collabId || '').trim();
-        const so = Number(v.stepOrder || 0) || 0;
-        const bertaut = !!(cid && so);
-        return [paketId, i + 1,
-          String(v.kategori || '').trim(), String(v.grup || '').trim(), String(v.nama || '').trim(),
-          Number(v.jumlah || 0) || 0, String(v.satuan || 'Paket').trim(),
-          bertaut ? cid : '', bertaut ? so : 0,
-          // Status tersimpan hanya dipakai untuk item TANPA proses. Yang bertaut proses
-          // statusnya diturunkan saat dibaca, jadi apa pun yang dikirim klien diabaikan.
-          bertaut ? '' : (String(v.status || '').trim().toLowerCase() === 'siap' ? 'siap' : 'belum')];
-      }));
-    }
+    const masuk = (payload.items || []).filter(v => v && String(v.nama || '').trim());
+    // Item ID yang sudah ada DIPERTAHANKAN — kalau tidak, seluruh setoran yang menunjuknya
+    // jadi yatim setiap kali rancangannya disimpan ulang.
+    const perluBaru = masuk.filter(v => !/^ITM-\d+$/.test(String(v.itemId || '').trim())).length;
+    const idBaru = perluBaru ? await nextItemIds(perluBaru) : [];
+    let ptr = 0;
+    const rows = masuk.map((v, i) => {
+      const iid = /^ITM-\d+$/.test(String(v.itemId || '').trim()) ? String(v.itemId).trim() : idBaru[ptr++];
+      return [iid, paketId, i + 1,
+        String(v.kategori || '').trim(), String(v.grup || '').trim(), String(v.nama || '').trim(),
+        Number(v.target || 0) || 0, String(v.satuan || 'Paket').trim(),
+        Number(v.awal || 0) || 0, String(v.catatan || '').trim()];
+    });
+    await purgeRowsForRef(CONFIG.PACKAGE_ITEM_SHEET, 'J', 1, paketId);
+    if (rows.length) await valuesAppend(`${CONFIG.PACKAGE_ITEM_SHEET}!A:J`, rows);
+    // Setoran yang targetnya dihapus ikut dibuang — kalau dibiarkan, ia menggantung tanpa
+    // induk dan angkanya tak pernah muncul di mana pun lagi.
+    const hidup = {}; rows.forEach(r => { hidup[r[0]] = 1; });
+    await purgeContribTanpaItem(paketId, hidup);
   }
-  await logActivity(actor, 'Package Save', '', `Master paket ${paketId} diperbarui`);
-  return { success: true, message: baruSekali ? ('Paket ' + paketId + ' dibuat.') : 'Master paket tersimpan.', paketId, packages: await getPackages(), collabs: await getCollabs() };
+  await logActivity(actor, 'Package Save', '', `Rancangan paket ${paketId} diperbarui`);
+  return { success: true, message: baruSekali ? ('Paket ' + paketId + ' dibuat.') : 'Rancangan paket tersimpan.', paketId, packages: await getPackages(), collabs: await getCollabs() };
 }
 
-// Menghapus paket TIDAK menyentuh task kolaborasinya — paket dan pekerjaan hidup terpisah.
-// Yang dibuang variannya, deliverable-nya, dan tautan Paket ID di collab yang menunjuknya.
+// Buang baris setoran milik paket ini yang Item ID-nya sudah tak ada.
+async function purgeContribTanpaItem(paketId, hidup) {
+  let rows = [];
+  try { rows = await valuesGet(`${CONFIG.PACKAGE_CONTRIB_SHEET}!A2:F`); } catch (e) { return 0; }
+  const hapus = [];
+  rows.forEach((r, i) => {
+    if (String((r || [])[0] || '').trim() !== paketId) return;
+    if (!hidup[String((r || [])[1] || '').trim()]) hapus.push(i + 2);
+  });
+  if (!hapus.length) return 0;
+  const meta = await getSheetMeta();
+  const sid = meta[CONFIG.PACKAGE_CONTRIB_SHEET] && meta[CONFIG.PACKAGE_CONTRIB_SHEET].sheetId;
+  if (sid == null) return 0;
+  await batchUpdate(hapus.sort((a, b) => b - a)
+    .map(rn => ({ deleteDimension: { range: { sheetId: sid, dimension: 'ROWS', startIndex: rn - 1, endIndex: rn } } })));
+  return hapus.length;
+}
+
+/* Setoran SATU task terhadap satu paket. Sengaja diganti per-task, bukan per-paket:
+   kalau seluruh setoran paket ditulis ulang, task lain yang sedang membuka paket yang
+   sama akan saling menghapus setoran. */
+async function setPackageContrib(paketId, collabId, list, actor) {
+  actor = String(actor || '').trim() || 'Unknown';
+  paketId = String(paketId || '').trim();
+  collabId = String(collabId || '').trim();
+  await loadUsers();
+  if (!canManageCollabActor(actor)) return { success: false, message: 'Hanya Leader atau Manager yang bisa mengatur setoran task.' };
+  if (!paketId || !collabId) return { success: false, message: 'Paket atau task tidak disebut.' };
+  await ensurePackageSheets();
+  const semua = await readPackages(buildStepIndex(await loadCollabsRaw()));
+  const p = semua[paketId];
+  if (!p) return { success: false, message: 'Paket tidak ditemukan: ' + paketId };
+  const sah = {}; (p.items || []).forEach(it => { sah[it.itemId] = 1; });
+  const bersih = (list || []).filter(k => k && sah[String(k.itemId || '').trim()] && (Number(k.jumlah || 0) || 0) > 0);
+  // Buang setoran lama milik task ini di paket ini saja.
+  let rows = [];
+  try { rows = await valuesGet(`${CONFIG.PACKAGE_CONTRIB_SHEET}!A2:F`); } catch (e) { rows = []; }
+  const hapus = [];
+  rows.forEach((r, i) => {
+    if (String((r || [])[0] || '').trim() === paketId && String((r || [])[2] || '').trim() === collabId) hapus.push(i + 2);
+  });
+  if (hapus.length) {
+    const meta = await getSheetMeta();
+    const sid = meta[CONFIG.PACKAGE_CONTRIB_SHEET] && meta[CONFIG.PACKAGE_CONTRIB_SHEET].sheetId;
+    if (sid != null) await batchUpdate(hapus.sort((a, b) => b - a)
+      .map(rn => ({ deleteDimension: { range: { sheetId: sid, dimension: 'ROWS', startIndex: rn - 1, endIndex: rn } } })));
+  }
+  if (bersih.length) {
+    await valuesAppend(`${CONFIG.PACKAGE_CONTRIB_SHEET}!A:F`, bersih.map(k => [
+      paketId, String(k.itemId).trim(), collabId,
+      Number(k.stepOrder || 0) || 0, Number(k.jumlah || 0) || 0,
+      String(k.catatan || '').trim()]));
+  }
+  await logActivity(actor, 'Package Contrib', collabId, `${collabId} menyetor ${bersih.length} target di ${paketId}`);
+  return { success: true, message: 'Setoran task tersimpan.', packages: await getPackages(), collabs: await getCollabs() };
+}
+
 async function deletePackage(paketId, actor) {
   actor = String(actor || '').trim() || 'Unknown';
   paketId = String(paketId || '').trim();
@@ -1559,19 +1657,18 @@ async function deletePackage(paketId, actor) {
   await ensurePackageSheets();
   let ikut = 0;
   ikut += await purgeRowsForRef(CONFIG.PACKAGE_VARIANT_SHEET, 'F', 0, paketId);
-  ikut += await purgeRowsForRef(CONFIG.PACKAGE_ITEM_SHEET, 'J', 0, paketId);
-  // Nomor paket dipakai ulang (genPackageId = max+1), jadi baris yang menggantung akan
-  // diwarisi paket berikutnya — keluarga bug yang sama dengan collab & task.
+  ikut += await purgeRowsForRef(CONFIG.PACKAGE_ITEM_SHEET, 'J', 1, paketId);
+  ikut += await purgeRowsForRef(CONFIG.PACKAGE_CONTRIB_SHEET, 'F', 0, paketId);
+  // Nomor paket dipakai ulang (max+1) — baris menggantung akan diwarisi paket berikutnya.
   await purgeRowsForRef(CONFIG.PACKAGE_SHEET, 'S', 0, paketId);
   const crows = await valuesGet(`${CONFIG.COLLAB_SHEET}!A2:J`);
   for (let i = 0; i < crows.length; i++) {
     if (String((crows[i] || [])[9] || '').trim() === paketId) await valuesUpdate(`${CONFIG.COLLAB_SHEET}!J${i + 2}`, [['']]);
   }
-  await logActivity(actor, 'Package Delete', '', `Paket ${paketId} dihapus (${ikut} varian/deliverable ikut dibuang)`);
+  await logActivity(actor, 'Package Delete', '', `Paket ${paketId} dihapus (${ikut} varian/target/setoran ikut dibuang)`);
   return { success: true, message: 'Paket dihapus.', packages: await getPackages(), collabs: await getCollabs() };
 }
 
-// Menautkan task kolaborasi ke sebuah paket. Kosongkan paketId untuk melepas tautannya.
 async function setCollabPackage(collabId, paketId, actor) {
   actor = String(actor || '').trim() || 'Unknown';
   collabId = String(collabId || '').trim();
@@ -1840,11 +1937,19 @@ async function deleteCollab(id, actor) {
   await ensureCollabSheets();
   // Rekam dulu proses mana yang SUDAH selesai, sebelum barisnya dibuang. Dipakai di bawah
   // untuk mengawetkan status deliverable yang dihasilkannya.
-  let stepSelesai = {};
+  let stepSelesai = {}, colSelesai = false;
   try {
     const sr = await valuesGet(`${CONFIG.COLLAB_STEP_SHEET}!A2:F`);
-    sr.forEach(r => { if (String((r || [])[0] || '').trim() === id) stepSelesai[Number((r || [])[1] || 0)] = isChecked((r || [])[5]); });
-  } catch (e) { stepSelesai = {}; }
+    let n = 0, d = 0;
+    sr.forEach(r => {
+      if (String((r || [])[0] || '').trim() !== id) return;
+      const ok = isChecked((r || [])[5]);
+      stepSelesai[Number((r || [])[1] || 0)] = ok;
+      n++; if (ok) d++;
+    });
+    // Setoran tanpa nomor proses dihitung saat TASK-nya Selesai, jadi keadaan itu ikut direkam.
+    colSelesai = n > 0 && d >= n;
+  } catch (e) { stepSelesai = {}; colSelesai = false; }
   await deleteStepRowsForCollab(id);
   // Sub-ceklisnya ikut dibuang. Nomor collab dipakai ulang (genCollabId = max+1), jadi bila
   // dibiarkan menggantung, collab BARU akan mewarisi sub-ceklis milik collab yang dihapus.
@@ -1869,17 +1974,28 @@ async function deleteCollab(id, actor) {
   // dan satu paket digarap banyak task. Yang dibereskan cuma jejak task ini di deliverable:
   // tautannya dilepas, TAPI status hasilnya diawetkan. Deliverable yang prosesnya sudah
   // selesai tetap "siap" — pekerjaannya memang terjadi; yang hilang cuma catatan tasknya.
-  let lepas = 0;
+  // Setoran task ini terhadap rancangan paket. Yang prosesnya SUDAH selesai diawetkan
+  // sebagai catatan sejarah (Collab ID dikosongkan, tetap terhitung) — pekerjaannya memang
+  // terjadi. Yang belum selesai dibuang: tak ada yang dihasilkan, jadi tak boleh menghantui
+  // angka "menunggu" selamanya.
+  let awet = 0, buang = [];
   try {
-    const jm = await valuesGet(`${CONFIG.PACKAGE_ITEM_SHEET}!A2:J`);
-    for (let i = 0; i < jm.length; i++) {
-      if (String((jm[i] || [])[7] || '').trim() !== id) continue;
-      const st = stepSelesai[Number((jm[i] || [])[8] || 0)] ? 'siap' : 'belum';
-      await valuesUpdate(`${CONFIG.PACKAGE_ITEM_SHEET}!H${i + 2}:J${i + 2}`, [['', 0, st]]);
-      lepas++;
+    const km = await valuesGet(`${CONFIG.PACKAGE_CONTRIB_SHEET}!A2:F`);
+    for (let i = 0; i < km.length; i++) {
+      if (String((km[i] || [])[2] || '').trim() !== id) continue;
+      const so = Number((km[i] || [])[3] || 0) || 0;
+      const jadi = so ? !!stepSelesai[so] : (colSelesai === true);
+      if (jadi) { await valuesUpdate(`${CONFIG.PACKAGE_CONTRIB_SHEET}!C${i + 2}:D${i + 2}`, [['', 0]]); awet++; }
+      else buang.push(i + 2);
     }
-  } catch (e) { lepas = 0; }
-  ikut += lepas;
+    if (buang.length) {
+      const meta = await getSheetMeta();
+      const sid = meta[CONFIG.PACKAGE_CONTRIB_SHEET] && meta[CONFIG.PACKAGE_CONTRIB_SHEET].sheetId;
+      if (sid != null) await batchUpdate(buang.sort((a, b) => b - a)
+        .map(rn => ({ deleteDimension: { range: { sheetId: sid, dimension: 'ROWS', startIndex: rn - 1, endIndex: rn } } })));
+    }
+  } catch (e) { awet = 0; }
+  ikut += awet + buang.length;
   // Jejak penghapusan dicatat TANPA taskId, supaya tidak nyangkut di feed collab bernomor sama.
   await logActivity(actor, 'Collab Delete', '', `${id} dihapus (${ikut} komentar/notifikasi/aktivitas ikut dibuang)`);
   return { success: true, message: 'Task kolaborasi dihapus.', collabs: await getCollabs() };
@@ -2948,7 +3064,7 @@ module.exports = {
   // task kolaborasi (alur beruntun antar-PIC)
   getCollabs, saveCollab, setCollabStepDone, setCollabStepNote, setCollabStepLink, setCollabType, deleteCollab,
   // master koordinasi paket (nempel pada collab)
-  savePackage, getPackages, deletePackage, setCollabPackage,
+  savePackage, getPackages, deletePackage, setCollabPackage, setPackageContrib,
   // notifikasi (tag @user)
   getNotifications, markNotificationsRead,
   // user & peran (Dev saja)

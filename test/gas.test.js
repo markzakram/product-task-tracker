@@ -1173,12 +1173,15 @@ ok('spanduk Giliran Anda tetap ada', commHtml.indexOf('<b>Giliran Anda:</b>') >=
 ok('lencana giliran tetap dihitung', commHtml.indexOf('function updateCollabTurnBadge()') >= 0);
 
 // Panel Master Paket: deliverable Area Produk.
-ok('panel deliverable digambar per kategori', commHtml.indexOf('function pkgKategoriBlok(') >= 0);
+ok('panel rancangan digambar per kategori', commHtml.indexOf('function pkgKategoriBlok(') >= 0);
 ok('blok kategori diberi penanda data', commHtml.indexOf('data-pkgkat=') >= 0);
 ok('pembacaan balik memakai penanda itu', commHtml.indexOf("querySelectorAll('[data-pkgkat]')") >= 0);
 // Tautan ke proses yang sudah dihapus harus tetap terbawa, bukan diam-diam jadi "tanpa proses".
-ok('nomor proses yatim tetap ditawarkan', commHtml.indexOf('(proses sudah dihapus)') >= 0);
-ok('item bertaut proses memakai pil status, bukan dropdown', commHtml.indexOf('pkgStatusPil(it)') >= 0);
+ok('setoran yg sumbernya lenyap ditandai', commHtml.indexOf("k.hilang?' ⚠':''") >= 0);
+ok('status target dihitung, dipakai pil', commHtml.indexOf('pkgStatusPil(it)') >= 0);
+ok('target menampilkan terpenuhi/target', commHtml.indexOf('${it.terpenuhi}/${it.target}') >= 0);
+ok('kelebihan tak dibulatkan jadi done', commHtml.indexOf("lebih:['bg-amber-100") >= 0);
+ok('ada kolom setoran per task', commHtml.indexOf('pkgs-jumlah') >= 0);
 // Bonus angkatan lama sengaja tetap teks bebas — bukan item yang harus diketik ulang.
 ok('blok bonus tetap teks bebas', commHtml.indexOf('Bonus angkatan lama') >= 0);
 ok('Area Marsel jadi rujukan, bukan sumber kebenaran kedua', commHtml.indexOf('Area Marsel <span') >= 0);
@@ -1356,6 +1359,22 @@ ok('hanya Kanban & List yang menyisipkan collab', commHtml.indexOf("function vie
 // Ekspor CSV: cakupan collab harus sama dgn task, termasuk filter cepat.
 ok('ekspor collab hormati filter cepat', commHtml.indexOf("if(state.quickFilter==='mine' && !stepBelongsTo(st, state.currentUser)) return;") >= 0);
 ok('ekspor collab hormati fokus deadline', commHtml.indexOf("if(state.deadlineFocus && !(telat || (!st.done && sisa===0))) return;") >= 0);
+// Laporan manager ikut menghitung kerja kolaborasi, bukan cuma task biasa.
+ok('sumber baris Laporan = task + kolaborasi', commHtml.indexOf("return (v==='collab'?[]:[...state.tasks]).concat(v==='task'?[]:allCollabTasks());") >= 0);
+ok('Laporan memakai sumber itu', commHtml.indexOf("function repFilteredTasks(){\n  let arr=repSourceTasks();") >= 0);
+ok('ada tombol pemilih sumber', commHtml.indexOf("function repSrcToggle(f,fn){") >= 0 && commHtml.indexOf("function setRepSrc(v){") >= 0);
+ok('tiga pilihan sumber', /REP_SRC=\[\['all','Task \+ Kolaborasi'\],\['task','Task biasa saja'\],\['collab','Kolaborasi saja'\]\]/.test(commHtml));
+ok('opsi PIC & Stage dibaca dari seluruh sumber', (commHtml.match(/repSourceTasks\('all'\)/g) || []).length >= 3);
+ok('pseudo-task collab membawa tanggal dibuat', commHtml.indexOf("createdDate:dateKey(c.createdAt||'')") >= 0);
+ok('kelarnya collab dibaca dari centang proses', commHtml.indexOf("_doneAt: beres ? (mySteps.map(s=>String(s.doneAt||'')).filter(Boolean).sort().pop()||'') : ''") >= 0);
+ok('"Selesai minggu ini" menjumlahkan keduanya', commHtml.indexOf("const doneThisWeek=[...new Set(doneEvents.map(a=>a.taskId).filter(Boolean))].length+collabDoneThisWeek;") >= 0);
+ok('jejak "-> Done" tidak diambil dari baris collab', commHtml.indexOf("String(a.taskId||'').indexOf('COL-')!==0") >= 0);
+ok('tabel Per PIC punya kolom Kolab', commHtml.indexOf("kolab:g.filter(t=>t._collab).length") >= 0);
+ok('baris collab di drill-down membuka modal kolaborasi', commHtml.indexOf("t._collab?`openCollabModal('${escapeAttr(t.collabId)}')`:`openTaskModal('${escapeAttr(t.id)}')`") >= 0);
+ok('ekspor CSV menandai jenis barisnya', commHtml.indexOf("t._collab?'Kolaborasi':'Task'") >= 0);
+// PIC proses berupa peran ("@Magang") harus pecah jadi anggotanya, kalau tidak
+// prosesnya lenyap dari rekap se-tim (stepBelongsTo tak pernah cocok dgn "@Magang").
+ok('PIC peran dipecah ke anggotanya di rekap se-tim', commHtml.indexOf("if(r) (state.users||[]).forEach(u=>{ if(u.active!==false && same(u.role,r)) tambah(u.name); });") >= 0);
 ok('pseudo-task menyimpan pemilik prosesnya', commHtml.indexOf("_stepOwner:user") >= 0);
 ok('label bukan selalu "Proses Anda"', commHtml.indexOf("same(t._stepOwner,state.currentUser)?'Anda':(stepPicLabel(t._stepOwner)||t.pic||'—')") >= 0);
 ok('stage & link proses ikut ke pseudo-task', commHtml.indexOf("stage:(myStep&&myStep.stage)||'', dueDate:(myStep&&myStep.deadline)||c.deadline||''") >= 0);
@@ -1582,56 +1601,104 @@ call('saveCollab', { id: MKA, title: 'Paket Uji — Tahap 1', platform: 'JadiASN
           { order: 2, name: 'Input Fitur', pic: 'Staff Soal' }] }, 'Manager');
 eq('simpan task tak melepas tautan paket', call('getCollabs').filter(c => c.id === MKA)[0].paketId, PID);
 
-// --- deliverable: satu item boleh bersumber dari collab MANA PUN ---
-const simpanItem = call('savePackage', PID, { items: [
-  { kategori: 'Latsol', grup: 'Tahap 1', nama: 'Latsol Numerik', jumlah: 10, satuan: 'Paket', collabId: MKA, stepOrder: 1 },
-  { kategori: 'Latsol', grup: 'Tahap 1', nama: 'Latsol Digit Symbol', jumlah: 10, satuan: 'Paket', collabId: MKA, stepOrder: 1 },
-  { kategori: 'Materi', grup: 'Tahap 2', nama: 'Materi tambahan', jumlah: 5, satuan: 'BAB', collabId: MKB, stepOrder: 1 },
-  { kategori: 'Latsol', grup: 'Tahap 2', nama: 'Latsol angkatan lalu', jumlah: 8, satuan: 'Paket', collabId: '', stepOrder: 0, status: 'siap' },
+// --- RANCANGAN: daftar target, wewenang Manager ---
+eq('Leader DITOLAK mengubah rancangan',
+  call('savePackage', PID, { items: [{ nama: 'X', target: 1 }] }, 'Leader Konten').success, false);
+eq('staff DITOLAK mengubah rancangan',
+  call('savePackage', PID, { items: [{ nama: 'X', target: 1 }] }, 'Staff Data').success, false);
+const rancang = call('savePackage', PID, { items: [
+  { kategori: 'Latsol', grup: 'Tahap 1', nama: 'Latsol Verbal', target: 10, satuan: 'Paket' },
+  { kategori: 'Latsol', grup: 'Tahap 1', nama: 'Latsol Numerik', target: 20, satuan: 'Paket' },
+  { kategori: 'Latsol', grup: 'Tahap 2', nama: 'Latsol SPU', target: 5, satuan: 'Paket', awal: 5 },
+  { kategori: 'Materi', grup: 'SPT', nama: 'SPU 8 BAB', target: 8, satuan: 'BAB' },
 ] }, 'Manager');
-eq('deliverable tersimpan', simpanItem.success, true);
+eq('manager boleh menyusun rancangan', rancang.success, true);
 const pk = function () { return call('getPackages').filter(p => p.id === PID)[0]; };
-eq('4 deliverable terbaca', pk().items.length, 4);
-eq('paket tahu dua collab menyuplainya', pk().collabIds.sort().join(','), [MKA, MKB].sort().join(','));
-eq('satu proses menaungi 2 deliverable',
-  pk().items.filter(x => x.collabId === MKA && x.stepOrder === 1).length, 2);
-eq('ringkas: total', pk().ringkas.total, 33);
-eq('ringkas: yang siap baru yang tanpa proses', pk().ringkas.siap, 8);
+eq('4 target tersimpan', pk().items.length, 4);
+ok('tiap target dapat Item ID sendiri', pk().items.every(x => /^ITM-\d+$/.test(x.itemId)));
+const ITM = {}; pk().items.forEach(x => { ITM[x.nama] = x.itemId; });
 
-// Inti integrasinya: centang satu proses di collab A -> dua deliverable ikut siap.
+// Target yang belum disetor siapa pun.
+eq('target tanpa setoran: belum', pk().items.filter(x => x.nama === 'Latsol Verbal')[0].status, 'belum');
+eq('sisanya = seluruh target', pk().items.filter(x => x.nama === 'Latsol Verbal')[0].sisa, 10);
+// "Awal" = yang sudah tersedia sebelum task apa pun; langsung terhitung.
+eq('target dgn Awal penuh langsung done', pk().items.filter(x => x.nama === 'Latsol SPU')[0].status, 'done');
+eq('dan sisanya nol', pk().items.filter(x => x.nama === 'Latsol SPU')[0].sisa, 0);
+
+// --- SETORAN: milik task, boleh diatur Leader ---
+eq('staff DITOLAK mengatur setoran',
+  call('setPackageContrib', PID, MKA, [{ itemId: ITM['Latsol Verbal'], stepOrder: 1, jumlah: 5 }], 'Staff Data').success, false);
+eq('Leader boleh mengatur setoran',
+  call('setPackageContrib', PID, MKA, [
+    { itemId: ITM['Latsol Verbal'], stepOrder: 1, jumlah: 5 },
+    { itemId: ITM['Latsol Numerik'], stepOrder: 2, jumlah: 15 },
+  ], 'Leader Konten').success, true);
+eq('setoran menunggu, belum menambah terpenuhi',
+  pk().items.filter(x => x.nama === 'Latsol Verbal')[0].terpenuhi, 0);
+eq('tapi tercatat sebagai menunggu',
+  pk().items.filter(x => x.nama === 'Latsol Verbal')[0].menunggu, 5);
+eq('statusnya proses', pk().items.filter(x => x.nama === 'Latsol Verbal')[0].status, 'proses');
+eq('setoran menunjuk target yang tak ada diabaikan',
+  (call('setPackageContrib', PID, MKA, [{ itemId: 'ITM-9999', stepOrder: 1, jumlah: 99 }], 'Manager'),
+   pk().items.reduce((a, x) => a + x.menunggu, 0)), 0);
+
+// Kembalikan setorannya, lalu selesaikan prosesnya.
+call('setPackageContrib', PID, MKA, [
+  { itemId: ITM['Latsol Verbal'], stepOrder: 1, jumlah: 5 },
+  { itemId: ITM['Latsol Numerik'], stepOrder: 2, jumlah: 15 },
+], 'Manager');
 call('setCollabStepDone', MKA, 1, true, 'Staff Data');
-eq('centang proses collab A -> 2 item siap',
-  pk().items.filter(x => x.collabId === MKA && x.status === 'siap').length, 2);
-eq('ringkas ikut naik', pk().ringkas.siap, 28);
-eq('item dari collab B belum ikut berubah',
-  pk().items.filter(x => x.collabId === MKB)[0].status, 'proses');
+eq('proses selesai -> setoran terhitung', pk().items.filter(x => x.nama === 'Latsol Verbal')[0].terpenuhi, 5);
+eq('target 10 baru terisi 5 -> masih kurang', pk().items.filter(x => x.nama === 'Latsol Verbal')[0].sisa, 5);
+eq('statusnya sebagian', pk().items.filter(x => x.nama === 'Latsol Verbal')[0].status, 'sebagian');
 
-// Centang proses di collab LAIN -> item miliknya yang ikut, bukan yang lain.
+// INTI USULANNYA: task KEDUA menyetor sisanya -> target terpenuhi.
+call('setPackageContrib', PID, MKB, [{ itemId: ITM['Latsol Verbal'], stepOrder: 1, jumlah: 5 }], 'Manager');
+eq('setoran task kedua masuk', pk().items.filter(x => x.nama === 'Latsol Verbal')[0].menunggu, 5);
 call('setCollabStepDone', MKB, 1, true, 'Staff Data');
-eq('centang proses collab B -> itemnya siap juga', pk().ringkas.siap, 33);
+eq('dua task memenuhi satu target', pk().items.filter(x => x.nama === 'Latsol Verbal')[0].terpenuhi, 10);
+eq('dan statusnya jadi done', pk().items.filter(x => x.nama === 'Latsol Verbal')[0].status, 'done');
+eq('paket tahu dua task menyuplainya', pk().collabIds.sort().join(','), [MKA, MKB].sort().join(','));
 
-// Status palsu dari klien untuk item bertaut proses harus diabaikan.
-call('setCollabStepDone', MKA, 1, false, 'Manager');
-call('savePackage', PID, { items: [
-  { kategori: 'Latsol', nama: 'Latsol Numerik', jumlah: 10, collabId: MKA, stepOrder: 1, status: 'siap' },
-] }, 'Manager');
-eq('status palsu dari klien diabaikan', pk().items[0].status, 'proses');
+// Kelebihan TIDAK dibulatkan jadi done — justru itu yang perlu terlihat.
+call('setPackageContrib', PID, MKB, [{ itemId: ITM['Latsol Verbal'], stepOrder: 1, jumlah: 8 }], 'Manager');
+eq('setoran berlebih ditandai lebih', pk().items.filter(x => x.nama === 'Latsol Verbal')[0].status, 'lebih');
+eq('kelebihannya dihitung', pk().items.filter(x => x.nama === 'Latsol Verbal')[0].lebih, 3);
+call('setPackageContrib', PID, MKB, [{ itemId: ITM['Latsol Verbal'], stepOrder: 1, jumlah: 5 }], 'Manager');
 
-// --- menghapus SATU collab tidak boleh memusnahkan paketnya ---
-call('savePackage', PID, { items: [
-  { kategori: 'Latsol', nama: 'Dari collab A (selesai)', jumlah: 4, collabId: MKA, stepOrder: 2 },
-  { kategori: 'Materi', nama: 'Dari collab B', jumlah: 6, collabId: MKB, stepOrder: 1 },
-] }, 'Manager');
-call('setCollabStepDone', MKA, 2, true, 'Staff Soal');
-eq('deliverable collab A jadi siap', pk().items.filter(x => x.collabId === MKA)[0].status, 'siap');
+// Setoran diganti PER TASK, bukan per paket — kalau tidak, task lain saling menghapus.
+eq('mengubah setoran task B tak menghapus setoran task A',
+  (call('setPackageContrib', PID, MKB, [{ itemId: ITM['SPU 8 BAB'], stepOrder: 1, jumlah: 8 }], 'Manager'),
+   pk().items.filter(x => x.nama === 'Latsol Verbal')[0].terpenuhi), 5);
+
+// Ringkasan seluruh paket.
+const rk = pk().ringkas;
+eq('ringkas: total target', rk.target, 43);
+eq('ringkas: berapa target yang done', rk.done, 2);
+
+// Menyimpan ulang rancangan TIDAK boleh memutus setoran yang sudah ada.
+call('savePackage', PID, { items: pk().items.map(x => ({ itemId: x.itemId, kategori: x.kategori, grup: x.grup, nama: x.nama, target: x.target, satuan: x.satuan, awal: x.awal })) }, 'Manager');
+eq('Item ID bertahan setelah rancangan disimpan ulang',
+  pk().items.filter(x => x.nama === 'Latsol Verbal')[0].itemId, ITM['Latsol Verbal']);
+eq('setorannya masih terhitung', pk().items.filter(x => x.nama === 'Latsol Verbal')[0].terpenuhi, 5);
+
+// Target yang dihapus membawa serta setorannya — kalau tidak, angkanya menggantung selamanya.
+call('savePackage', PID, { items: pk().items.filter(x => x.nama !== 'Latsol Numerik')
+  .map(x => ({ itemId: x.itemId, kategori: x.kategori, nama: x.nama, target: x.target, satuan: x.satuan, awal: x.awal })) }, 'Manager');
+eq('target dihapus', pk().items.filter(x => x.nama === 'Latsol Numerik').length, 0);
+eq('setoran yatim ikut dibuang', pk().items.reduce((a, x) => a + (x.kontrib || []).length, 0),
+  pk().items.reduce((a, x) => a + (x.kontrib || []).filter(k => k.itemId).length, 0));
+
+// --- menghapus SATU task tidak boleh memusnahkan rancangannya ---
 call('deleteCollab', MKA, 'Manager');
-eq('PAKET TETAP ADA setelah salah satu collabnya dihapus', call('getPackages').filter(p => p.id === PID).length, 1);
-eq('deliverablenya tak ikut terhapus', pk().items.length, 2);
-// Tautannya dilepas, tapi hasil kerjanya diawetkan: yang prosesnya sudah selesai tetap siap.
-eq('deliverable yang sudah jadi TETAP siap', pk().items.filter(x => x.nama === 'Dari collab A (selesai)')[0].status, 'siap');
-eq('tautannya dilepas, bukan menggantung', pk().items.filter(x => x.nama === 'Dari collab A (selesai)')[0].collabId, '');
-eq('deliverable collab B tak tersentuh', pk().items.filter(x => x.collabId === MKB).length, 1);
-eq('collab B masih tertaut ke paketnya', call('getCollabs').filter(c => c.id === MKB)[0].pkg.id, PID);
+eq('PAKET TETAP ADA setelah salah satu tasknya dihapus', call('getPackages').filter(p => p.id === PID).length, 1);
+eq('targetnya tak ikut terhapus', pk().items.length, 3);
+// Setoran yang prosesnya sudah selesai diawetkan: pekerjaannya memang terjadi.
+eq('setoran yang sudah jadi TETAP terhitung', pk().items.filter(x => x.nama === 'Latsol Verbal')[0].terpenuhi, 5);
+eq('tapi tautan tasknya dilepas',
+  pk().items.filter(x => x.nama === 'Latsol Verbal')[0].kontrib.filter(k => k.collabId === MKA).length, 0);
+eq('task B masih tertaut ke paketnya', call('getCollabs').filter(c => c.id === MKB)[0].pkg.id, PID);
+
 
 // --- menghapus paket ---
 eq('staff DITOLAK menghapus paket', call('deletePackage', PID, 'Staff Data').success, false);

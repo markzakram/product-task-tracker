@@ -10,6 +10,125 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.85.0 — Rancangan Paket: target yang dipenuhi banyak task
+
+"Master Koordinasi Paket" berganti nama jadi **Rancangan Paket**, dan isinya berubah
+dari daftar deliverable jadi daftar **target** yang disetor sedikit demi sedikit.
+
+### Alurnya sekarang
+1. **Manager menyusun rancangan** dulu: `Latsol Verbal PCPM BI 41 — 10 Paket`.
+2. Task kolaborasi **menyetor** sebagian: satu task 5 paket, task lain 5 paket.
+3. Setoran terhitung begitu **prosesnya dicentang** (atau tasknya Selesai).
+4. Penuh → **terpenuhi**. Kurang → **kurang 3**. Lebih → **lebih 2**.
+
+### Ini sudah terjadi, cuma dihitung di kepala orang
+10 dari 19 task kolaborasi menuliskan jumlah di judulnya karena tak ada tempat lain:
+`COL-009 "PCPM Tahap I 5 Paket TO"` dan `COL-010 "PCPM Tahap 1_TO 15 paket"`.
+Sheet Master menuliskan `Tahap 1 – 20 paket`. **5 + 15 = 20** — penjumlahan itu
+dikerjakan manual lalu diketik ke sel, dan karena itu bisa basi tanpa ketahuan.
+
+### Kelebihan tidak dibulatkan jadi "terpenuhi"
+Target 10 dengan setoran 12 tampil sebagai **lebih 2**, bukan `10/10 done`.
+Kelebihan biasanya berarti salah hitung atau setoran dobel — justru itu yang perlu
+terlihat.
+
+### "Awal" untuk yang sudah tersedia
+Kolom `Awal` menampung jumlah yang sudah ada sebelum task apa pun (warisan angkatan
+lalu). Terhitung langsung, tanpa perlu setoran palsu.
+
+### Izin
+| Bagian | Siapa |
+|---|---|
+| Rancangan — daftar target, jumlah, tambah/hapus | **Manager saja** |
+| Setoran task | pengelola task itu (Leader/Manager) |
+| Sisanya | seperti sebelumnya (PIC area, dst) |
+
+Setoran sengaja tidak dikunci ke Manager: ia properti task, bukan properti rancangan.
+Kalau menautkan 5 paket pun harus lewat Manager, tiap task baru jadi menunggu beliau.
+
+### Setoran diganti PER TASK, bukan per paket
+Kalau seluruh setoran paket ditulis ulang tiap simpan, dua orang yang membuka paket
+sama dari task berbeda akan saling menghapus setoran. Ada tesnya.
+
+### Menghapus task tidak merusak rancangan
+Setoran yang prosesnya **sudah selesai** diawetkan sebagai catatan sejarah (Collab ID
+dikosongkan, tetap terhitung) — pekerjaannya memang terjadi. Yang belum selesai
+dibuang: tak ada yang dihasilkan, jadi tak boleh menghantui angka "menunggu".
+
+### Batas yang perlu diketahui
+Sistem menjumlahkan apa yang **dideklarasikan**, bukan apa yang benar-benar jadi. Kalau
+dua task sama-sama mengklaim 5 paket yang sama, totalnya tetap 10 dan tak ada yang bisa
+mendeteksinya. Ini membuat kesenjangan **terlihat**, bukan membuatnya **benar**.
+
+### Perubahan sheet
+| Sheet | Perubahan |
+|---|---|
+| `PACKAGE_ITEMS` | jadi daftar target: **Item ID**, Paket ID, Order, Kategori, Grup, Nama, **Target**, Satuan, **Awal**, Catatan |
+| `PACKAGE_CONTRIB` | **baru** — Paket ID, Item ID, Collab ID, Step Order, Jumlah, Catatan |
+
+Item ID dipertahankan saat rancangan disimpan ulang; kalau tidak, seluruh setoran yang
+menunjuknya jadi yatim setiap kali Manager menyentuh rancangannya. Target yang dihapus
+membawa serta setorannya.
+
+---
+
+## 1.84.0 — Laporan manager ikut menghitung task kolaborasi
+
+Laporan hanya membaca `state.tasks`. Task kolaborasi disimpan di sheet lain
+(`COLLAB` + `COLLAB_STEPS`) dan tak pernah masuk ke sana, jadi seluruh kerja
+kolaborasi — yang di beberapa pekan justru bagian terbesarnya — tak terlihat sama
+sekali di rekap manager. Angka "Aktif", "Overdue", dan "Selesai minggu ini"
+melaporkan sebagian pekerjaan sebagai kalau itu seluruhnya.
+
+### Satu baris per (kolaborasi × PIC proses)
+Laporan memakai "pseudo-task" yang sudah dipakai Kanban & Task List
+(`collabPseudo`): pekerjaan **satu orang** pada satu task kolaborasi jadi satu
+baris, dengan status diturunkan dari proses miliknya. Jadi kolom Per PIC tetap
+berarti "beban orang itu", bukan "jumlah task kolaborasi".
+
+Konsekuensinya jumlah baris bukan lagi jumlah task — label di laporan & CSV
+diubah dari "Total task" jadi **"Total baris"**, dengan pecahan "Dari task
+kolaborasi" di bawahnya.
+
+### Tombol Sumber: Semua · Task · Kolaborasi
+Menambah baris kolaborasi mengubah arti angka yang selama ini dibaca manager.
+Tombol Sumber membuat keduanya bisa dibandingkan, dan tetap bisa dikembalikan ke
+"Task biasa saja" persis seperti laporan sebelum versi ini. Bawaannya **Semua**.
+
+Opsi PIC & Stage sengaja dibaca dari **seluruh** sumber, bukan dari sumber yang
+sedang dipilih — kalau tidak, memilih "Kolaborasi saja" membuat PIC yang sedang
+tersaring lenyap dari dropdown dan filternya tak bisa dilepas lagi.
+
+### "Selesai minggu ini" untuk kolaborasi
+Task biasa meninggalkan jejak `Status: … → Done` di log aktivitas; kolaborasi
+tidak — yang tercatat cuma `Collab Step Done`. Kelarnya kini dibaca dari **tanggal
+centang proses terakhir** milik orang itu (`doneAt`), lalu dijumlahkan dengan
+hitungan task biasa. Baris `COL-…` juga dikeluarkan dari pencarian jejak
+"→ Done" supaya tak terhitung dua kali.
+
+### Perbaikan: proses ber-PIC peran tak lagi hilang
+`allCollabTasks()` mengumpulkan PIC proses apa adanya. Untuk proses milik bersama
+satu peran (`@Magang`), nama itu **tak pernah** cocok dengan `stepBelongsTo` —
+`hasRole('@Magang','magang')` selalu salah — sehingga prosesnya menguap dari rekap
+se-tim. Sekarang PIC peran dipecah dulu jadi anggotanya yang aktif. Ini juga
+memperbaiki Kanban & Task List, bukan cuma Laporan.
+
+### Rincian lain
+- Kolom **Kolab** di tabel Per PIC: berapa banyak beban orang itu yang datang dari
+  kolaborasi.
+- Drill-down PIC: baris kolaborasi diberi lencana `KOLAB`, menampilkan nama proses
+  + progres (`2/3 proses`), dan membuka **modal kolaborasi**, bukan modal task.
+- Ekspor CSV: baris `Sumber`, pecahan `Dari task kolaborasi`, kolom `Kolaborasi` di
+  Per PIC, serta kolom `Jenis` & `Proses` pada daftar detail.
+
+### Berkas
+| Berkas | Perubahan |
+| --- | --- |
+| `public/index.html` (& salinan `gas/Index.html`) | seluruh perubahan di atas |
+| `test/gas.test.js` | 13 assertion baru |
+
+---
+
 ## 1.83.0 — Paket jadi entitas sendiri; satu paket digarap banyak task
 
 Master Koordinasi Paket tidak lagi menempel pada satu task kolaborasi. Ia punya
