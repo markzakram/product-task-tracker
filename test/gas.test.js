@@ -1172,6 +1172,17 @@ ok('filter Task Saya tak lagi menyaring per giliran', commHtml.indexOf('arr.filt
 ok('spanduk Giliran Anda tetap ada', commHtml.indexOf('<b>Giliran Anda:</b>') >= 0);
 ok('lencana giliran tetap dihitung', commHtml.indexOf('function updateCollabTurnBadge()') >= 0);
 
+// Panel Master Paket: deliverable Area Produk.
+ok('panel deliverable digambar per kategori', commHtml.indexOf('function pkgKategoriBlok(') >= 0);
+ok('blok kategori diberi penanda data', commHtml.indexOf('data-pkgkat=') >= 0);
+ok('pembacaan balik memakai penanda itu', commHtml.indexOf("querySelectorAll('[data-pkgkat]')") >= 0);
+// Tautan ke proses yang sudah dihapus harus tetap terbawa, bukan diam-diam jadi "tanpa proses".
+ok('nomor proses yatim tetap ditawarkan', commHtml.indexOf('(proses sudah dihapus)') >= 0);
+ok('item bertaut proses memakai pil status, bukan dropdown', commHtml.indexOf('pkgStatusPil(it)') >= 0);
+// Bonus angkatan lama sengaja tetap teks bebas — bukan item yang harus diketik ulang.
+ok('blok bonus tetap teks bebas', commHtml.indexOf('Bonus angkatan lama') >= 0);
+ok('Area Marsel jadi rujukan, bukan sumber kebenaran kedua', commHtml.indexOf('Area Marsel <span') >= 0);
+
 console.log('\n=== 16d-1. UI: tanggal centang, stage opsional, Manager membatalkan ===');
 // Tanggal centang tampil di baris proses, lengkap dgn putusan tepat waktu / telat.
 ok('ada penampil tanggal centang', /function stepDoneStamp\(s\)/.test(commHtml));
@@ -1582,7 +1593,75 @@ eq('varian tanpa masa aktif dibuang',
 eq('payload tanpa perubahan ditolak', call('savePackage', MKP, {}, 'Manager').success, false);
 eq('program tetap utuh setelah payload kosong', call('getCollabs').find(c => c.id === MKP).pkg.program, 'Program Uji');
 
+
+console.log('\n--- deliverable Area Produk (satu proses -> banyak item) ---');
+
+// Proses ke-1 'Susun isi paket' menghasilkan DUA deliverable sekaligus — persis kasus
+// "Generate 10 paket latsol (Numerik & digit symbol)" yang jadi 2 item terpisah.
+const simpanItem = call('savePackage', MKP, { produk: {}, items: [
+  { kategori: 'Latsol', grup: 'Tahap 1', nama: 'Latsol Numerik', jumlah: 10, satuan: 'Paket', stepOrder: 1 },
+  { kategori: 'Latsol', grup: 'Tahap 1', nama: 'Latsol Digit Symbol', jumlah: 10, satuan: 'Paket', stepOrder: 1 },
+  { kategori: 'Latsol', grup: 'Tahap 1', nama: 'Latsol Verbal (angkatan lalu)', jumlah: 10, satuan: 'Paket', stepOrder: 0, status: 'siap' },
+  { kategori: 'Tryout', grup: 'Tahap 1', nama: 'Tryout Tahap 1', jumlah: 5, satuan: 'Paket', stepOrder: 3 },
+] }, 'Manager');
+eq('daftar deliverable tersimpan', simpanItem.success, true);
+
+const pkI = function () { return call('getCollabs').filter(function (c) { return c.id === MKP; })[0].pkg; };
+eq('4 item terbaca', pkI().items.length, 4);
+eq('satu proses menaungi 2 item',
+  pkI().items.filter(function (x) { return x.stepOrder === 1; }).length, 2);
+
+// Status item yang bertaut proses IKUT prosesnya, tak bisa diketik manual.
+eq('item bertaut proses belum selesai -> proses',
+  pkI().items.filter(function (x) { return x.nama === 'Latsol Numerik'; })[0].status, 'proses');
+eq('item tanpa proses pakai status simpanannya',
+  pkI().items.filter(function (x) { return /angkatan lalu/.test(x.nama); })[0].status, 'siap');
+eq('nama proses sumber ikut terbawa',
+  pkI().items.filter(function (x) { return x.nama === 'Latsol Numerik'; })[0].step.name, 'Susun isi paket');
+
+// Ringkasan menggantikan baris 'Total: N Paket' yang diketik tangan.
+eq('ringkas: total jumlah', pkI().ringkas.total, 35);
+eq('ringkas: yang siap', pkI().ringkas.siap, 10);
+eq('ringkas: yang sedang digarap', pkI().ringkas.proses, 25);
+
+// Inti integrasinya: centang SATU proses -> DUA deliverable ikut jadi siap.
+call('setCollabStepDone', MKP, 1, true, 'Staff Data');
+eq('centang 1 proses membuat 2 item jadi siap',
+  pkI().items.filter(function (x) { return x.stepOrder === 1 && x.status === 'siap'; }).length, 2);
+eq('ringkas ikut naik sendiri', pkI().ringkas.siap, 30);
+eq('item proses lain tak ikut berubah',
+  pkI().items.filter(function (x) { return x.nama === 'Tryout Tahap 1'; })[0].status, 'proses');
+
+// Batalkan centang -> ikut mundur lagi. Status tak pernah 'nyangkut'.
+call('setCollabStepDone', MKP, 1, false, 'Manager');
+eq('batal centang membuat item mundur lagi', pkI().ringkas.siap, 10);
+
+// Status yang dikirim klien untuk item bertaut proses harus DIABAIKAN — kalau tidak,
+// orang bisa menyatakan deliverable siap tanpa prosesnya pernah dikerjakan.
+call('savePackage', MKP, { items: [
+  { kategori: 'Latsol', grup: 'Tahap 1', nama: 'Latsol Numerik', jumlah: 10, stepOrder: 1, status: 'siap' },
+] }, 'Manager');
+eq('status palsu dari klien diabaikan', pkI().items[0].status, 'proses');
+
+// Proses yang ditunjuk hilang (daftar proses diringkas) -> ditandai, bukan didiamkan.
+call('savePackage', MKP, { items: [
+  { kategori: 'Latsol', grup: 'Tahap 1', nama: 'Item yatim', jumlah: 3, stepOrder: 99 },
+] }, 'Manager');
+eq('proses sumber yang hilang ditandai', pkI().items[0].stepHilang, true);
+eq('item yatim tidak diklaim siap', pkI().items[0].status, 'belum');
+
+// Izin: deliverable milik Area Produk, bukan Marsel.
+call('savePackage', MKP, { produk: { produkPic: 'Staff Soal' }, marsel: { marselPic: 'Staff Data' } }, 'Manager');
+eq('PIC Marsel DITOLAK mengubah deliverable',
+  call('savePackage', MKP, { items: [] }, 'Staff Data').success, false);
+eq('PIC Produk boleh mengubah deliverable',
+  call('savePackage', MKP, { items: [{ kategori: 'Materi', nama: 'SPU 8 BAB', jumlah: 8, satuan: 'BAB', stepOrder: 0, status: 'siap' }] }, 'Staff Soal').success, true);
+eq('isinya benar-benar berganti', pkI().items.length, 1);
+// Dikembalikan ke keadaan semula supaya blok uji berikutnya tak terpengaruh.
+call('savePackage', MKP, { produk: { produkPic: '' }, marsel: { marselPic: '' } }, 'Manager');
+
 // --- Yang paling rawan: nomor collab dipakai ulang (genCollabId_ = max+1) ---
+call('savePackage', MKP, { items: [{ kategori: 'Latsol', nama: 'Item sebelum hapus', jumlah: 7, stepOrder: 0, status: 'siap' }] }, 'Manager');
 call('savePackage', MKP, { marsel: { program: 'Program Uji', namaPaket: 'Paket Uji' },
   variants: [{ masaAktif: '3 Bulan', hargaAwal: 250000, hargaDiskon: 129000 }] }, 'Manager');
 ok('sebelum dihapus, paketnya memang ada', call('getCollabs').find(c => c.id === MKP).pkg.filled.total > 0);
@@ -1594,6 +1673,8 @@ eq('nomor collab memang dipakai ulang', PU, MKP);
 const pkBaru = call('getCollabs').find(c => c.id === PU).pkg;
 eq('collab baru TIDAK mewarisi field paket lama', pkBaru.filled.total, 0);
 eq('collab baru TIDAK mewarisi varian & harga lama', pkBaru.variants.length, 0);
+eq('collab baru TIDAK mewarisi deliverable lama', pkBaru.items.length, 0);
+eq('ringkasannya pun nol', pkBaru.ringkas.total, 0);
 eq('PIC area lama tak ikut terwarisi', (pkBaru.marselPic || '') + (pkBaru.produkPic || ''), '');
 call('deleteCollab', PU, 'Manager');
 

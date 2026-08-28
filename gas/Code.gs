@@ -49,6 +49,7 @@ var CONFIG = {
   COLLAB_STEP_SHEET: 'COLLAB_STEPS',
   PACKAGE_SHEET: 'PACKAGES',
   PACKAGE_VARIANT_SHEET: 'PACKAGE_VARIANTS',
+  PACKAGE_ITEM_SHEET: 'PACKAGE_ITEMS',
   NOTIF_SHEET: 'NOTIFICATIONS',
   USERS_SHEET: 'USERS',
   HEADER_ROW: 3,
@@ -113,6 +114,7 @@ SHEET_HEADERS[CONFIG.COLLAB_SHEET] = ['Collab ID', 'Platform', 'Title', 'Descrip
 SHEET_HEADERS[CONFIG.COLLAB_STEP_SHEET] = ['Collab ID', 'Order', 'Step', 'PIC', 'Deadline', 'Done', 'Done By', 'Done At', 'Note', 'Stage', 'Link'];
 SHEET_HEADERS[CONFIG.PACKAGE_SHEET] = ['Collab ID', 'Marsel PIC', 'Program', 'Nama Paket', 'Tagline', 'Benefit', 'Tanggal', 'Tujuan', 'Produk PIC', 'Dibimbing', 'Latsol', 'Materi', 'Tryout', 'Drilling', 'Live Class', 'Catatan', 'Updated By', 'Updated At'];
 SHEET_HEADERS[CONFIG.PACKAGE_VARIANT_SHEET] = ['Collab ID', 'Order', 'Masa Aktif', 'Harga Awal', 'Harga Diskon', 'Status'];
+SHEET_HEADERS[CONFIG.PACKAGE_ITEM_SHEET] = ['Collab ID', 'Order', 'Kategori', 'Grup', 'Nama', 'Jumlah', 'Satuan', 'Step Order', 'Status'];
 SHEET_HEADERS[CONFIG.NOTIF_SHEET] = ['ID', 'For User', 'Type', 'Ref ID', 'From', 'Text', 'Created At', 'Read'];
 SHEET_HEADERS[CONFIG.USERS_SHEET] = ['Nama', 'Peran', 'Aktif'];
 
@@ -1400,6 +1402,26 @@ function canCheckStep_(stepPic, actor, undo) {
 /* ================================================================== */
 var PKG_MARSEL = ['program', 'namaPaket', 'tagline', 'benefit', 'tanggal', 'tujuan'];
 var PKG_PRODUK = ['dibimbing', 'latsol', 'materi', 'tryout', 'drilling', 'liveClass', 'catatan'];
+// Kategori deliverable mengikuti kolom Area Produk di sheet Master aslinya.
+var PKG_KATEGORI = ['Dibimbing', 'Latsol', 'Materi', 'Tryout', 'Drilling', 'Live Class'];
+
+/* Status item: kalau ditautkan ke sebuah proses, statusnya IKUT proses itu dan tak bisa
+   diketik manual — itu inti integrasinya. Item tanpa proses (mis. produksi angkatan lalu
+   yang sudah jadi) memakai status tersimpannya sendiri. */
+function itemStatus_(it, step) {
+  if (step) return step.done ? 'siap' : 'proses';
+  return String((it && it.status) || '').trim().toLowerCase() === 'siap' ? 'siap' : 'belum';
+}
+// Ringkasan jumlah paket per status — menggantikan baris 'Total: 40 Paket' yang diketik tangan.
+function itemRingkas_(items) {
+  var r = { siap: 0, proses: 0, belum: 0, total: 0, jml: (items || []).length };
+  (items || []).forEach(function (it) {
+    var n = Number(it.jumlah || 0) || 0;
+    r.total += n;
+    if (r[it.status] !== undefined) r[it.status] += n;
+  });
+  return r;
+}
 
 function ensurePackageSheets_() {
   sheet_(CONFIG.PACKAGE_SHEET, true);
@@ -1409,10 +1431,13 @@ function ensurePackageSheets_() {
   sheet_(CONFIG.PACKAGE_VARIANT_SHEET, true);
   try { head = valuesGet_(CONFIG.PACKAGE_VARIANT_SHEET + '!A1:F1'); } catch (e) { head = []; }
   if (!((head[0] || [])[0])) valuesUpdate_(CONFIG.PACKAGE_VARIANT_SHEET + '!A1:F1', [SHEET_HEADERS[CONFIG.PACKAGE_VARIANT_SHEET]]);
+  sheet_(CONFIG.PACKAGE_ITEM_SHEET, true);
+  try { head = valuesGet_(CONFIG.PACKAGE_ITEM_SHEET + '!A1:I1'); } catch (e) { head = []; }
+  if (!((head[0] || [])[0])) valuesUpdate_(CONFIG.PACKAGE_ITEM_SHEET + '!A1:I1', [SHEET_HEADERS[CONFIG.PACKAGE_ITEM_SHEET]]);
 }
 
 function emptyPackage_(collabId) {
-  var o = { collabId: String(collabId || ''), row: 0, marselPic: '', produkPic: '', updatedBy: '', updatedAt: '', variants: [] };
+  var o = { collabId: String(collabId || ''), row: 0, marselPic: '', produkPic: '', updatedBy: '', updatedAt: '', variants: [], items: [] };
   PKG_MARSEL.concat(PKG_PRODUK).forEach(function (k) { o[k] = ''; });
   return o;
 }
@@ -1429,7 +1454,7 @@ function rowToPackage_(r, rowNum) {
     dibimbing: g(9), latsol: g(10), materi: g(11), tryout: g(12),
     drilling: g(13), liveClass: g(14), catatan: g(15),
     updatedBy: g(16), updatedAt: stampStr_(r && r[17]),
-    variants: []
+    variants: [], items: []
   };
 }
 
@@ -1476,13 +1501,14 @@ function isCollabParticipant_(collabId, actor) {
   });
 }
 
-function readPackages_(prePkg, preVar) {
-  var prows = [], vrows = [];
-  if (prePkg !== undefined) { prows = prePkg || []; vrows = preVar || []; }
+function readPackages_(prePkg, preVar, preItem) {
+  var prows = [], vrows = [], irows = [];
+  if (prePkg !== undefined) { prows = prePkg || []; vrows = preVar || []; irows = preItem || []; }
   else {
     try {
       prows = valuesGet_(CONFIG.PACKAGE_SHEET + '!A2:R');
       vrows = valuesGet_(CONFIG.PACKAGE_VARIANT_SHEET + '!A2:F');
+      irows = valuesGet_(CONFIG.PACKAGE_ITEM_SHEET + '!A2:I');
     } catch (e) { return {}; }
   }
   var out = {};
@@ -1501,8 +1527,23 @@ function readPackages_(prePkg, preVar) {
       status: String((r && r[5]) || '').trim() || 'aktif'
     });
   });
+  irows.forEach(function (r, i) {
+    var cid = String((r && r[0]) || '').trim(); if (!cid) return;
+    if (!out[cid]) out[cid] = emptyPackage_(cid);
+    out[cid].items.push({
+      row: i + 2, order: Number((r && r[1]) || 0),
+      kategori: String((r && r[2]) || '').trim(),
+      grup: String((r && r[3]) || '').trim(),
+      nama: String((r && r[4]) || '').trim(),
+      jumlah: Number((r && r[5]) || 0) || 0,
+      satuan: String((r && r[6]) || '').trim() || 'Paket',
+      stepOrder: Number((r && r[7]) || 0) || 0,
+      status: String((r && r[8]) || '').trim().toLowerCase() || 'belum'
+    });
+  });
   Object.keys(out).forEach(function (k) {
     out[k].variants.sort(function (a, b) { return a.order - b.order; });
+    out[k].items.sort(function (a, b) { return a.order - b.order; });
   });
   return out;
 }
@@ -1544,6 +1585,11 @@ function savePackage(collabId, payload, actor) {
     if (!bolehMarsel) return { success: false, message: 'Varian & harga hanya bisa diubah PIC Area Marsel, Leader, atau Manager.' };
     sentuh++;
   }
+  // Deliverable Area Produk.
+  if (payload.items !== undefined) {
+    if (!bolehProduk) return { success: false, message: 'Daftar deliverable hanya bisa diubah PIC Area Produk, Leader, atau Manager.' };
+    sentuh++;
+  }
   if (!sentuh) return { success: false, message: 'Tak ada yang diubah.' };
   baru.updatedBy = actor; baru.updatedAt = nowStamp_();
   var rowData = packageToRow_(baru);
@@ -1557,6 +1603,21 @@ function savePackage(collabId, payload, actor) {
         return [collabId, i + 1, String(v.masaAktif || '').trim(),
           Number(v.hargaAwal || 0) || 0, Number(v.hargaDiskon || 0) || 0,
           String(v.status || 'aktif').trim()];
+      }));
+    }
+  }
+  if (payload.items !== undefined) {
+    purgeRowsForRef_(CONFIG.PACKAGE_ITEM_SHEET, 'I', 0, collabId);
+    var itl = (payload.items || []).filter(function (v) { return v && String(v.nama || '').trim(); });
+    if (itl.length) {
+      valuesAppend_(CONFIG.PACKAGE_ITEM_SHEET + '!A:I', itl.map(function (v, i) {
+        return [collabId, i + 1,
+          String(v.kategori || '').trim(), String(v.grup || '').trim(), String(v.nama || '').trim(),
+          Number(v.jumlah || 0) || 0, String(v.satuan || 'Paket').trim(),
+          Number(v.stepOrder || 0) || 0,
+          // Status tersimpan hanya dipakai untuk item TANPA proses. Yang bertaut proses
+          // statusnya diturunkan saat dibaca, jadi apa pun yang dikirim klien diabaikan.
+          Number(v.stepOrder || 0) ? '' : (String(v.status || '').trim().toLowerCase() === 'siap' ? 'siap' : 'belum')];
       }));
     }
   }
@@ -1606,6 +1667,18 @@ function getCollabs(preC, preS) {
     var done = list.filter(function (s) { return s.done; }).length;
     var pkg = pkgs[id] || emptyPackage_(id);
     pkg.filled = packageFilled_(pkg);
+    // Status tiap deliverable diturunkan dari prosesnya di sini — satu-satunya tempat
+    // yang punya item DAN daftar prosesnya sekaligus, jadi klien tak perlu menghitung ulang.
+    var byOrder = {};
+    list.forEach(function (s) { byOrder[s.order] = s; });
+    pkg.items.forEach(function (it) {
+      var st = it.stepOrder ? byOrder[it.stepOrder] : null;
+      it.step = st ? { order: st.order, name: st.name, pic: st.pic, done: st.done, doneBy: st.doneBy } : null;
+      // Proses yang ditunjuk bisa hilang kalau daftar prosesnya diringkas ulang.
+      it.stepHilang = !!(it.stepOrder && !st);
+      it.status = itemStatus_(it, st);
+    });
+    pkg.ringkas = itemRingkas_(pkg.items);
     return {
       row: i + 2,
       id: id,
@@ -1895,6 +1968,7 @@ function deleteCollab(id, actor) {
   // nomor itu (genCollabId_ = max+1) akan mewarisi harga & isi paket milik yang dihapus.
   ikut += purgeRowsForRef_(CONFIG.PACKAGE_SHEET, 'R', 0, id);
   ikut += purgeRowsForRef_(CONFIG.PACKAGE_VARIANT_SHEET, 'F', 0, id);
+  ikut += purgeRowsForRef_(CONFIG.PACKAGE_ITEM_SHEET, 'I', 0, id);
   // Jejak penghapusan dicatat TANPA taskId, supaya tak nyangkut di feed collab bernomor sama.
   logActivity_(actor, 'Collab Delete', '', id + ' dihapus (' + ikut + ' komentar/notifikasi/aktivitas ikut dibuang)');
   return { success: true, message: 'Task kolaborasi dihapus.', collabs: getCollabs() };

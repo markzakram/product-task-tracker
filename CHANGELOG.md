@@ -10,6 +10,65 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.82.0 — Area Produk jadi daftar deliverable yang terhubung ke proses
+
+Kolom Area Produk berhenti jadi blok teks. Tiap deliverable kini satu baris tersendiri
+dengan nama, jumlah, satuan, dan **proses yang menghasilkannya**.
+
+### Kenapa
+Di sheet Master, status tiap item hanya hidup sebagai **warna**: hitam berarti produksi
+baru yang sedang digarap, abu-abu berarti bonus angkatan lama yang sudah tersedia.
+Pembedaan sepenting itu tak bisa dihitung, disaring, atau dilaporkan — dan tak bisa
+dipulihkan impor apa pun. Baris `Total: 40 Paket` pun diketik tangan.
+
+### Satu proses boleh menghasilkan banyak deliverable
+Penunjuknya ada di sisi **item**, bukan di sisi proses. Satu proses seperti
+*"Generate 10 paket latsol (Numerik & digit symbol)"* menaungi dua item terpisah, dan
+mencentang proses itu sekali membuat keduanya jadi `siap` bersamaan.
+
+| Keadaan item | Statusnya dari mana |
+|---|---|
+| Ditautkan ke sebuah proses | **ikut proses itu** — tak bisa diketik manual |
+| Tanpa proses (produksi angkatan lalu) | status tersimpannya sendiri (`siap` / `belum`) |
+
+Status `siap` yang dikirim klien untuk item bertaut proses **diabaikan server**. Kalau
+tidak, orang bisa menyatakan deliverable siap tanpa prosesnya pernah dikerjakan.
+
+### Subtotal dihitung, tidak diketik
+Tiap kategori menampilkan `siap / total` dari itemnya. Header panel menampilkan
+ringkasan seluruh paket. Tak ada lagi angka total yang bisa basi tanpa ketahuan.
+
+### Tata letak
+Di dalam modal task kolaborasi, panel Master dibagi dua: **kiri** cermin ringkas Proses
+Beruntun (dengan angka berapa deliverable menunggu tiap proses), **kanan** daftar
+deliverable per kategori. Bukan view baru — dua daftar itu tidak sejajar (satu proses
+bisa menghasilkan item di beberapa kategori sekaligus), dan mengisi deliverable serta
+mencentang proses dikerjakan orang yang sama dalam satu duduk.
+
+### Bonus angkatan lama tetap teks bebas
+Ratusan paket warisan yang sudah jadi, tak pernah menahan apa pun. Menstrukturkannya
+cuma menambah ratusan baris yang harus diketik tanpa ada yang dipantau. Field lama
+Dibimbing/Latsol/Materi/Tryout/Drilling/Live Class kini berperan sebagai blok bonus
+& catatan itu, dan bisa dilipat.
+
+### Area Marsel jadi rujukan
+Sesuai batas kerja Divisi Produk. Field dan varian harganya tetap tersimpan dan bisa
+diubah Manager/Leader, tapi dilipat sebagai rujukan — bukan sumber kebenaran kedua
+untuk tim yang tidak memakai ProductTrack.
+
+### Tautan yang putus tidak dihapus diam-diam
+Kalau proses yang ditunjuk sebuah item dihapus dari Proses Beruntun, nomornya tetap
+terbawa dan ditandai (`link_off`, dan dropdown-nya menampilkan *"(proses sudah
+dihapus)"*). Tanpa ini, dropdown jatuh ke "tanpa proses" dan tautan yang rusak itu
+terhapus pada penyimpanan berikutnya — kerusakannya hilang, bukan diperbaiki.
+
+### Sheet baru
+`PACKAGE_ITEMS` (A..I), berkunci **Collab ID**, dibuat otomatis saat pertama dipakai.
+`deleteCollab` ikut membuangnya — sama seperti sub-ceklis (1.64.0), komentar (1.69.1),
+task (1.74.1), dan paket (1.81.0), supaya collab bernomor bekas tidak mewarisinya.
+
+---
+
 ## 1.81.0 — Master Koordinasi Paket menempel pada Task Kolaborasi
 
 Isi sheet **Master Koordinasi Paket** sekarang hidup di dalam task kolaborasi yang

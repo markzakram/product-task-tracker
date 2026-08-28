@@ -798,7 +798,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.81.2'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.82.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3186,6 +3186,109 @@ function pkgHargaRange(p){
   const mn=Math.min(...hs), mx=Math.max(...hs), rb=x=>Math.round(x/1000);
   return 'Rp'+(mn===mx?rb(mn):rb(mn)+'–'+rb(mx))+'rb';
 }
+/* Kategori deliverable = kolom Area Produk di sheet Master aslinya. */
+const PKG_KATEGORI=['Dibimbing','Latsol','Materi','Tryout','Drilling','Live Class'];
+const PKG_SATUAN=['Paket','BAB','Sesi','Video','Ebook'];
+function pkgStatusPil(it){
+  const s=String(it&&it.status||'belum');
+  const peta={siap:['bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300','siap'],
+              proses:['bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300','proses'],
+              belum:['bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400','belum']};
+  const [cls,lbl]=peta[s]||peta.belum;
+  return `<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-semibold shrink-0 ${cls}">${lbl}</span>`;
+}
+/* Satu blok per kategori, dengan subtotal yang DIHITUNG — menggantikan baris
+   "Total: 40 Paket" yang selama ini diketik tangan dan gampang basi. */
+function pkgKategoriBlok(c,p,bisa){
+  const items=(p&&p.items)||[];
+  const stepOpt=(sel)=>{
+    const daftar=((c&&c.steps)||[]);
+    const ada=daftar.some(s=>Number(s.order)===Number(sel));
+    // Proses yang ditunjuk bisa sudah dihapus dari Proses Beruntun. Nomornya tetap
+    // ditawarkan sebagai pilihan terpilih — kalau tidak, dropdown jatuh ke "tanpa proses"
+    // dan tautan yang putus itu terhapus diam-diam pada penyimpanan berikutnya.
+    const yatim=(Number(sel)>0 && !ada)
+      ? `<option value="${Number(sel)}" selected>${escapeHtml(String(sel)+'. (proses sudah dihapus)')}</option>` : '';
+    return `<option value="0" ${Number(sel)?'':'selected'}>— tanpa proses —</option>`+yatim+daftar.map(s=>
+      `<option value="${s.order}" ${Number(sel)===Number(s.order)?'selected':''}>${escapeHtml(String(s.order)+'. '+s.name)}</option>`).join('');
+  };
+  const kats=PKG_KATEGORI.filter(k=>items.some(x=>same(x.kategori,k))||bisa);
+  if(!kats.length) return '<div class="text-[11px] text-gray-400 px-1 py-2">Belum ada deliverable.</div>';
+  return kats.map(kat=>{
+    const list=items.map((x,i)=>({x,i})).filter(o=>same(o.x.kategori,kat));
+    const sub=list.reduce((a,o)=>a+(Number(o.x.jumlah)||0),0);
+    const siap=list.filter(o=>o.x.status==='siap').reduce((a,o)=>a+(Number(o.x.jumlah)||0),0);
+    if(!list.length && !bisa) return '';
+    return `<div data-pkgkat="${escapeAttr(kat)}" class="rounded border border-gray-200 dark:border-slate-700 overflow-hidden">
+      <div class="px-2 py-1 bg-gray-50 dark:bg-slate-800 flex items-center justify-between gap-2">
+        <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">${escapeHtml(kat)}</span>
+        <span class="flex items-center gap-2">
+          <span class="text-[10px] font-bold ${sub&&siap>=sub?'text-emerald-600':'text-gray-400'}">${siap}/${sub}</span>
+          ${bisa?`<button type="button" onclick="pkgAddItem('${escapeAttr(kat)}')" class="text-[11px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5"><span class="material-icons-round text-[13px]">add</span>Item</button>`:''}
+        </span>
+      </div>
+      <div class="divide-y divide-gray-100 dark:divide-slate-800">${list.map(o=>{
+        const it=o.x, tautan=Number(it.stepOrder)>0;
+        return `<div class="flex items-center gap-1 px-1.5 py-1" data-pkgi="${o.i}">
+          <input class="pkgi-nama form-control text-xs py-0.5 flex-1 min-w-0" ${bisa?'':'disabled'} value="${escapeAttr(it.nama||'')}" placeholder="nama deliverable">
+          <input class="pkgi-grup form-control text-xs py-0.5 w-[5.5rem] shrink-0" ${bisa?'':'disabled'} value="${escapeAttr(it.grup||'')}" placeholder="grup" title="mis. Tahap 1">
+          <input class="pkgi-jumlah form-control text-xs py-0.5 w-[3.2rem] shrink-0 text-right" ${bisa?'':'disabled'} value="${escapeAttr(String(it.jumlah||''))}" inputmode="numeric" placeholder="0">
+          <select class="pkgi-satuan form-control text-xs py-0.5 w-[4.2rem] shrink-0" ${bisa?'':'disabled'}>${PKG_SATUAN.map(u=>`<option ${same(u,it.satuan)?'selected':''}>${escapeHtml(u)}</option>`).join('')}</select>
+          <select class="pkgi-step form-control text-xs py-0.5 w-[8.5rem] shrink-0" ${bisa?'':'disabled'} onchange="pkgSyncItems()" title="Proses yang menghasilkan item ini">${stepOpt(it.stepOrder)}</select>
+          ${tautan
+            ? pkgStatusPil(it)
+            : `<select class="pkgi-status form-control text-xs py-0.5 w-[4.8rem] shrink-0" ${bisa?'':'disabled'} onchange="pkgSyncItems()" title="Item tanpa proses: statusnya diisi manual"><option value="belum" ${it.status!=='siap'?'selected':''}>belum</option><option value="siap" ${it.status==='siap'?'selected':''}>siap</option></select>`}
+          ${it.stepHilang?`<span class="material-icons-round text-[14px] text-rose-500 shrink-0" title="Proses nomor ${escapeAttr(String(it.stepOrder))} sudah tak ada di Proses Beruntun">link_off</span>`:''}
+          ${bisa?`<button type="button" onclick="pkgRemoveItem(${o.i})" title="Hapus item" class="shrink-0 text-gray-300 hover:text-rose-500"><span class="material-icons-round text-[15px]">close</span></button>`:''}
+        </div>`;
+      }).join('')||`<div class="px-2 py-1.5 text-[11px] text-gray-400">—</div>`}</div>
+    </div>`;
+  }).join('');
+}
+function pkgReadItems(){
+  const box=document.getElementById('pkgItemBox'); if(!box) return [];
+  const out=[];
+  [...box.querySelectorAll('[data-pkgkat]')].forEach(blok=>{
+    const kat=blok.getAttribute('data-pkgkat')||'';
+    [...blok.querySelectorAll('[data-pkgi]')].forEach(tr=>{
+      const st=Number((tr.querySelector('.pkgi-step')||{}).value||0)||0;
+      out.push({
+        kategori:kat.trim(),
+        nama:((tr.querySelector('.pkgi-nama')||{}).value||'').trim(),
+        grup:((tr.querySelector('.pkgi-grup')||{}).value||'').trim(),
+        jumlah:Number(((tr.querySelector('.pkgi-jumlah')||{}).value||'').replace(/[^0-9]/g,''))||0,
+        satuan:((tr.querySelector('.pkgi-satuan')||{}).value||'Paket'),
+        stepOrder:st,
+        status:st?'':(((tr.querySelector('.pkgi-status')||{}).value)||'belum'),
+      });
+    });
+  });
+  return out;
+}
+// Gambar ulang dari isi form supaya subtotal & pil status ikut bergerak sebelum disimpan.
+// Status item bertaut proses dihitung dari proses itu — cerminan aturan server.
+function pkgSyncItems(){
+  const c=currentCollab(); if(!c) return;
+  const p=pkgOf(c)||{};
+  const steps={}; ((c.steps)||[]).forEach(s=>{ steps[s.order]=s; });
+  p.items=pkgReadItems().map((it,i)=>{
+    const s=it.stepOrder?steps[it.stepOrder]:null;
+    return Object.assign({}, it, { order:i+1, step:s||null, stepHilang:!!(it.stepOrder&&!s),
+      status: s ? (s.done?'siap':'proses') : (it.status==='siap'?'siap':'belum') });
+  });
+  c.pkg=Object.assign({}, p); renderCollabPackage(c);
+}
+function pkgAddItem(kategori){
+  const c=currentCollab(); if(!c) return;
+  const p=pkgOf(c)||{};
+  p.items=pkgReadItems().concat([{kategori:kategori,nama:'',grup:'',jumlah:0,satuan:'Paket',stepOrder:0,status:'belum'}]);
+  c.pkg=Object.assign({}, p); renderCollabPackage(c);
+}
+function pkgRemoveItem(i){
+  const c=currentCollab(); if(!c) return;
+  const p=pkgOf(c)||{}; const list=pkgReadItems(); list.splice(i,1);
+  p.items=list; c.pkg=Object.assign({}, p); renderCollabPackage(c);
+}
 function renderCollabPackage(c){
   const box=document.getElementById('collabPkgBox'); if(!box) return;
   box.classList.remove('hide');
@@ -3204,6 +3307,11 @@ function renderCollabPackage(c){
     return;
   }
   const p=pkgOf(c)||{}; const f=p.filled||{marsel:0,marselTotal:6,produk:0,produkTotal:7,total:0,grandTotal:13};
+  const rk=p.ringkas||{siap:0,proses:0,belum:0,total:0};
+  // Satuan yang paling sering dipakai jadi label ringkasan — paket, BAB, atau sesi.
+  const hitungSatuan={};
+  ((p.items)||[]).forEach(it=>{ const u=String(it.satuan||'Paket'); hitungSatuan[u]=(hitungSatuan[u]||0)+1; });
+  const satuanUtama=(Object.keys(hitungSatuan).sort((a,b)=>hitungSatuan[b]-hitungSatuan[a])[0]||'Paket').toLowerCase();
   const bisaM=canEditPkgArea(c,'marsel'), bisaP=canEditPkgArea(c,'produk');
   const bos=isManager(state.currentUser)||isLeader(state.currentUser);
   const field=(fd,area,bisa)=>{
@@ -3242,32 +3350,58 @@ function renderCollabPackage(c){
       <div class="flex items-center gap-2 flex-wrap">${gates}<span class="text-[11px] font-bold text-amber-700 dark:text-amber-300">${f.total}/${f.grandTotal} field</span></div>
     </div>
     <div class="p-4 space-y-4">
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div class="rounded-lg border border-amber-200 dark:border-amber-900/50 overflow-hidden">
-          <div class="px-3 py-1.5 bg-amber-100/70 dark:bg-amber-900/25 flex items-center justify-between gap-2">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-200">Area Marsel</span>
-            <span class="flex items-center gap-1.5 text-[11px] text-amber-800 dark:text-amber-200">${picSel('pkg-marselPic', p.marselPic||'', bos)}<b>${f.marsel}/${f.marselTotal}</b></span>
-          </div>
-          <div class="p-3 space-y-2">${PKG_FIELDS.marsel.map(fd=>field(fd,'marsel',bisaM)).join('')}</div>
+
+      <!-- Inti panelnya: deliverable Area Produk, bersanding dengan proses yang menghasilkannya.
+           Kiri sengaja cermin ringkas Proses Beruntun (bukan salinan penuh) supaya kaitannya
+           terlihat tanpa harus menggulung bolak-balik. -->
+      <div class="rounded-lg border border-indigo-200 dark:border-indigo-900/50 overflow-hidden">
+        <div class="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/25 flex items-center justify-between gap-2 flex-wrap">
+          <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Area Produk — Deliverable</span>
+          <span class="flex items-center gap-1.5 text-[11px] text-indigo-700 dark:text-indigo-300">${picSel('pkg-produkPic', p.produkPic||'', bos)}<b>${rk.siap}/${rk.total||0} ${escapeHtml(satuanUtama)}</b></span>
         </div>
-        <div class="rounded-lg border border-indigo-200 dark:border-indigo-900/50 overflow-hidden">
-          <div class="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/25 flex items-center justify-between gap-2">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Area Produk</span>
-            <span class="flex items-center gap-1.5 text-[11px] text-indigo-700 dark:text-indigo-300">${picSel('pkg-produkPic', p.produkPic||'', bos)}<b>${f.produk}/${f.produkTotal}</b></span>
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
+          <div class="p-2 bg-gray-50 dark:bg-slate-800/50 border-b lg:border-b-0 lg:border-r border-gray-100 dark:border-slate-700">
+            <div class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5 px-1">Proses</div>
+            ${((c.steps||[]).length?c.steps:[]).map(s=>{
+              const n=(p.items||[]).filter(x=>Number(x.stepOrder)===Number(s.order)).length;
+              return `<div class="flex items-start gap-1.5 px-1 py-1 rounded text-[11px] ${s.done?'text-gray-400':'text-gray-600 dark:text-slate-300'}">
+                <span class="material-icons-round text-[13px] shrink-0 mt-px ${s.done?'text-emerald-500':'text-gray-300 dark:text-slate-600'}">${s.done?'check_circle':'radio_button_unchecked'}</span>
+                <span class="flex-1 min-w-0 ${s.done?'line-through':''}">${escapeHtml(s.name)}</span>
+                ${n?`<span class="shrink-0 text-[9px] font-bold text-indigo-600 bg-indigo-100 dark:bg-indigo-900/40 dark:text-indigo-300 rounded px-1">${n}</span>`:''}
+              </div>`;
+            }).join('')||'<div class="px-1 text-[11px] text-gray-400">Belum ada proses.</div>'}
+            <div class="mt-1.5 pt-1.5 border-t border-gray-200 dark:border-slate-700 text-[9px] text-gray-400 px-1">Angka = deliverable yang menunggunya.</div>
           </div>
-          <div class="p-3 space-y-2">${PKG_FIELDS.produk.map(fd=>field(fd,'produk',bisaP)).join('')}</div>
+          <div class="p-2 space-y-2" id="pkgItemBox">${pkgKategoriBlok(c,p,bisaP)}</div>
         </div>
       </div>
-      <div class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-        <div class="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 flex items-center justify-between gap-2">
-          <span class="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Varian — masa aktif &amp; harga</span>
-          ${bisaM?`<button type="button" onclick="pkgAddVariant()" class="text-[11px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5"><span class="material-icons-round text-[13px]">add</span>Varian</button>`:''}
+
+      <!-- Bonus angkatan lama & catatan: sengaja TETAP teks bebas. Ratusan paket yang sudah
+           jadi, tak pernah menahan apa pun — mengetiknya ulang satu per satu cuma ongkos. -->
+      <details class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden" ${(PKG_FIELDS.produk.some(fd=>String(p[fd.k]||'').trim()))?'open':''}>
+        <summary class="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 cursor-pointer text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400 select-none">Bonus angkatan lama &amp; catatan <span class="font-normal normal-case tracking-normal text-gray-400">— teks bebas, tidak dihitung sebagai pekerjaan</span></summary>
+        <div class="p-3 space-y-2">${PKG_FIELDS.produk.map(fd=>field(fd,'produk',bisaP)).join('')}</div>
+      </details>
+
+      <!-- Area Marsel: milik tim lain yang tak memakai ProductTrack. Ditampilkan sebagai
+           rujukan supaya konteksnya ada, tapi tidak jadi sumber kebenaran kedua. -->
+      <details class="rounded-lg border border-amber-200 dark:border-amber-900/50 overflow-hidden">
+        <summary class="px-3 py-1.5 bg-amber-100/70 dark:bg-amber-900/25 cursor-pointer text-[11px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-200 select-none">Area Marsel <span class="font-normal normal-case tracking-normal">— rujukan${bisaM?'':', baca-saja'}</span> <span class="font-normal">${f.marsel}/${f.marselTotal}</span></summary>
+        <div class="p-3 space-y-2">
+          <div class="flex items-center gap-1.5 text-[11px] text-amber-800 dark:text-amber-200">PIC ${picSel('pkg-marselPic', p.marselPic||'', bos)}</div>
+          ${PKG_FIELDS.marsel.map(fd=>field(fd,'marsel',bisaM)).join('')}
+          <div class="rounded border border-gray-200 dark:border-slate-700 overflow-hidden">
+            <div class="px-2 py-1 bg-gray-50 dark:bg-slate-800 flex items-center justify-between gap-2">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Varian — masa aktif &amp; harga</span>
+              ${bisaM?`<button type="button" onclick="pkgAddVariant()" class="text-[11px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5"><span class="material-icons-round text-[13px]">add</span>Varian</button>`:''}
+            </div>
+            <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-[10px] uppercase tracking-wide text-gray-400 border-b border-gray-100 dark:border-slate-700">
+              <th class="px-2 py-1 text-left font-semibold">Masa Aktif</th><th class="px-2 py-1 text-right font-semibold">Harga Awal</th>
+              <th class="px-2 py-1 text-right font-semibold">Harga Diskon</th><th class="px-2 py-1 text-right font-semibold">Potongan</th><th></th>
+            </tr></thead><tbody id="pkgVariantBody">${vrows||`<tr><td colspan="5" class="px-2 py-3 text-center text-[11px] text-gray-400">Belum ada varian.</td></tr>`}</tbody></table></div>
+          </div>
         </div>
-        <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-[10px] uppercase tracking-wide text-gray-400 border-b border-gray-100 dark:border-slate-700">
-          <th class="px-2 py-1 text-left font-semibold">Masa Aktif</th><th class="px-2 py-1 text-right font-semibold">Harga Awal</th>
-          <th class="px-2 py-1 text-right font-semibold">Harga Diskon</th><th class="px-2 py-1 text-right font-semibold">Potongan</th><th></th>
-        </tr></thead><tbody id="pkgVariantBody">${vrows||`<tr><td colspan="5" class="px-2 py-3 text-center text-[11px] text-gray-400">Belum ada varian.</td></tr>`}</tbody></table></div>
-      </div>
+      </details>
       ${(bisaM||bisaP)?`<div class="flex items-center justify-between gap-2 flex-wrap">
         <span class="text-[11px] text-gray-400">${p.updatedBy?`Terakhir diubah ${escapeHtml(p.updatedBy)}${p.updatedAt?' · '+escapeHtml(p.updatedAt):''}`:'Belum pernah disimpan.'}</span>
         <button type="button" onclick="saveCollabPackage()" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan Master Paket</button>
@@ -3309,6 +3443,7 @@ function saveCollabPackage(){
   if(bisaP){
     payload.produk=ambil(PKG_FIELDS.produk);
     if(bos){ const el=document.getElementById('pkg-produkPic'); if(el) payload.produk.produkPic=el.value; }
+    payload.items=pkgReadItems().filter(it=>it.nama);
   }
   GAS.withSuccessHandler(res=>{
     if(!res||!res.success){ showToast((res&&res.message)||'Gagal simpan master paket', false); return; }
