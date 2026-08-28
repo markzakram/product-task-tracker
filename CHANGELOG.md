@@ -10,6 +10,62 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.81.0 — Master Koordinasi Paket menempel pada Task Kolaborasi
+
+Isi sheet **Master Koordinasi Paket** sekarang hidup di dalam task kolaborasi yang
+menghasilkannya. Tidak ada tab baru: satu task kolaborasi = satu paket.
+
+### Di kartu Task Kolaborasi
+Pita amber baru di antara judul dan progress bar: jumlah varian, rentang harga
+diskon, dan berapa dari 13 field master yang sudah terisi. Di bawahnya dua pil
+gate — **Input Fitur** dan **QC VOC**.
+
+Kartu yang belum punya data paket sama sekali **tidak** menampilkan pita ini, jadi
+task kolaborasi yang memang bukan paket tetap terlihat seperti sebelumnya.
+
+### Di modal detail
+Panel **Master Koordinasi Paket** disisipkan tepat di atas Proses Beruntun, dibagi
+dua area berpemilik — meniru pita `AREA MARSEL` / `AREA PRODUK` di sheet aslinya:
+
+| Area | Field | PIC |
+|---|---|---|
+| Marsel | Program, Nama Paket, Tagline, Benefit × Fitur, Tanggal Rilis, Tujuan Belajar | ditunjuk Manager/Leader |
+| Produk | Dibimbing, Latsol, Materi, Tryout, Drilling, Live Class, Catatan Produk | ditunjuk Manager/Leader |
+
+Tabel **Varian** menyimpan masa aktif + harga awal + harga diskon; potongannya
+dihitung, tidak diketik. Menyimpan varian **mengganti** seluruh daftarnya.
+
+### Aturan hak ubah
+- Manager & Leader boleh mengubah kedua sisi.
+- PIC sebuah area hanya boleh mengubah sisinya sendiri — dan **tidak bisa mengoper
+  PIC-nya ke orang lain**; penunjukan PIC hanya lewat Manager/Leader.
+- Varian & harga ikut **Area Marsel**, sejalan dengan sheet aslinya yang menaruh
+  kolom Masa Aktif dan Harga di band Marsel.
+- Field yang bukan milik Anda tetap terlihat, tapi tampil terkunci — bukan tampak
+  bisa diisi lalu ditolak saat disimpan.
+
+### Dua gate berhenti jadi sel yang diketik
+`Input Fitur` dan `QC VOC` di sheet adalah kolom T dan U, yang isinya sudah
+telanjur bercampur empat kosakata (`TRUE`, `FALSE`, `done`, kosong). Di sini
+keduanya **proses biasa** di Proses Beruntun — status pilnya dibaca dari sana,
+lengkap dengan nama pengerja dan tanggalnya. Kalau prosesnya belum dibuat, pilnya
+menyebutkan itu apa adanya alih-alih menebak.
+
+### Sheet baru
+`PACKAGES` (A..R) dan `PACKAGE_VARIANTS` (A..F), keduanya berkunci **Collab ID**
+dan dibuat otomatis saat pertama dipakai.
+
+Karena berkunci Collab ID, `deleteCollab` sekarang ikut membuang baris paket dan
+variannya. Tanpa itu, collab baru yang memakai ulang nomor bekas (`genCollabId` =
+max + 1) akan mewarisi harga dan isi paket milik collab yang sudah dihapus —
+keluarga bug yang sama dengan sub-ceklis (1.64.0), komentar (1.69.1), dan task
+(1.74.1). Ada tesnya sekarang.
+
+Paket ikut dibawa `getCollabs`, bukan lewat panggilan terpisah, sehingga setiap
+jalur yang menyegarkan daftar kolaborasi otomatis menyegarkan paketnya juga.
+
+---
+
 ## 1.80.0 — Tombol "Task Saya" di Task Kolaborasi
 
 Tombol filter **"Giliran Saya"** diganti menjadi **"Task Saya"**.

@@ -65,6 +65,7 @@ const HANDLERS = {
   setCollabStepLink: (collabId, order, link, actor) => backend.setCollabStepLink(collabId, order, link, actor),
   setCollabType: (collabId, type, actor) => backend.setCollabType(collabId, type, actor),
   deleteCollab: (id, actor) => backend.deleteCollab(id, actor),
+  savePackage: (collabId, payload, actor) => backend.savePackage(collabId, payload, actor),
   getNotifications: (user) => backend.getNotifications(user),
   markNotificationsRead: (user, refId) => backend.markNotificationsRead(user, refId),
   getUsers: () => backend.getUsers(),
@@ -198,7 +199,7 @@ module.exports = async (req, res) => {
     setupTaskTracker: 1, assignMissingTaskIds: 1, seedFormulaTemplate: 1,
     saveOption: 1, deleteOption: 1, editOption: 1,
     addDashboard: 1, updateDashboard: 1, deleteDashboard: 1,
-    deleteTask: 1, deleteCollab: 1, saveCollab: 1, setCollabType: 1,
+    deleteTask: 1, deleteCollab: 1, saveCollab: 1, setCollabType: 1, savePackage: 1,
   };
 
   // Identitas yang diklaim browser. TIDAK dipercaya untuk menaikkan hak — hanya dipakai

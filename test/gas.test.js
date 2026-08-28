@@ -1513,4 +1513,84 @@ const pageEvil = call('doGet', { parameter: { view: '"><script>alert(1)</script>
 ok('parameter berbahaya dibersihkan', !/alert\(1\)/.test(pageEvil._html));
 ok('frontend membaca __TT_VIEW', fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8').indexOf('window.__TT_VIEW') > 0);
 
+
+console.log('\n=== 17. MASTER KOORDINASI PAKET (nempel pada task kolaborasi) ===');
+
+const mkp = call('saveCollab', { title: 'Paket Uji Master', platform: 'JadiASN', type: 'Course',
+  steps: [{ order: 1, name: 'Susun isi paket', pic: 'Staff Data' },
+           { order: 2, name: 'Input Fitur', pic: 'Staff Soal' },
+           { order: 3, name: 'QC VOC', pic: 'Leader Konten' }] }, 'Manager');
+const MKP = call('getCollabs').find(c => c.title === 'Paket Uji Master').id;
+
+// Collab yang belum pernah punya paket tetap membawa objek kosong, bukan undefined —
+// kalau tidak, kartu di frontend harus menjaga null di banyak tempat.
+const pkgKosong = call('getCollabs').find(c => c.id === MKP);
+ok('collab selalu membawa objek pkg', !!pkgKosong.pkg);
+eq('paket baru: 0 dari 13 field terisi', pkgKosong.pkg.filled.total, 0);
+eq('paket baru: belum ada varian', pkgKosong.pkg.variants.length, 0);
+
+// Manager menunjuk PIC tiap area sekalian mengisi sisi Marsel.
+const simpan1 = call('savePackage', MKP, {
+  marsel: { marselPic: 'Staff Data', program: 'Program Uji', namaPaket: 'Paket Uji', tagline: 'Tagline uji' },
+  produk: { produkPic: 'Staff Soal' },
+  variants: [{ masaAktif: '3 Bulan', hargaAwal: 250000, hargaDiskon: 129000 },
+             { masaAktif: '6 Bulan', hargaAwal: 300000, hargaDiskon: 159000 }] }, 'Manager');
+eq('manager boleh simpan master paket', simpan1.success, true);
+const pk1 = call('getCollabs').find(c => c.id === MKP).pkg;
+eq('3 field Marsel terisi', pk1.filled.marsel, 3);
+eq('sisi Produk masih kosong', pk1.filled.produk, 0);
+eq('2 varian tersimpan', pk1.variants.length, 2);
+eq('varian urut & harganya utuh', pk1.variants[1].masaAktif + '/' + pk1.variants[1].hargaDiskon, '6 Bulan/159000');
+eq('PIC Marsel tercatat', pk1.marselPic, 'Staff Data');
+eq('PIC Produk tercatat', pk1.produkPic, 'Staff Soal');
+
+// --- Batas antar area: tiap PIC hanya boleh menyentuh sisinya sendiri ---
+eq('PIC Produk DITOLAK mengubah sisi Marsel',
+  call('savePackage', MKP, { marsel: { tagline: 'diam-diam diubah' } }, 'Staff Soal').success, false);
+eq('tagline Marsel tak berubah', call('getCollabs').find(c => c.id === MKP).pkg.tagline, 'Tagline uji');
+eq('PIC Marsel DITOLAK mengubah sisi Produk',
+  call('savePackage', MKP, { produk: { materi: 'diam-diam diisi' } }, 'Staff Data').success, false);
+eq('PIC Produk boleh mengisi sisinya sendiri',
+  call('savePackage', MKP, { produk: { materi: 'Materi Uji', latsol: 'Latsol Uji' } }, 'Staff Soal').success, true);
+eq('2 field Produk terisi', call('getCollabs').find(c => c.id === MKP).pkg.filled.produk, 2);
+eq('orang tak terlibat DITOLAK sepenuhnya',
+  call('savePackage', MKP, { marsel: { program: 'X' } }, 'Staff QC').success, false);
+
+// Varian & harga ikut Area Marsel — di sheet Master pun kolomnya ada di band Marsel.
+eq('PIC Produk DITOLAK mengubah varian/harga',
+  call('savePackage', MKP, { variants: [{ masaAktif: '1 Tahun', hargaAwal: 1, hargaDiskon: 1 }] }, 'Staff Soal').success, false);
+eq('varian tetap 2', call('getCollabs').find(c => c.id === MKP).pkg.variants.length, 2);
+
+// PIC area tak boleh mengoper tanggung jawabnya sendiri ke orang lain.
+call('savePackage', MKP, { produk: { produkPic: 'Staff QC', materi: 'Materi Uji' } }, 'Staff Soal');
+eq('PIC area tak bisa mengganti dirinya sendiri', call('getCollabs').find(c => c.id === MKP).pkg.produkPic, 'Staff Soal');
+
+// Menyimpan varian berarti MENGGANTI seluruh daftarnya, bukan menumpuk.
+call('savePackage', MKP, { variants: [{ masaAktif: '1 Tahun', hargaAwal: 400000, hargaDiskon: 169000 }] }, 'Manager');
+const pkv = call('getCollabs').find(c => c.id === MKP).pkg;
+eq('daftar varian diganti, bukan ditumpuk', pkv.variants.length, 1);
+eq('varian yang tersisa yang baru', pkv.variants[0].masaAktif, '1 Tahun');
+eq('varian tanpa masa aktif dibuang',
+  (call('savePackage', MKP, { variants: [{ masaAktif: '', hargaAwal: 9, hargaDiskon: 9 }] }, 'Manager'),
+   call('getCollabs').find(c => c.id === MKP).pkg.variants.length), 0);
+
+// Payload kosong bukan berarti menghapus isi — harus ditolak, bukan menulis baris kosong.
+eq('payload tanpa perubahan ditolak', call('savePackage', MKP, {}, 'Manager').success, false);
+eq('program tetap utuh setelah payload kosong', call('getCollabs').find(c => c.id === MKP).pkg.program, 'Program Uji');
+
+// --- Yang paling rawan: nomor collab dipakai ulang (genCollabId_ = max+1) ---
+call('savePackage', MKP, { marsel: { program: 'Program Uji', namaPaket: 'Paket Uji' },
+  variants: [{ masaAktif: '3 Bulan', hargaAwal: 250000, hargaDiskon: 129000 }] }, 'Manager');
+ok('sebelum dihapus, paketnya memang ada', call('getCollabs').find(c => c.id === MKP).pkg.filled.total > 0);
+call('deleteCollab', MKP, 'Manager');
+const pakaiUlang = call('saveCollab', { title: 'Pemakai Nomor Paket Bekas', platform: 'JadiASN',
+  steps: [{ order: 1, name: 'Proses baru', pic: 'Staff Soal' }] }, 'Manager');
+const PU = call('getCollabs').find(c => c.title === 'Pemakai Nomor Paket Bekas').id;
+eq('nomor collab memang dipakai ulang', PU, MKP);
+const pkBaru = call('getCollabs').find(c => c.id === PU).pkg;
+eq('collab baru TIDAK mewarisi field paket lama', pkBaru.filled.total, 0);
+eq('collab baru TIDAK mewarisi varian & harga lama', pkBaru.variants.length, 0);
+eq('PIC area lama tak ikut terwarisi', (pkBaru.marselPic || '') + (pkBaru.produkPic || ''), '');
+call('deleteCollab', PU, 'Manager');
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);
