@@ -10,6 +10,61 @@ Sumber versi: konstanta `APP_VERSION` di `public/index.html`.
 
 ---
 
+## 1.82.0 — Satuan baris Laporan: satu PROSES, bukan satu kolaborasi
+
+Lanjutan 1.81.0. Di sana kerja kolaborasi sudah masuk Laporan, tapi satuannya
+salah: semua proses milik satu orang di satu kolaborasi dilebur jadi **satu**
+baris (`collabPseudo`, yang memang dirancang untuk kartu Kanban).
+
+### Apa yang hilang karena peleburan
+Baris leburan hanya mengambil `stage` dan `deadline` dari **proses pertama yang
+belum selesai**. Dua akibatnya nyata:
+
+- **Stage proses lain lenyap.** Ali pegang proses #1 "Develop Soal" (selesai) dan
+  proses #4 "Finalisasi" (belum) di kolaborasi yang sama → rekap Per Stage hanya
+  melihat "Finalisasi". Pekerjaan di "Develop Soal" seolah tak pernah ada.
+- **Telat di urutan belakang tak terhitung.** Kalau proses yang lewat tenggat ada
+  di belakang antrean sementara proses terdepan masih aman, barisnya tidak pernah
+  ditandai overdue.
+
+### Sekarang
+`allCollabStepRows()` menghasilkan satu baris per **(proses × pemilik proses)**,
+ber-id `COL-xxx#N` — pola id yang sama dengan sub-ceklis proses di backend.
+Tiap baris memakai stage, deadline, dan tanggal centangnya sendiri:
+
+| | Model lama (1.81.0) | Sekarang (1.82.0) |
+| --- | --- | --- |
+| Satuan | kolaborasi × orang | **proses × orang** |
+| Stage | proses pertama yang belum selesai | milik proses itu |
+| Deadline | idem | milik proses itu |
+| Status | gabungan semua prosesnya | `Done` / `In progress` bila handoff sudah sampai / `Todo` |
+| Selesai minggu ini | seluruh proses orang itu harus tuntas | tiap proses dihitung sendiri |
+
+Angka "Aktif / Selesai / Overdue" otomatis naik dibanding 1.81.0 karena satuannya
+lebih halus — bukan pekerjaan baru, melainkan pekerjaan yang dulu tersembunyi di
+balik peleburan.
+
+### Yang TIDAK berubah
+Kanban dan Task List tetap memakai `collabPseudo` (satu kartu per kolaborasi per
+orang). Di sana peleburan justru benar: satu kartu = satu task yang bisa diklik.
+
+### Rincian lain
+- `stepOwners()` dipisah jadi fungsi sendiri — pemecah PIC peran (`@Magang`) jadi
+  anggota aktifnya. Dipakai bersama oleh rekap se-tim dan baris proses.
+- Cakupan aktivitas kini memuat **id proses dan id kolaborasinya**. Tanpa itu
+  komentar kolaborasi (dicatat atas nama `COL-xxx`) dianggap di luar cakupan dan
+  hilang dari KPI "Komentar minggu ini".
+- Drill-down PIC & CSV menyebut nomor prosesnya (`proses 4: Finalisasi`,
+  `#4 Finalisasi`), menggantikan progres `2/3 proses` yang tak lagi bermakna.
+
+### Berkas
+| Berkas | Perubahan |
+| --- | --- |
+| `public/index.html` (& salinan `gas/Index.html`) | seluruh perubahan di atas |
+| `test/gas.test.js` | 12 assertion baru, 2 disesuaikan (767 → 777) |
+
+---
+
 ## 1.81.0 — Laporan manager ikut menghitung task kolaborasi
 
 Laporan hanya membaca `state.tasks`. Task kolaborasi disimpan di sheet lain

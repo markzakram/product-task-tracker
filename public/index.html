@@ -795,7 +795,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.81.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.82.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1940,22 +1940,50 @@ function myCollabTasks(forUser){
 /* Proses collab SELURUH tim — satu baris per (kolaborasi x PIC). Dipakai saat penggunanya
    memang boleh melihat pekerjaan semua orang. Tanpa ini, Manager melihat ratusan task tapi
    NOL proses kolaborasi milik orang lain, seolah kerja kolaborasi tak ada di daftar. */
+/* Pemilik SATU proses. Nama orangnya apa adanya; bila PIC-nya peran ("@Magang"), setiap
+   anggota aktif peran itu. Dipakai apa adanya, "@Magang" tak pernah cocok dengan
+   stepBelongsTo — hasRole('@Magang','magang') selalu salah — sehingga prosesnya lenyap
+   dari rekap se-tim. */
+function stepOwners(s){
+  const raw=String((s&&s.pic)||'').trim(); if(!raw) return [];
+  const r=rolePicOf(raw);
+  if(!r) return [raw];
+  return (state.users||[]).filter(u=>u.active!==false && same(u.role,r)).map(u=>u.name);
+}
 function allCollabTasks(){
   if(isViewOnly()) return [];
   const out=[];
   (state.collabs||[]).forEach(c=>{
     const pics=[];
-    const tambah=v=>{ v=String(v||'').trim(); if(v && !pics.some(x=>same(x,v))) pics.push(v); };
-    /* PIC proses boleh berupa peran ("@Magang"). Dipakai apa adanya nama itu tak pernah
-       cocok dengan stepBelongsTo — hasRole('@Magang','magang') selalu salah — sehingga
-       prosesnya lenyap dari rekap se-tim. Pecah dulu jadi anggota perannya. */
-    (c.steps||[]).forEach(s=>{
-      const r=rolePicOf(s.pic);
-      if(r) (state.users||[]).forEach(u=>{ if(u.active!==false && same(u.role,r)) tambah(u.name); });
-      else tambah(s.pic);
-    });
+    (c.steps||[]).forEach(s=>stepOwners(s).forEach(v=>{ if(!pics.some(x=>same(x,v))) pics.push(v); }));
     pics.forEach(v=>{ const row=collabPseudo(c, v); if(row) out.push(row); });
   });
+  return out;
+}
+/* ---- Baris kolaborasi untuk LAPORAN: satu PROSES = satu baris ----
+   collabPseudo melebur semua proses seseorang di satu kolaborasi jadi satu baris (itu
+   yang dipakai Kanban & Task List, di sana memang satu kartu per task). Untuk Laporan
+   peleburan itu menyesatkan: stage & deadline hanya diambil dari proses pertama yang
+   belum selesai, sehingga stage proses lain hilang dari rekap dan proses yang telat di
+   urutan belakang tak pernah terhitung overdue. Di sini tiap proses berdiri sendiri. */
+function collabStepPseudo(c, s, owner){
+  const prev=(c.steps||[]).find(x=>x.order===s.order-1);
+  const giliran=!s.done && (!prev || prev.done);   // handoff sudah sampai di proses ini
+  const status = s.done ? 'Done' : (giliran ? 'In progress' : 'Todo');
+  return { _collab:true, _step:true, id:c.id+'#'+s.order, collabId:c.id, stepOrder:s.order,
+    taskName:c.title, status, priority:'Normal', pic:owner, platform:c.platform||'',
+    stage:s.stage||'', dueDate:s.deadline||c.deadline||'', startDate:s.deadline||c.deadline||'',
+    document:s.link||'', createdDate:dateKey(c.createdAt||''),
+    _doneAt: s.done ? String(s.doneAt||'') : '',
+    _projectDeadline:c.deadline||'', _myStepName:s.name||'', _myStepDeadline:s.deadline||'',
+    _collabColor:c.color||'', _stepOwner:owner };
+}
+function allCollabStepRows(){
+  if(isViewOnly()) return [];
+  const out=[];
+  (state.collabs||[]).forEach(c=>(c.steps||[]).forEach(s=>{
+    stepOwners(s).forEach(o=>out.push(collabStepPseudo(c, s, o)));
+  }));
   return out;
 }
 /* Cakupan pseudo-task collab SEBELUM filter — sepadan dengan scopedTasks() untuk task biasa.
@@ -3792,7 +3820,10 @@ function renderReport(){
   const tasks=repFilteredTasks();
   const w=repWindow(); const wl=w.custom?'rentang':'mgg ini';
   const inWin=s=>inDateRange(s,w.start,w.end);
-  const ids=new Set(tasks.map(t=>t.id));
+  // Baris proses ber-id "COL-xxx#N", sedangkan komentar & aktivitas dicatat atas nama
+  // kolaborasinya ("COL-xxx"). Dua-duanya harus masuk, kalau tidak komentar kolaborasi
+  // dianggap di luar cakupan dan hilang dari KPI.
+  const ids=new Set(); tasks.forEach(t=>{ if(t.id) ids.add(t.id); if(t.collabId) ids.add(t.collabId); });
   const inScope=a=>!a.taskId||ids.has(a.taskId);
   const done=tasks.filter(isDone), active=tasks.filter(t=>!isDone(t)), overdue=tasks.filter(isLate);
   const newThisWeek=tasks.filter(t=>inWin(t.createdDate));
@@ -3840,7 +3871,7 @@ const REP_SRC=[['all','Task + Kolaborasi'],['task','Task biasa saja'],['collab',
 function repSrcLabel(v){ const h=REP_SRC.find(x=>x[0]===(v||'all')); return h?h[1]:REP_SRC[0][1]; }
 function repSourceTasks(src){
   const v=src||state.repFilters.src||'all';
-  return (v==='collab'?[]:[...state.tasks]).concat(v==='task'?[]:allCollabTasks());
+  return (v==='collab'?[]:[...state.tasks]).concat(v==='task'?[]:allCollabStepRows());
 }
 function repSrcToggle(f,fn){
   const b=(v,l)=>`<button onclick="${fn}('${v}')" class="px-3 text-[13px] font-medium ${(f.src||'all')===v?'bg-violet-600 text-white':'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'}">${l}</button>`;
@@ -3911,7 +3942,7 @@ function repDetailHtml(picName,tasks){
         <div onclick="${t._collab?`openCollabModal('${escapeAttr(t.collabId)}')`:`openTaskModal('${escapeAttr(t.id)}')`}" class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-800 cursor-pointer">
           <span class="text-[11px] font-mono text-gray-400 shrink-0">${escapeHtml(t.id)}</span>
           ${t._collab?`<span title="Task kolaborasi" class="inline-flex items-center gap-0.5 h-[18px] px-1 rounded text-[9px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 shrink-0"><span class="material-icons-round text-[11px]">account_tree</span>KOLAB</span>`:''}
-          <span class="text-[13px] text-gray-700 dark:text-slate-300 truncate flex-1">${escapeHtml(t.taskName||'-')}${t._collab?` <span class="text-gray-400">· ${escapeHtml(t._myStepName||'—')} (${t._stepDone}/${t._stepTotal} proses)</span>`:''}</span>
+          <span class="text-[13px] text-gray-700 dark:text-slate-300 truncate flex-1">${escapeHtml(t.taskName||'-')}${t._collab?` <span class="text-gray-400">· proses ${t.stepOrder}: ${escapeHtml(t._myStepName||'—')}</span>`:''}</span>
           ${statusChip(t.status)}
           <span class="text-[11px] shrink-0 ${isLate(t)?'text-rose-600 font-semibold':'text-gray-400'}">${t.dueDate?escapeHtml(t.dueDate):'—'}${isLate(t)?' • telat':''}</span>
         </div>`).join('')}</div>
@@ -3958,7 +3989,7 @@ function exportReportCSV(){
       rows.push([s, g.length, g.filter(t=>!isDone(t)).length, g.filter(isDone).length, g.filter(isLate).length]); });
     rows.push([]);
     rows.push(['ID','Jenis','Task','Proses','Stage','Status','Priority','Deadline','Overdue']);
-    mine.forEach(t=>rows.push([t.id, t._collab?'Kolaborasi':'Task', t.taskName, t._collab?`${t._myStepName||'—'} (${t._stepDone}/${t._stepTotal})`:'', repStageName(t), t.status, t.priority, t.dueDate||'', isLate(t)?'Ya':'']));
+    mine.forEach(t=>rows.push([t.id, t._collab?'Kolaborasi':'Task', t.taskName, t._collab?`#${t.stepOrder} ${t._myStepName||'—'}`:'', repStageName(t), t.status, t.priority, t.dueDate||'', isLate(t)?'Ya':'']));
   }
   const csv=rows.map(r=>r.map(c=>{ const s=String(c==null?'':c); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',')).join('\r\n');
   const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob);

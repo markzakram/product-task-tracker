@@ -1338,7 +1338,18 @@ ok('hanya Kanban & List yang menyisipkan collab', commHtml.indexOf("function vie
 ok('ekspor collab hormati filter cepat', commHtml.indexOf("if(state.quickFilter==='mine' && !stepBelongsTo(st, state.currentUser)) return;") >= 0);
 ok('ekspor collab hormati fokus deadline', commHtml.indexOf("if(state.deadlineFocus && !(telat || (!st.done && sisa===0))) return;") >= 0);
 // Laporan manager ikut menghitung kerja kolaborasi, bukan cuma task biasa.
-ok('sumber baris Laporan = task + kolaborasi', commHtml.indexOf("return (v==='collab'?[]:[...state.tasks]).concat(v==='task'?[]:allCollabTasks());") >= 0);
+ok('sumber baris Laporan = task + proses kolaborasi', commHtml.indexOf("return (v==='collab'?[]:[...state.tasks]).concat(v==='task'?[]:allCollabStepRows());") >= 0);
+// Satuan baris Laporan adalah PROSES, bukan kolaborasi. collabPseudo (dipakai Kanban &
+// Task List) melebur semua proses seseorang jadi satu baris; peleburan itu membuang
+// stage & deadline proses lain, jadi Laporan tak boleh memakainya.
+ok('ada pembangun baris per proses', commHtml.indexOf("function collabStepPseudo(c, s, owner){") >= 0);
+ok('ada pengumpul baris proses se-tim', commHtml.indexOf("function allCollabStepRows(){") >= 0);
+ok('id baris = COL-xxx#N', commHtml.indexOf("id:c.id+'#'+s.order, collabId:c.id, stepOrder:s.order,") >= 0);
+ok('stage & deadline dari prosesnya sendiri', commHtml.indexOf("stage:s.stage||'', dueDate:s.deadline||c.deadline||''") >= 0);
+ok('status baris ikut handoff', commHtml.indexOf("const status = s.done ? 'Done' : (giliran ? 'In progress' : 'Todo');") >= 0);
+ok('selesai dibaca dari centang proses itu', commHtml.indexOf("_doneAt: s.done ? String(s.doneAt||'') : ''") >= 0);
+ok('cakupan aktivitas memuat id kolaborasi & id proses', commHtml.indexOf("if(t.id) ids.add(t.id); if(t.collabId) ids.add(t.collabId);") >= 0);
+ok('drill-down menyebut nomor prosesnya', commHtml.indexOf("proses ${t.stepOrder}: ${escapeHtml(t._myStepName||'—')}") >= 0);
 ok('Laporan memakai sumber itu', commHtml.indexOf("function repFilteredTasks(){\n  let arr=repSourceTasks();") >= 0);
 ok('ada tombol pemilih sumber', commHtml.indexOf("function repSrcToggle(f,fn){") >= 0 && commHtml.indexOf("function setRepSrc(v){") >= 0);
 ok('tiga pilihan sumber', /REP_SRC=\[\['all','Task \+ Kolaborasi'\],\['task','Task biasa saja'\],\['collab','Kolaborasi saja'\]\]/.test(commHtml));
@@ -1352,7 +1363,10 @@ ok('baris collab di drill-down membuka modal kolaborasi', commHtml.indexOf("t._c
 ok('ekspor CSV menandai jenis barisnya', commHtml.indexOf("t._collab?'Kolaborasi':'Task'") >= 0);
 // PIC proses berupa peran ("@Magang") harus pecah jadi anggotanya, kalau tidak
 // prosesnya lenyap dari rekap se-tim (stepBelongsTo tak pernah cocok dgn "@Magang").
-ok('PIC peran dipecah ke anggotanya di rekap se-tim', commHtml.indexOf("if(r) (state.users||[]).forEach(u=>{ if(u.active!==false && same(u.role,r)) tambah(u.name); });") >= 0);
+ok('ada pemecah PIC peran jadi anggotanya', commHtml.indexOf("function stepOwners(s){") >= 0);
+ok('peran dipecah ke anggota aktifnya', commHtml.indexOf("return (state.users||[]).filter(u=>u.active!==false && same(u.role,r)).map(u=>u.name);") >= 0);
+ok('rekap se-tim & baris proses sama-sama memakainya',
+  (commHtml.match(/stepOwners\(s\)/g) || []).length >= 2);
 ok('pseudo-task menyimpan pemilik prosesnya', commHtml.indexOf("_stepOwner:user") >= 0);
 ok('label bukan selalu "Proses Anda"', commHtml.indexOf("same(t._stepOwner,state.currentUser)?'Anda':(stepPicLabel(t._stepOwner)||t.pic||'—')") >= 0);
 ok('stage & link proses ikut ke pseudo-task', commHtml.indexOf("stage:(myStep&&myStep.stage)||'', dueDate:(myStep&&myStep.deadline)||c.deadline||''") >= 0);
