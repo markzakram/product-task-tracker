@@ -852,7 +852,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.88.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.89.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3404,7 +3404,7 @@ function pkgKategoriBlok(p, bisaRancang, c){
       <div class="divide-y divide-gray-100 dark:divide-slate-800">${list.map(o=>{
         const it=o.x;
         const pct=it.target?Math.min(100,Math.round(it.terpenuhi/it.target*100)):0;
-        const setorSaya=c?((it.kontrib||[]).find(k=>k.collabId===c.id)||null):null;
+        const setorSaya=c?(it.kontrib||[]).filter(k=>k.collabId===c.id):[];
         return `<div class="px-1.5 py-1" data-pkgi="${o.i}" data-itemid="${escapeAttr(it.itemId||'')}">
           <div class="flex items-center gap-1">
             ${bisaRancang
@@ -3424,10 +3424,9 @@ function pkgKategoriBlok(p, bisaRancang, c){
               const asal=k.collabId?(k.collabId+(k.stepOrder?('#'+k.stepOrder):'')):'riwayat';
               return `<span class="inline-flex items-center gap-0.5 px-1 h-4 rounded text-[9px] font-semibold ${cls}" title="${escapeAttr((k.collabTitle||'')+(k.step?(' — '+k.step.name):''))}">${k.selesai?'✓':'·'} ${escapeHtml(asal)} ${k.jumlah}${k.hilang?' ⚠':''}</span>`;
             }).join('')}</div>`:''}
-          ${bisaSetor?`<div class="mt-1 flex items-center gap-1 pl-1 border-l-2 border-indigo-200 dark:border-indigo-900">
-            <span class="text-[10px] text-gray-400 shrink-0">setoran task ini</span>
-            <input class="pkgs-jumlah ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String((setorSaya&&setorSaya.jumlah)||''))}" inputmode="numeric" placeholder="0">
-            <select class="pkgs-step ${PKG_F} flex-1 min-w-0">${pkgStepOptions(c,(setorSaya&&setorSaya.stepOrder)||0)}</select>
+          ${bisaSetor?`<div class="mt-1 pl-1 border-l-2 border-indigo-200 dark:border-indigo-900">
+            <div class="pkgs-box space-y-1">${(setorSaya.length?setorSaya:[null]).map((k,n)=>pkgSetorBaris(c,k,n)).join('')}</div>
+            <button type="button" onclick="pkgAddSetor(this)" title="Tambah setoran lain untuk target ini — mis. proses lain di task yang sama" class="mt-1 ml-[4.8rem] text-[10px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5"><span class="material-icons-round text-[12px]">add</span>setoran</button>
           </div>`:''}
         </div>`;
       }).join('')||`<div class="px-2 py-1.5 text-[11px] text-gray-400">—</div>`}</div>
@@ -3454,15 +3453,46 @@ function pkgReadItems(){
   });
   return out;
 }
+/* Satu baris setoran. Satu task boleh menyetor ke target yang SAMA lebih dari sekali —
+   mis. proses "Pembuatan Verbal 1" dan "Pembuatan Verbal 2" masing-masing 10 Paket — jadi
+   tiap proses menambah angkanya sendiri saat dicentang, bukan sekali borongan di akhir.
+   Labelnya hanya di baris pertama supaya deretannya tidak jadi bising. */
+function pkgSetorBaris(c, k, n){
+  return `<div class="pkgs-row flex items-center gap-1">
+    <span class="text-[10px] text-gray-400 shrink-0 w-[4.6rem]">${n?'':'setoran task ini'}</span>
+    <input class="pkgs-jumlah ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String((k&&k.jumlah)||''))}" inputmode="numeric" placeholder="0">
+    <select class="pkgs-step ${PKG_F} flex-1 min-w-0">${pkgStepOptions(c,(k&&k.stepOrder)||0)}</select>
+    <button type="button" onclick="pkgRemoveSetor(this)" title="Hapus baris setoran ini" class="shrink-0 text-gray-300 hover:text-rose-500"><span class="material-icons-round text-[15px]">close</span></button>
+  </div>`;
+}
+function pkgAddSetor(btn){
+  const c=currentCollab(); if(!c) return;
+  const kotak=btn.parentElement&&btn.parentElement.querySelector('.pkgs-box'); if(!kotak) return;
+  kotak.insertAdjacentHTML('beforeend', pkgSetorBaris(c, null, kotak.children.length));
+}
+function pkgRemoveSetor(btn){
+  const baris=btn.closest('.pkgs-row'); if(!baris) return;
+  const kotak=baris.parentElement;
+  // Baris terakhir tidak dihilangkan, cukup dikosongkan — kalau tidak, tak ada lagi tempat
+  // mengisi setoran tanpa menekan "+" lebih dulu.
+  if(kotak && kotak.children.length<=1){
+    const j=baris.querySelector('.pkgs-jumlah'); if(j) j.value='';
+    return;
+  }
+  baris.remove();
+}
 // Setoran task yang sedang dibuka. Hanya baris yang jumlahnya diisi yang dikirim.
 function pkgReadSetor(){
   const box=document.getElementById('pkgItemBox'); if(!box) return [];
   const out=[];
   [...box.querySelectorAll('[data-pkgi]')].forEach(tr=>{
-    const j=Number((((tr.querySelector('.pkgs-jumlah')||{}).value)||'').replace(/[^0-9]/g,''))||0;
-    if(!j) return;
-    out.push({ itemId:tr.getAttribute('data-itemid')||'', jumlah:j,
-      stepOrder:Number(((tr.querySelector('.pkgs-step')||{}).value)||0)||0 });
+    const itemId=tr.getAttribute('data-itemid')||'';
+    [...tr.querySelectorAll('.pkgs-row')].forEach(baris=>{
+      const j=Number((((baris.querySelector('.pkgs-jumlah')||{}).value)||'').replace(/[^0-9]/g,''))||0;
+      if(!j) return;
+      out.push({ itemId, jumlah:j,
+        stepOrder:Number(((baris.querySelector('.pkgs-step')||{}).value)||0)||0 });
+    });
   });
   return out;
 }
@@ -3574,7 +3604,7 @@ function renderPackagePanel(){
           <div class="p-2 bg-gray-50 dark:bg-slate-800/50 border-b lg:border-b-0 lg:border-r border-gray-100 dark:border-slate-700">
             <div class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5 px-1">Proses</div>
             ${(c&&(c.steps||[]).length)?c.steps.map(s=>{
-              const n=(p.items||[]).filter(x=>x.collabId===c.id&&Number(x.stepOrder)===Number(s.order)).length;
+              const n=(p.items||[]).reduce((a,x)=>a+(x.kontrib||[]).filter(k=>k.collabId===c.id&&Number(k.stepOrder)===Number(s.order)).length,0);
               return `<div class="flex items-start gap-1.5 px-1 py-1 rounded text-[11px] ${s.done?'text-gray-400':'text-gray-600 dark:text-slate-300'}">
                 <span class="material-icons-round text-[13px] shrink-0 mt-px ${s.done?'text-emerald-500':'text-gray-300 dark:text-slate-600'}">${s.done?'check_circle':'radio_button_unchecked'}</span>
                 <span class="flex-1 min-w-0 ${s.done?'line-through':''}">${escapeHtml(s.name)}</span>
@@ -3690,6 +3720,22 @@ function savePackagePanel(){
   }
   if(bisaRancang) payload.items=pkgReadItems().filter(it=>it.nama);
   const setoran=bisaSetor?pkgReadSetor():null;
+  /* Dua setoran ke target DAN proses yang sama akan terhitung dua kali begitu proses itu
+     dicentang — hampir pasti salah pilih proses, bukan maksud sebenarnya. Dihentikan di
+     sini dengan menyebut targetnya, supaya ketahuan sekarang, bukan nanti saat angkanya
+     terlanjur aneh. */
+  if(setoran){
+    const kunci={};
+    for(const s of setoran){
+      const kk=s.itemId+'#'+s.stepOrder;
+      if(kunci[kk]){
+        const it=(p.items||[]).find(x=>x.itemId===s.itemId);
+        showToast('Target "'+((it&&it.nama)||'itu')+'" punya dua setoran untuk proses yang sama. Pilih proses berbeda, atau gabungkan jumlahnya.', false);
+        return;
+      }
+      kunci[kk]=1;
+    }
+  }
   const selesai=(res)=>{
     state.packages=res.packages||state.packages; state.collabs=res.collabs||state.collabs;
     showToast(res.message); renderPackagePanel();
@@ -3711,7 +3757,11 @@ function savePackagePanel(){
 }
 function loadPackages(cb){
   GAS.withSuccessHandler(list=>{ state.packages=list||[]; if(cb) cb(); })
-     .withFailureHandler(()=>{ state.packages=state.packages||[]; if(cb) cb(); })
+     .withFailureHandler(()=>{ /* Pertahankan data terakhir yang benar; kosongkan berarti
+        rancangan yang sudah tertaut mendadak terlihat hilang. */
+       state.packages=state.packages||[];
+       showToast('Data rancangan paket gagal dimuat. Yang tampil mungkin belum terbaru.', false);
+       if(cb) cb(); })
      .getPackages();
 }
 

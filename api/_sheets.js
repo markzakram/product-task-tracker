@@ -1433,7 +1433,14 @@ async function readPackages(stepIndex) {
     vrows = b[`${CONFIG.PACKAGE_VARIANT_SHEET}!A2:F`] || [];
     irows = b[`${CONFIG.PACKAGE_ITEM_SHEET}!A2:J`] || [];
     crows = b[`${CONFIG.PACKAGE_CONTRIB_SHEET}!A2:F`] || [];
-  } catch (e) { return {}; }
+  } catch (e) {
+    /* JANGAN dijadikan "kosong". Sheet-nya sudah dipastikan ada oleh ensurePackageSheets,
+       jadi gagal di sini berarti gangguan baca sesaat (kuota Sheets, jaringan) — dan daftar
+       kosong TAK BISA dibedakan dari "memang belum ada paket". Dulu justru itu yang membuat
+       rancangan yang sudah tertaut terlihat hilang: daftar kosong menimpa data yang baik.
+       Dilempar supaya penangan gagal di layar mempertahankan data terakhir yang benar. */
+    throw new Error('Gagal membaca data paket: ' + ((e && e.message) || e));
+  }
   const idx = stepIndex || { step: {}, collab: {} };
   const out = {};
   prows.forEach((r, i) => { const p = rowToPackage(r, i + 2); if (p.id) out[p.id] = p; });

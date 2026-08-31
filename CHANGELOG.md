@@ -31,6 +31,47 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.89.0 — Satu task boleh menyetor berkali-kali ke target yang sama
+
+Kasusnya nyata: target *Latsol Verbal — 20 Paket* digarap satu task yang prosesnya dipecah,
+"Pembuatan Verbal 1" dan "Pembuatan Verbal 2", masing-masing 10 Paket. Sebelumnya tiap
+target hanya punya **satu** baris setoran per task, dan yang terbaca cuma setoran pertama —
+jadi mengisi untuk proses kedua justru menimpa yang pertama.
+
+Sekarang tiap target bisa punya **sebanyak apa pun** baris setoran dari task yang sama, tiap
+baris menempel ke prosesnya sendiri dan bisa dihapus. Begitu Proses 1 dicentang, 10 masuk;
+Proses 2 dicentang, 10 lagi. Batal centang salah satu hanya menarik **bagiannya**, bukan
+seluruhnya. Sudah dibuktikan ujung ke ujung: 0 → 10 → 20 → 10 → 0.
+
+Tak ada perubahan skema dan tak ada migrasi: `PACKAGE_CONTRIB` sejak awal menyimpan tiap
+setoran sebagai baris berkunci (Paket, Target, Task, **Proses**), dan kedua backend memang
+sudah menerima daftar. Yang membatasi hanya tampilannya.
+
+Tiga hal yang menyertainya:
+
+- **Baris terakhir tak ikut terhapus**, hanya dikosongkan — kalau tidak, tak ada lagi tempat
+  mengisi setoran tanpa menekan "+" dulu.
+- **Dua setoran ke target dan proses yang sama ditolak** dengan menyebut nama targetnya.
+  Keduanya akan terhitung saat satu centang, dan itu hampir pasti salah pilih proses.
+- **Lencana jumlah setoran di kolom Proses akhirnya muncul.** Selama ini ia menyaring daftar
+  *target* memakai `collabId`/`stepOrder`, padahal kedua kolom itu milik *setoran* — jadi
+  angkanya selalu 0 dan lencananya tak pernah tampil sama sekali.
+
+### Gagal baca tak lagi menyamar jadi "belum ada paket"
+
+Ini ditemukan saat pengujian: `readPackages` menelan **setiap** galat baca dan mengembalikan
+daftar kosong. Satu gangguan sesaat — kuota Sheets, jaringan — jadi tak bisa dibedakan dari
+"memang belum ada paket", dan daftar kosong itu menimpa data yang sudah benar di layar.
+Persis gejala yang dulu dilaporkan: *rancangan yang sudah ditautkan tiba-tiba hilang dan
+perlu ditautkan ulang*. Perbaikan muat-awal di 1.87.3 menutup satu penyebabnya; ini
+penyebab kedua yang berdiri sendiri.
+
+Sekarang galatnya dilempar, layar **mempertahankan data terakhir yang benar**, dan pengguna
+diberi tahu bahwa yang tampil mungkin belum terbaru. Jalur tulis tak pernah terdampak:
+`savePackage` sudah menolak dengan "Paket tidak ditemukan" alih-alih menambah baris ganda.
+
+---
+
 ## 1.88.1 — Hasil QC sebelum naik produksi
 
 Empat temuan dari pemeriksaan menyeluruh atas 1.88.0. Tak ada yang mengubah cara kerja

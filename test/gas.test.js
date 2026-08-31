@@ -1893,4 +1893,76 @@ ok('daftar rancangan disaring untuk Lihat Saja', commHtml.indexOf('if(isViewOnly
 ok('tombol bagikan memakai penjaga yang sama dengan task biasa', commHtml.indexOf('(!lipat&&canMirror())') >= 0);
 ok('togglePaketMirror pun dijaga canMirror', commHtml.indexOf('if(!canMirror()){ showToast(') >= 0);
 ok('Lihat Saja tak ditawari salin utk Marsel', commHtml.indexOf("salinBtn.classList.toggle('hide', isViewOnly()") >= 0);
+
+console.log('\n=== 19. Satu task boleh menyetor BERKALI-KALI ke target yang sama ===');
+
+/* Kasus nyata: target "Latsol Verbal 20 Paket" digarap satu task yang prosesnya dipecah —
+   "Pembuatan Verbal 1" 10 Paket dan "Pembuatan Verbal 2" 10 Paket. Tiap proses menambah
+   angkanya sendiri saat dicentang, bukan sekali borongan di akhir. */
+call('saveCollab', { title: 'Verbal dipecah dua', platform: 'JadiASN', type: 'Course', steps: [
+  { order: 1, name: 'Pembuatan Verbal 1', pic: 'Staff Data' },
+  { order: 2, name: 'Pembuatan Verbal 2', pic: 'Staff Data' },
+  { order: 3, name: 'QC', pic: 'Staff QC' } ] }, 'Manager');
+const VB = call('getCollabs').filter(c => c.title === 'Verbal dipecah dua')[0].id;
+const VP = call('savePackage', '', { platform: 'JadiASN', marsel: { namaPaket: 'Paket Verbal' } }, 'Manager').paketId;
+call('setCollabPackage', VB, VP, 'Manager');
+call('savePackage', VP, { items: [
+  { kategori: 'Latsol', grup: 'Tahap 1', nama: 'Latsol Verbal', target: 20, satuan: 'Paket' } ] }, 'Manager');
+const vit = function () { return call('getPackages').filter(p => p.id === VP)[0].items[0]; };
+const VID = vit().itemId;
+
+eq('dua setoran satu task diterima', call('setPackageContrib', VP, VB, [
+  { itemId: VID, stepOrder: 1, jumlah: 10 },
+  { itemId: VID, stepOrder: 2, jumlah: 10 } ], 'Manager').success, true);
+eq('keduanya tersimpan, bukan saling menimpa', vit().kontrib.length, 2);
+eq('sebelum dicentang: semua menunggu', vit().menunggu, 20);
+eq('sebelum dicentang: belum ada yang terpenuhi', vit().terpenuhi, 0);
+
+call('setCollabStepDone', VB, 1, true, 'Staff Data');
+eq('proses PERTAMA menggerakkan angkanya sendiri', vit().terpenuhi, 10);
+eq('setoran proses kedua masih menunggu', vit().menunggu, 10);
+eq('targetnya belum penuh', vit().status, 'proses');
+
+call('setCollabStepDone', VB, 2, true, 'Staff Data');
+eq('proses KEDUA menambah sisanya', vit().terpenuhi, 20);
+eq('target jadi penuh', vit().status, 'done');
+
+call('setCollabStepDone', VB, 1, false, 'Manager');
+eq('batal centang salah satu menarik BAGIANNYA saja', vit().terpenuhi, 10);
+eq('dan bagian itu kembali menunggu', vit().menunggu, 10);
+
+// Proses ketiga boleh ikut — jumlah setoran per task tidak dibatasi dua.
+call('setPackageContrib', VP, VB, [
+  { itemId: VID, stepOrder: 1, jumlah: 10 },
+  { itemId: VID, stepOrder: 2, jumlah: 10 },
+  { itemId: VID, stepOrder: 3, jumlah: 5 } ], 'Manager');
+eq('tiga setoran pun boleh', vit().kontrib.length, 3);
+eq('yang sudah selesai tetap terhitung', vit().terpenuhi, 10);
+call('setCollabStepDone', VB, 3, true, 'Staff QC');
+eq('proses ketiga ikut menambah', vit().terpenuhi, 15);
+
+call('deleteCollab', VB, 'Manager');
+call('deletePackage', VP, 'Manager');
+
+// --- tampilan: satu baris setoran per proses, bisa ditambah & dihapus ---
+ok('ada pembangun baris setoran', commHtml.indexOf('function pkgSetorBaris(c, k, n)') >= 0);
+ok('ada tombol tambah setoran', commHtml.indexOf('function pkgAddSetor(btn)') >= 0);
+ok('ada penghapus baris setoran', commHtml.indexOf('function pkgRemoveSetor(btn)') >= 0);
+ok('setoran task dibaca sebagai DAFTAR, bukan satu',
+  commHtml.indexOf('const setorSaya=c?(it.kontrib||[]).filter(k=>k.collabId===c.id):[];') >= 0);
+ok('tiap baris dibaca terpisah', commHtml.indexOf("tr.querySelectorAll('.pkgs-row')") >= 0);
+ok('target tanpa setoran tetap menyediakan satu baris', commHtml.indexOf('(setorSaya.length?setorSaya:[null])') >= 0);
+// Baris terakhir dikosongkan, bukan dihilangkan — kalau tidak, tak ada tempat mengisi lagi.
+ok('baris terakhir tak ikut terhapus', commHtml.indexOf('kotak.children.length<=1') >= 0);
+ok('setoran kembar untuk proses sama ditolak', commHtml.indexOf('punya dua setoran untuk proses yang sama') >= 0);
+// Lencana di kolom Proses: dulu menyaring items memakai collabId/stepOrder milik SETORAN,
+// jadi angkanya selalu 0 dan lencananya tak pernah muncul.
+ok('lencana jumlah setoran per proses menghitung kontribusi',
+  commHtml.indexOf('(x.kontrib||[]).filter(k=>k.collabId===c.id&&Number(k.stepOrder)===Number(s.order)).length') >= 0);
+
+// --- gagal baca TIDAK boleh menyamar jadi "belum ada paket" ---
+ok('galat baca paket dilempar, bukan dijadikan kosong', code.indexOf('Gagal membaca data paket: ') >= 0);
+const potReadPkg = code.slice(code.indexOf('function readPackages_('), code.indexOf('var idx = stepIndex', code.indexOf('function readPackages_(')));
+ok('readPackages_ tak lagi menelan galat jadi daftar kosong', potReadPkg.indexOf('return {};') < 0);
+ok('layar mempertahankan data lama dan memberi tahu', commHtml.indexOf('Data rancangan paket gagal dimuat.') >= 0);
 console.log(`\n✅ Semua ${passed} assertion lulus.`);
