@@ -852,7 +852,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.89.2'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.89.3'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3308,7 +3308,7 @@ const PKG_FIELDS={
 // Dua gerbang yang di sheet Master jadi kolom T & U. Di sini keduanya PROSES biasa.
 const PKG_GATES=['Input Fitur','QC VOC'];
 const PKG_KATEGORI=['Dibimbing','Latsol','Materi','Tryout','Drilling','Live Class'];
-const PKG_SATUAN=['Paket','BAB','Sesi','Video','Ebook'];
+const PKG_SATUAN=['Paket','BAB','Sesi','Video','Ebook','Video + Ebook'];
 
 function allPackages(){ return state.packages||[]; }
 function packageById(id){ return allPackages().find(p=>String(p.id)===String(id))||null; }
@@ -3398,7 +3398,7 @@ function pkgKategoriBlok(p, bisaRancang, c){
         <span class="w-[6.5rem] shrink-0">grup</span>
         <span class="flex-1 min-w-0">nama target</span>
         <span class="w-[3.6rem] shrink-0 text-right" title="Berapa yang dibutuhkan seluruhnya">target</span>
-        <span class="w-[4.6rem] shrink-0 pl-1">satuan</span>
+        <span class="w-[7rem] shrink-0 pl-1">satuan</span>
         <span class="w-[3.6rem] shrink-0 text-right" title="Yang sudah tersedia sebelum ada task apa pun — langsung dihitung terpenuhi">awal</span>
         <span class="w-[5.5rem] shrink-0"></span>
       </div>`:''}
@@ -3412,7 +3412,7 @@ function pkgKategoriBlok(p, bisaRancang, c){
               ? `<input class="pkgi-grup ${PKG_F} w-[6.5rem] shrink-0" value="${escapeAttr(it.grup||'')}" placeholder="grup (ops.)" title="Kelompok, boleh dikosongkan — mis. Tahap 1">
                  <input class="pkgi-nama ${PKG_F} flex-1 min-w-0" value="${escapeAttr(it.nama||'')}" placeholder="nama target">
                  <input class="pkgi-target ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.target||''))}" inputmode="numeric" title="Target">
-                 <select class="pkgi-satuan ${PKG_F} w-[4.6rem] shrink-0">${PKG_SATUAN.map(u=>`<option ${same(u,it.satuan)?'selected':''}>${escapeHtml(u)}</option>`).join('')}</select>
+                 <select class="pkgi-satuan ${PKG_F} w-[7rem] shrink-0">${PKG_SATUAN.map(u=>`<option ${same(u,it.satuan)?'selected':''}>${escapeHtml(u)}</option>`).join('')}</select>
                  <input class="pkgi-awal ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.awal||''))}" inputmode="numeric" placeholder="0" title="Awal — yang sudah tersedia sebelum ada task apa pun. Langsung dihitung terpenuhi, tanpa perlu setoran.">`
               : `<span class="flex-1 min-w-0 text-xs text-gray-700 dark:text-slate-200 truncate">${escapeHtml(it.nama||'')}${it.grup?`<span class="text-gray-400"> · ${escapeHtml(it.grup)}</span>`:''}</span>
                  <span class="shrink-0 text-[11px] font-mono text-gray-500 dark:text-slate-400">${it.terpenuhi}/${it.target} ${escapeHtml(it.satuan||'')}</span>`}

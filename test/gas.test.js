@@ -1092,7 +1092,10 @@ ok('peran "Dev" tak bisa dipilih untuk baris user', /assignableRoles\(\)\{[\s\S]
 ok('legenda Manager tak lagi menyebut kelola user', /'Manager':'[^']*kelola dropdown/.test(uiHtml));
 
 console.log('\n=== 16c. Komunikasi: cakupan Leader & notifikasi terbaca ===');
-const commHtml = call('doGet', {})._html;
+// Akhir baris disamakan dulu: beberapa uji di bawah memakai regex berbatas panjang, dan
+// CRLF menambah satu karakter per baris sehingga polanya lewat batas tanpa ada kode yang
+// berubah. Dijaga juga oleh .gitattributes; ini lapis kedua supaya tak terulang.
+const commHtml = call('doGet', {})._html.split('\r\n').join('\n');
 // Chat = kotak masuk pribadi. Leader TIDAK ikut melihat semua percakapan.
 // Hanya Manager/Dev yang melihat semua task. Leader punya WEWENANG penuh (Done, kolaborasi)
 // tapi daftar task-nya sebatas yang ia PIC/Support-nya — sama seperti Staff.
@@ -1946,6 +1949,9 @@ call('deleteCollab', VB, 'Manager');
 call('deletePackage', VP, 'Manager');
 
 // --- tampilan: satu baris setoran per proses, bisa ditambah & dihapus ---
+// Satuan 'Video + Ebook' dipakai untuk paket yang isinya sepasang, bukan dua barang terpisah.
+ok('satuan Video + Ebook tersedia', commHtml.indexOf("const PKG_SATUAN=['Paket','BAB','Sesi','Video','Ebook','Video + Ebook'];") >= 0);
+ok('kolom satuan cukup lebar untuk menampungnya', commHtml.indexOf('pkgi-satuan ${PKG_F} w-[7rem]') >= 0);
 ok('ada pembangun baris setoran', commHtml.indexOf('function pkgSetorBaris(c, k, n)') >= 0);
 ok('ada tombol tambah setoran', commHtml.indexOf('function pkgAddSetor(btn)') >= 0);
 ok('ada penghapus baris setoran', commHtml.indexOf('function pkgRemoveSetor(btn)') >= 0);

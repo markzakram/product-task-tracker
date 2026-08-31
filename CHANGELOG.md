@@ -31,6 +31,33 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.89.3 — Satuan "Video + Ebook", dan akhir baris dikunci ke LF
+
+Satuan baru **Video + Ebook** untuk target yang isinya sepasang, bukan dua barang terpisah
+yang dihitung sendiri-sendiri. Pilihan satuan jadi enam: Paket, BAB, Sesi, Video, Ebook,
+Video + Ebook. Kolom satuannya ikut dilebarkan dari `4.6rem` ke `7rem` — kalau tidak,
+tulisannya terpotong dan orang tak tahu sedang memilih apa.
+
+### Akhir baris dikunci ke LF
+
+Ditemukan saat menambahkan satuan di atas: seluruh berkas berubah jadi **CRLF** setelah
+checkout, dan satu uji yang sama sekali tak berhubungan langsung gagal. Sebabnya beberapa
+uji memakai regex berbatas panjang (`[\s\S]{0,600}`) atas isi `public/index.html`; CRLF
+menambah satu karakter per baris sehingga pola yang tadinya muat jadi lewat batas — gagal
+tanpa ada satu baris kode pun yang berubah.
+
+Ini kejadian kedua. Ditutup di dua lapis:
+
+- **`.gitattributes`** dengan `* text=auto eol=lf` — working tree tak lagi diubah jadi CRLF
+  saat checkout atau merge.
+- **Harness ujinya sendiri menyamakan akhir baris** sebelum mencocokkan, jadi uji tak lagi
+  bergantung pada hal yang tak ada kaitannya dengan benar-salahnya kode.
+
+Isi repo tidak berubah karenanya — git memang sudah menyimpan LF; yang berubah cuma salinan
+di komputer.
+
+---
+
 ## 1.89.2 — Percobaan ulang otomatis saat kena kuota Sheets
 
 Kuota baca Google Sheets dihitung **per menit**, dan yang memicunya hampir selalu ledakan

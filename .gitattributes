@@ -1,0 +1,14 @@
+# Akhir baris dipaksa LF di working tree, bukan cuma di dalam repo.
+#
+# Sebabnya konkret: uji di test/gas.test.js memakai regex berbatas panjang
+# (mis. [\s\S]{0,600}) atas isi public/index.html. Saat checkout mengubah LF
+# jadi CRLF, tiap baris bertambah satu karakter dan pola yang tadinya muat
+# jadi lewat batas — ujinya gagal padahal kodenya tak berubah. Sudah dua kali
+# kejadian; ini menghentikannya di sumber, bukan menormalkan ulang tiap kali.
+* text=auto eol=lf
+
+# Berkas biner: jangan disentuh sama sekali.
+*.xlsx binary
+*.png  binary
+*.jpg  binary
+*.ico  binary
