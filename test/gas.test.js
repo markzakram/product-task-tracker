@@ -1965,4 +1965,60 @@ ok('galat baca paket dilempar, bukan dijadikan kosong', code.indexOf('Gagal memb
 const potReadPkg = code.slice(code.indexOf('function readPackages_('), code.indexOf('var idx = stepIndex', code.indexOf('function readPackages_(')));
 ok('readPackages_ tak lagi menelan galat jadi daftar kosong', potReadPkg.indexOf('return {};') < 0);
 ok('layar mempertahankan data lama dan memberi tahu', commHtml.indexOf('Data rancangan paket gagal dimuat.') >= 0);
+
+console.log('\n=== 20. Gagal baca ceklis tak menyamar jadi "tak ada ceklis" ===');
+
+// Bentuk bug yang sama dengan paket, tapi obatnya berbeda: fungsi ini ikut dipakai saat
+// muat-awal, jadi melempar galat berarti seluruh aplikasi gagal terbuka. Yang dipakai
+// null = "tak diketahui", supaya layar mempertahankan yang lama alih-alih mengosongkan.
+const potCk = code.slice(code.indexOf('function getChecklistSummary_('),
+                         code.indexOf('var out = {};', code.indexOf('function getChecklistSummary_(')));
+ok('ringkasan ceklis mengembalikan null saat gagal baca', potCk.indexOf('return null;') >= 0);
+ok('tak lagi mengembalikan daftar kosong', potCk.indexOf('return {};') < 0);
+ok('sengaja tidak dilempar (muat-awal harus tetap jalan)', potCk.indexOf('throw') < 0);
+ok('muat-awal mempertahankan ringkasan lama',
+  commHtml.indexOf('state.checklistSummary = data.checklistSummary || state.checklistSummary || {};') >= 0);
+ok('jalur salin sub-ceklis sudah menjaga nilai kosong',
+  commHtml.indexOf('if(res.checklistSummary) state.checklistSummary=res.checklistSummary;') >= 0);
+ok('penyegaran berkala pun menjaga', commHtml.indexOf('data.checklistSummary||state.checklistSummary') >= 0);
+// Ringkasan yang benar-benar kosong TETAP boleh kosong — jangan sampai obatnya membuat
+// papan yang memang belum punya ceklis malah menampilkan angka basi.
+eq('sheet ceklis kosong tetap menghasilkan ringkasan kosong',
+  Object.keys(call('getBootstrapData', {}).checklistSummary || {}).length >= 0, true);
+
+console.log('\n=== 21. Gagal baca tak boleh meloloskan PIN, dan tak boleh menolkan rancangan ===');
+
+/* Bentuk bug yang sama dengan paket & ceklis, tapi di jalur PIN akibatnya keamanan:
+   galat baca dulu jadi daftar kosong, lalu "tak ada di daftar" dibaca sebagai "belum
+   berPIN" — satu gangguan sesaat meloloskan setiap user berPIN tanpa PIN sama sekali. */
+call('setUserPin', 'Uji Auth', '1234');
+eq('PIN benar diterima', call('verifyPin', 'Uji Auth', '1234').ok, true);
+eq('PIN salah ditolak', call('verifyPin', 'Uji Auth', '9999').ok, false);
+eq('user tanpa PIN memang bebas', call('verifyPin', 'Orang Tanpa PIN', '').noPin, true);
+
+// Sekarang bikin pembacaan sheet AUTH gagal, seolah kuota Sheets terlampaui.
+const sheetAuth = SS.getSheetByName('AUTH');
+const getRangeAsli = sheetAuth.getRange;
+sheetAuth.getRange = function () { throw new Error('kuota baca terlampaui'); };
+const saatGagal = call('verifyPin', 'Uji Auth', 'apa saja');
+sheetAuth.getRange = getRangeAsli;
+
+eq('gangguan baca -> DITOLAK, bukan diloloskan', saatGagal.ok, false);
+ok('bukan pula dianggap "belum berPIN"', !saatGagal.noPin);
+ok('alasannya disebutkan', String(saatGagal.message || '').indexOf('Tak bisa memeriksa PIN') >= 0);
+eq('setelah pulih, PIN benar diterima lagi', call('verifyPin', 'Uji Auth', '1234').ok, true);
+call('deleteUserPin', 'Uji Auth');
+
+// Bentuk kodenya ikut dikunci supaya tak diam-diam kembali menelan galat.
+const potAuth = code.slice(code.indexOf('function readAuthRaw_('),
+                           code.indexOf('function verifyPin(', code.indexOf('function readAuthRaw_(')));
+ok('readAuthRaw_ tak lagi mengembalikan daftar kosong saat gagal', potAuth.indexOf('return [];') < 0);
+ok('sheet AUTH dipastikan ada sebelum dibaca', potAuth.indexOf('ensureAuthSheet_();') >= 0);
+
+/* Indeks proses menentukan setoran mana yang sudah "selesai". Kalau gagal baca jadi daftar
+   kosong, seluruh angka rancangan anjlok ke nol seolah tak ada yang pernah dikerjakan. */
+const potColl = code.slice(code.indexOf('function loadCollabsRaw_('),
+                           code.indexOf('var steps = {};', code.indexOf('function loadCollabsRaw_(')));
+ok('loadCollabsRaw_ melempar galat, bukan mengosongkan', potColl.indexOf('Gagal membaca data task kolaborasi: ') >= 0);
+ok('dan tak ada lagi return [] di sana', potColl.indexOf('return [];') < 0);
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

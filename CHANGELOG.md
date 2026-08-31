@@ -31,6 +31,59 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.89.1 — Gagal baca tak lagi menyamar jadi "memang kosong"
+
+Lanjutan dari 1.89.0, yang menemukan pola berbahaya di jalur baca paket: galat baca sesaat
+ditelan lalu dikembalikan sebagai daftar kosong, dan "kosong" tak bisa dibedakan dari
+"memang belum ada". Seluruh backend disisir untuk pola yang sama. Tiga tempat diperbaiki,
+sisanya dinilai dan sengaja dibiarkan.
+
+### PIN bisa dilewati saat gangguan baca — ini yang paling serius
+
+`verifyPin` membaca daftar PIN, dan bila user tak ada di daftar ia menyimpulkan "user ini
+memang belum berPIN" lalu **meloloskannya**. Karena galat baca berubah jadi daftar kosong,
+satu gangguan sesaat pada sheet `AUTH` membuat **setiap user berPIN bisa masuk tanpa PIN
+sama sekali**. Efek sampingnya juga ada di `setUserPin`: daftar kosong membuat user yang
+sudah berPIN dianggap baru, lalu barisnya ditambah ganda dan PIN barunya diam-diam tak
+berlaku karena yang terbaca tetap baris lama.
+
+Sekarang tidak tahu berarti **ditolak**. Sheet `AUTH` dipastikan ada lebih dulu supaya gagal
+setelah titik itu benar-benar berarti gangguan baca — bukan "AUTH memang belum dibuat",
+yang tetap sah diperlakukan sebagai bebas PIN. Ada uji perilakunya: gangguan baca disuntikkan,
+lalu dipastikan PIN ditolak dengan alasan yang disebutkan, dan diterima lagi setelah pulih.
+
+### Angka rancangan tak lagi bisa anjlok ke nol
+
+`loadCollabsRaw` membangun indeks proses, dan indeks itulah yang menentukan setoran mana
+yang sudah "selesai". Daftar kosong berarti **seluruh angka rancangan jatuh ke nol** seolah
+tak ada yang pernah dikerjakan. Sekarang galatnya dilempar; pemanggil di muat-awal sudah
+menangkapnya sendiri, jadi aplikasi tetap terbuka.
+
+### Ringkasan progres ceklis
+
+Sama bentuknya, beda obatnya: fungsi ini ikut dipakai saat muat-awal, jadi melempar berarti
+seluruh aplikasi gagal terbuka. Yang dipakai `null` = **tak diketahui**, dan layar
+mempertahankan ringkasan yang sudah ada. Dua dari tiga pemanggilnya memang sudah menjaga
+nilai kosong; yang di muat-awal ikut disesuaikan.
+
+### Yang dinilai dan sengaja dibiarkan
+
+Tujuh tempat lain masih mengembalikan daftar kosong saat gagal baca: notifikasi, riwayat
+aktivitas, ringkasan komentar, tautan, dashboard, catatan, dan isi ceklis satu task.
+Semuanya daftar untuk ditampilkan, ikut jalur muat-awal, dan tak ada yang menuntun pengguna
+menulis ulang data. Melempar di sana justru menukar tampilan yang berkurang dengan aplikasi
+yang gagal terbuka. Dibiarkan dengan sadar, bukan terlewat.
+
+### Catatan operasional
+
+Kuota **baca per menit** Google Sheets memang bisa terlampaui — terjadi tiga kali selama
+pengujian berturut-turut hari ini. Sebelum rilis ini kejadian itu diam-diam menolkan angka
+rancangan; sekarang ia muncul sebagai galat bernama dan layar mempertahankan data lama.
+Menambahkan percobaan ulang otomatis saat kena kuota masih terbuka sebagai perbaikan
+berikutnya, dan belum dikerjakan di sini.
+
+---
+
 ## 1.89.0 — Satu task boleh menyetor berkali-kali ke target yang sama
 
 Kasusnya nyata: target *Latsol Verbal — 20 Paket* digarap satu task yang prosesnya dipecah,

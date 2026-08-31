@@ -1353,7 +1353,12 @@ function deleteChecklistItem(taskId, row, actor) {
 function getChecklistSummary_(pre) {
   var rows = [];
   if (pre !== undefined) rows = pre;
-  else { try { rows = valuesGet_(CONFIG.CHECKLIST_SHEET + '!A2:C'); } catch (e) { return {}; } }
+  /* null = TAK DIKETAHUI, bukan "tak ada ceklis". Gagal baca sesaat dulu mengembalikan {},
+     dan {} tak bisa dibedakan dari benar-benar kosong — akibatnya lencana progres ceklis
+     lenyap dari seluruh papan seolah tak ada yang pernah dibuat. Pemanggil di layar sudah
+     menjaga nilai kosong, jadi yang lama dipertahankan. Sengaja TIDAK dilempar: fungsi ini
+     ikut dipakai saat muat-awal, dan melempar berarti seluruh aplikasi gagal terbuka. */
+  else { try { rows = valuesGet_(CONFIG.CHECKLIST_SHEET + '!A2:C'); } catch (e) { return null; } }
   var out = {};
   rows.forEach(function (r) {
     var id = String((r && r[0]) || '').trim();
@@ -1849,7 +1854,12 @@ function loadCollabsRaw_(preC, preS) {
     try {
       crows = valuesGet_(CONFIG.COLLAB_SHEET + '!A2:J');
       srows = valuesGet_(CONFIG.COLLAB_STEP_SHEET + '!A2:K');
-    } catch (e) { return []; }
+    } catch (e) {
+      /* JANGAN dijadikan daftar kosong. Indeks proses inilah yang menentukan setoran mana
+         yang sudah "selesai"; kalau kosong, seluruh angka rancangan anjlok ke nol seolah
+         tak ada yang pernah dikerjakan. Pemanggil di muat-awal sudah menangkapnya sendiri. */
+      throw new Error('Gagal membaca data task kolaborasi: ' + ((e && e.message) || e));
+    }
   }
   var steps = {};
   srows.forEach(function (r, i) {
@@ -2687,12 +2697,18 @@ function ensureAuthSheet_() {
 }
 
 function readAuthRaw_(pre) {
-  try {
-    var rows = (pre !== undefined) ? pre : valuesGet_(CONFIG.AUTH_SHEET + '!A2:B');
-    return rows
-      .map(function (r) { return { user: String((r && r[0]) || '').trim(), hash: String((r && r[1]) || '').trim() }; })
-      .filter(function (r) { return r.user; });
-  } catch (e) { return []; }
+  var rows;
+  if (pre !== undefined) rows = pre || [];
+  else {
+    /* Sheet-nya dipastikan ada DULU, supaya gagal setelah titik ini benar-benar berarti
+       gangguan baca — bukan "AUTH memang belum pernah dibuat". Bedanya menentukan: daftar
+       kosong membuat verifyPin menganggap semua orang belum berPIN lalu meloloskannya. */
+    ensureAuthSheet_();
+    rows = valuesGet_(CONFIG.AUTH_SHEET + '!A2:B');
+  }
+  return (rows || [])
+    .map(function (r) { return { user: String((r && r[0]) || '').trim(), hash: String((r && r[1]) || '').trim() }; })
+    .filter(function (r) { return r.user; });
 }
 
 // Verifikasi PIN.
@@ -2705,7 +2721,12 @@ function verifyPin(user, pin) {
     if (!devPin) return { ok: false, message: 'DEV_PIN belum diset di Script Properties.' };
     return { ok: String(pin || '').trim() === devPin };
   }
-  var rows = readAuthRaw_();
+  /* Gagal baca = TIDAK TAHU, dan tidak tahu harus berarti ditolak. Dulu galat baca berubah
+     jadi daftar kosong, lalu "tak ada di daftar" dibaca sebagai "belum berPIN" — artinya
+     satu gangguan sesaat meloloskan setiap user berPIN tanpa PIN sama sekali. */
+  var rows;
+  try { rows = readAuthRaw_(); }
+  catch (e) { return { ok: false, message: 'Tak bisa memeriksa PIN sekarang (data gagal dibaca). Coba lagi sebentar lagi.' }; }
   var found = rows.filter(function (r) { return r.user.toLowerCase() === user.toLowerCase(); })[0];
   if (!found) return { ok: true, noPin: true };
   return { ok: hashPin_(user, pin) === found.hash };

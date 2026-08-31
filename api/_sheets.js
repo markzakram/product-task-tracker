@@ -1136,7 +1136,12 @@ async function deleteChecklistItem(taskId, row, actor) {
 async function getChecklistSummary(pre) {
   let rows = [];
   if (pre !== undefined) rows = pre;
-  else { try { rows = await valuesGet(`${CONFIG.CHECKLIST_SHEET}!A2:C`); } catch (e) { return {}; } }
+  /* null = TAK DIKETAHUI, bukan "tak ada ceklis". Gagal baca sesaat dulu mengembalikan {},
+     dan {} tak bisa dibedakan dari benar-benar kosong — akibatnya lencana progres ceklis
+     lenyap dari seluruh papan seolah tak ada yang pernah dibuat. Pemanggil di layar sudah
+     menjaga nilai kosong, jadi yang lama dipertahankan. Sengaja TIDAK dilempar: fungsi ini
+     ikut dipakai saat muat-awal, dan melempar berarti seluruh aplikasi gagal terbuka. */
+  else { try { rows = await valuesGet(`${CONFIG.CHECKLIST_SHEET}!A2:C`); } catch (e) { return null; } }
   const out = {};
   rows.forEach(r => {
     const id = String((r && r[0]) || '').trim();
@@ -1207,7 +1212,13 @@ async function loadCollabsRaw(preC, preS) {
       const b = await valuesBatchGet([`${CONFIG.COLLAB_SHEET}!A2:J`, `${CONFIG.COLLAB_STEP_SHEET}!A2:K`]);
       crows = b[`${CONFIG.COLLAB_SHEET}!A2:J`] || [];
       srows = b[`${CONFIG.COLLAB_STEP_SHEET}!A2:K`] || [];
-    } catch (e) { return []; }
+    } catch (e) {
+      /* JANGAN dijadikan daftar kosong. Indeks proses inilah yang menentukan setoran mana
+         yang sudah "selesai"; kalau kosong, seluruh angka rancangan anjlok ke nol seolah
+         tak ada yang pernah dikerjakan. Pemanggil di muat-awal sudah menangkapnya sendiri,
+         jadi melempar di sini tidak membuat aplikasi gagal terbuka. */
+      throw new Error('Gagal membaca data task kolaborasi: ' + ((e && e.message) || e));
+    }
   }
   const steps = {};
   srows.forEach((r, i) => {
@@ -2729,6 +2740,7 @@ async function applySheetValidations() {
 /* ------------------------------------------------------------------ */
 
 async function ensureAuthSheet() {
+  if (_ensured.has('auth')) return;
   const p = await ensureSheetExists(CONFIG.AUTH_SHEET);
   const head = await valuesGet(`${CONFIG.AUTH_SHEET}!A1:B1`);
   if (!head.length || !head[0] || !head[0][0]) {
@@ -2739,15 +2751,23 @@ async function ensureAuthSheet() {
       await batchUpdate([{ updateSheetProperties: { properties: { sheetId: p.sheetId, hidden: true }, fields: 'hidden' } }]);
     }
   } catch (e) { /* abaikan bila gagal menyembunyikan */ }
+  _ensured.add('auth');
 }
 
 async function readAuthRaw(pre) {
-  try {
-    const rows = pre !== undefined ? pre : await valuesGet(`${CONFIG.AUTH_SHEET}!A2:B`);
-    return rows
-      .map(r => ({ user: String((r && r[0]) || '').trim(), hash: String((r && r[1]) || '').trim() }))
-      .filter(r => r.user);
-  } catch (e) { return []; }
+  let rows;
+  if (pre !== undefined) rows = pre || [];
+  else {
+    /* Sheet-nya dipastikan ada DULU, supaya gagal setelah titik ini benar-benar berarti
+       gangguan baca — bukan "AUTH memang belum pernah dibuat". Bedanya menentukan: daftar
+       kosong membuat verifyPin menganggap semua orang belum berPIN lalu meloloskannya.
+       Karena itu galatnya dilempar, bukan disulap jadi daftar kosong. */
+    await ensureAuthSheet();
+    rows = await valuesGet(`${CONFIG.AUTH_SHEET}!A2:B`);
+  }
+  return (rows || [])
+    .map(r => ({ user: String((r && r[0]) || '').trim(), hash: String((r && r[1]) || '').trim() }))
+    .filter(r => r.user);
 }
 
 // Verifikasi PIN di server.
@@ -2760,7 +2780,12 @@ async function verifyPin(user, pin) {
     if (!DEV_PIN) return { ok: false, message: 'Mode Dev belum diaktifkan (set env DEV_PIN di Vercel).' };
     return { ok: String(pin || '').trim() === DEV_PIN };
   }
-  const rows = await readAuthRaw();
+  /* Gagal baca = TIDAK TAHU, dan tidak tahu harus berarti ditolak. Dulu galat baca berubah
+     jadi daftar kosong, lalu "tak ada di daftar" dibaca sebagai "belum berPIN" — artinya
+     satu gangguan sesaat meloloskan setiap user berPIN tanpa PIN sama sekali. */
+  let rows;
+  try { rows = await readAuthRaw(); }
+  catch (e) { return { ok: false, message: 'Tak bisa memeriksa PIN sekarang (data gagal dibaca). Coba lagi sebentar lagi.' }; }
   const found = rows.find(r => r.user.toLowerCase() === user.toLowerCase());
   if (!found) return { ok: true, noPin: true };
   return { ok: hashPin(user, pin) === found.hash };
