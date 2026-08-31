@@ -31,6 +31,37 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.87.2 — Setoran task tersimpan, dan centang proses langsung menggerakkan rancangan
+
+### Kenapa setoran selalu ter-reset
+Panel Rancangan hidup di **dua modal sekaligus** — modal Paket dan modal Task Kolaborasi —
+dan memakai id tetap seperti `#pkgItemBox` dan `#pkg-program`. Selama kotak yang tidak
+aktif masih berisi gambar lama, id-nya jadi **ganda**, dan `getElementById` mengambil yang
+lebih dulu di DOM: modal Paket.
+
+Akibatnya penyimpanan dari modal Task Kolaborasi membaca kotak yang tersembunyi. Angka
+setoran yang baru diketik tak pernah ikut terkirim, lalu panel digambar ulang dari server
+dan tampak "kembali ke nol".
+
+Sekarang kotak yang tidak aktif dikosongkan sebelum menggambar, jadi id-nya selalu tunggal.
+
+### Progres rancangan bergerak seketika saat proses dicentang
+`setCollabStepDone` hanya mengembalikan `collabs`, jadi `state.packages` jadi basi dan
+angka rancangan tak ikut berubah sampai halaman dimuat ulang. Panel kini membaca paketnya
+dari **`c.pkg`** — yang selalu segar karena `getCollabs` menghitung ulang setoran dan
+statusnya — dan digambar ulang tepat setelah proses dicentang.
+
+Alurnya sekarang utuh, terverifikasi di staging dengan angka nyata:
+
+| | Latsol Verbal | Latsol Numerik | Tryout Tahap 1 |
+|---|---|---|---|
+| Rancangan (target) | 10 | 10 | 20 |
+| Disetor task ini | 5 | 5 | 10 |
+| Sebelum dicentang | 0/10 · menunggu 5 | 0/10 · menunggu 5 | 0/20 · menunggu 10 |
+| Setelah proses dicentang | — | — | **10/20 · kurang 10** |
+
+---
+
 ## 1.87.1 — Field rancangan kelihatan sebagai field, grup pindah ke depan
 
 ### Kenapa semuanya tampak putih polos

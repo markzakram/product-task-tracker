@@ -1208,6 +1208,16 @@ ok('blok catatan dua kolom mulai lg', commHtml.indexOf('grid grid-cols-1 lg:grid
 // Kelas .form-control cuma diperluas sekali saat aplikasi dimuat, jadi field yang
 // digambar belakangan tak pernah kebagian border/latar/lebarnya — tampak putih polos.
 ok('panel paket memakai kelas field sendiri', commHtml.indexOf('const PKG_F=') >= 0);
+
+// Panel ini hidup di DUA modal sekaligus dan memakai id tetap (#pkgItemBox, #pkg-*).
+// Kalau kotak yang tak aktif masih berisi gambar lama, id-nya ganda dan getElementById
+// mengambil yang lebih dulu di DOM — modal Paket. Setoran yang diketik di modal collab
+// jadi tak pernah terbaca saat disimpan.
+ok('kotak panel yang tak aktif dikosongkan', commHtml.indexOf("if(lain && lain!==box) lain.innerHTML='';") >= 0);
+// Mencentang proses hanya mengembalikan collabs, jadi state.packages basi. Panel
+// membaca paket dari c.pkg supaya progres rancangan ikut bergerak seketika.
+ok('paket dibaca dari collab yang terbuka', commHtml.indexOf('return c.pkg || packageById(c.paketId);') >= 0);
+ok('panel disegarkan saat proses dicentang', /renderCollabSteps(currentCollabized?)/.test(commHtml) || commHtml.indexOf('renderPackagePanel();') >= 0);
 ok('field paket tak lagi bergantung .form-control', /pkg[is]?-[a-z]+ form-control/.test(commHtml) === false);
 ok('field bisa diisi diberi latar pembeda', commHtml.indexOf('bg-gray-50 dark:bg-slate-800 border border-gray-300') >= 0);
 // Grup di depan nama, dan ditandai boleh dikosongkan.

@@ -849,7 +849,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.87.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.87.2'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3293,10 +3293,16 @@ const PKG_SATUAN=['Paket','BAB','Sesi','Video','Ebook'];
 function allPackages(){ return state.packages||[]; }
 function packageById(id){ return allPackages().find(p=>String(p.id)===String(id))||null; }
 // Paket yang sedang dibuka: dari modal paket, atau dari collab yang tertaut.
+/* Saat modal task kolaborasi terbuka, paketnya diambil dari c.pkg — bukan dari
+   state.packages. Alasannya: mencentang proses memanggil setCollabStepDone yang hanya
+   mengembalikan collabs, jadi state.packages jadi basi dan progres rancangan tak ikut
+   bergerak sampai halaman dimuat ulang. c.pkg selalu ikut segar karena getCollabs
+   menghitung ulang setoran & statusnya. */
 function currentPackage(){
   if(state._paketId) return packageById(state._paketId);
   const c=currentCollab();
-  return (c&&c.paketId)?packageById(c.paketId):null;
+  if(!c || !c.paketId) return null;
+  return c.pkg || packageById(c.paketId);
 }
 function pkgNorm(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
 function pkgGateStep(c,nama){
@@ -3464,6 +3470,16 @@ function pkgPanelBox(){
 }
 function renderPackagePanel(){
   const box=pkgPanelBox(); if(!box) return;
+  /* Kedua modal (Paket & Task Kolaborasi) sama-sama menampung panel ini, dan panelnya
+     memakai id tetap seperti #pkgItemBox dan #pkg-program. Kalau kotak yang TIDAK aktif
+     masih berisi gambar lama, id-nya jadi ganda dan getElementById mengambil yang lebih
+     dulu di DOM — yaitu modal Paket. Akibatnya penyimpanan dari modal collab membaca
+     kotak yang tersembunyi: setoran yang baru diketik tak pernah terkirim.
+     Kotak yang tak aktif dikosongkan supaya id-nya selalu tunggal. */
+  ['paketPanelBox','collabPkgBox'].forEach(id=>{
+    const lain=document.getElementById(id);
+    if(lain && lain!==box) lain.innerHTML='';
+  });
   const p=currentPackage();
   const c=currentCollab();
   box.classList.remove('hide');
@@ -4125,6 +4141,9 @@ function toggleCollabStep(order, done){
     if(!res||!res.success){ showToast((res&&res.message)||'Gagal mencentang', false); renderCollabSteps(currentCollab()); return; }
     state.collabs=res.collabs||state.collabs; showToast(res.message);
     renderCollabSteps(currentCollab()); updateCollabTurnBadge(); loadCollabFeed(id);
+    // Mencentang proses menggerakkan setoran yang menggantung padanya, jadi panel
+    // rancangan digambar ulang di sini — bukan menunggu halaman dimuat ulang.
+    renderPackagePanel();
     if(state.activeView==='collab') renderCollab();   // segarkan kartu (progres) di grid/kanban
   }).withFailureHandler(err=>{ showToast(err.message||err,false); renderCollabSteps(currentCollab()); })
     .setCollabStepDone(id, order, !!done, state.currentUser);
