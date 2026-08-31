@@ -2459,7 +2459,9 @@ async function getBootstrapData(opts) {
     tasks: MAIN_DATA_RANGE(), options: `${CONFIG.OPTIONS_SHEET}!A2:D`, activity: `${CONFIG.ACTIVITY_SHEET}!A2:E`,
     comments: `${CONFIG.COMMENTS_SHEET}!A2:D`, auth: `${CONFIG.AUTH_SHEET}!A2:B`, links: `${CONFIG.LINKS_SHEET}!A2:D`,
     dashboards: `${CONFIG.DASHBOARDS_SHEET}!A2:D`, notes: `${CONFIG.NOTES_SHEET}!A2:E`, checklist: `${CONFIG.CHECKLIST_SHEET}!A2:C`,
-    collab: `${CONFIG.COLLAB_SHEET}!A2:I`, collabSteps: `${CONFIG.COLLAB_STEP_SHEET}!A2:K`,
+    // A2:J, bukan A2:I — kolom J menyimpan Paket ID. Kalau berhenti di I, tiap muat
+    // ulang mengembalikan collab tanpa tautan paket dan tautannya tampak hilang.
+    collab: `${CONFIG.COLLAB_SHEET}!A2:J`, collabSteps: `${CONFIG.COLLAB_STEP_SHEET}!A2:K`,
     users: `${CONFIG.USERS_SHEET}!A2:C`,
   };
   const present = Object.keys(R).filter(k => meta[sheetOf[k]]);

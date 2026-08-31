@@ -1662,6 +1662,15 @@ call('saveCollab', { id: MKA, title: 'Paket Uji — Tahap 1', platform: 'JadiASN
           { order: 2, name: 'Input Fitur', pic: 'Staff Soal' }] }, 'Manager');
 eq('simpan task tak melepas tautan paket', call('getCollabs').filter(c => c.id === MKA)[0].paketId, PID);
 
+// Tautan paket ada di kolom J. Jalur muat-awal sempat berhenti di kolom I, sehingga tiap
+// halaman dimuat ulang collab kembali tanpa paket dan tautannya tampak hilang sendiri.
+const bootC = (call('getBootstrapData', {}).collabs || []).filter(function (c) { return c.id === MKA; })[0];
+eq('muat-awal ikut membawa tautan paket', bootC && bootC.paketId, PID);
+ok('muat-awal ikut membawa paketnya', !!(bootC && bootC.pkg && bootC.pkg.id === PID));
+eq('sepadan dengan getCollabs',
+  (call('getBootstrapData', {}).collabs || []).filter(function (c) { return c.paketId; }).length,
+  call('getCollabs').filter(function (c) { return c.paketId; }).length);
+
 // --- RANCANGAN: daftar target, wewenang Manager ---
 eq('Leader DITOLAK mengubah rancangan',
   call('savePackage', PID, { items: [{ nama: 'X', target: 1 }] }, 'Leader Konten').success, false);

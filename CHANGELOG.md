@@ -31,6 +31,24 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.87.3 — Tautan paket tidak lagi hilang sendiri setelah halaman dimuat ulang
+
+Tautan task ke paket disimpan di **kolom J** sheet `COLLAB`. Jalur muat-awal
+(`getBootstrapData`) membacanya hanya sampai **kolom I**, jadi setiap kali aplikasi
+dimuat ulang seluruh collab kembali tanpa `paketId` — tautannya tampak lenyap dan
+harus ditautkan lagi.
+
+Gejalanya menipu karena tautannya **tidak pernah benar-benar hilang**: begitu ada
+pemanggilan yang membaca sampai kolom J (menyimpan proses, mencentang, menautkan ulang),
+tautannya muncul kembali. Itu sebabnya kadang ada, kadang tidak.
+
+Sekarang muat-awal ikut membaca kolom J, dan ada tiga assertion yang membandingkan
+hasilnya langsung dengan `getCollabs()` supaya keduanya tak bisa melenceng lagi.
+
+Sisi Apps Script tidak terpengaruh — bootstrap-nya memang memanggil `getCollabs()`.
+
+---
+
 ## 1.87.2 — Setoran task tersimpan, dan centang proses langsung menggerakkan rancangan
 
 ### Kenapa setoran selalu ter-reset
