@@ -31,6 +31,41 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.89.4 — Penanda STAGING diambil dari environment, bukan ditebak dari alamat
+
+Penanda staging sebelumnya menebak dari hostname: satu daftar host produksi, sisanya
+dianggap staging. Niatnya aman, hasilnya justru terbalik.
+
+Satu deployment **produksi** di Vercel punya beberapa alamat sekaligus — alias cabang
+(`...-git-master-prod6.vercel.app`) dan URL berhash (`...-q8qggk4g2-prod6.vercel.app`) —
+dan **ketiganya menulis ke data produksi yang sama**. Karena hanya `product-task-tracker.vercel.app`
+yang terdaftar sebagai produksi, dua alamat lainnya tampil bergaris kuning **STAGING**
+padahal datanya asli. Itu sudah membuat orang menyimpulkan URL berhash adalah lingkungan
+uji dan berniat memakainya untuk percobaan — tepat kebalikan dari yang penanda itu
+seharusnya cegah.
+
+Sekarang sumbernya **environment yang dilaporkan server**. Backend mengirim `VERCEL_ENV`
+(`production` / `preview` / `development`) di `meta` saat muat-awal, dan layar menandai
+staging hanya kalau nilainya bukan `production`. Env var di Vercel memang melekat pada
+Environment, bukan pada URL — jadi inilah satu-satunya sumber yang sepadan dengan
+spreadsheet mana yang sedang dibaca.
+
+Hostname tinggal jadi **cadangan**, dipakai hanya selama server belum sempat memberi tahu.
+Kalau environment tak diketahui sama sekali (jalan lokal, host lain), nilainya sengaja
+bukan `production`: keliru menandai produksi sebagai uji coba cuma bikin malu, sebaliknya
+bisa membuat orang mengira data uji itu nyata.
+
+**Penandanya kini bisa dicabut.** Dulu ia hanya bisa dipasang — sekali terpasang oleh
+tebakan hostname, ia menempel selamanya walau ternyata keliru. Sekarang logo, warna merek,
+tulisan sidebar, garis kuning, dan judul halaman semuanya dikembalikan begitu environment
+sebenarnya diketahui.
+
+Apps Script tetap dianggap produksi (pemasangannya manual dan menempel pada satu
+spreadsheet), dan bisa ditimpa lewat Script Property `APP_ENV` kalau dipakai sebagai
+salinan uji.
+
+---
+
 ## 1.89.3 — Satuan "Video + Ebook", dan akhir baris dikunci ke LF
 
 Satuan baru **Video + Ebook** untuk target yang isinya sepasang, bukan dua barang terpisah

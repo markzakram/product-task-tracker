@@ -86,6 +86,27 @@ Untuk tiap baris di bawah, buat entri **baru** dan centang **Preview saja**
 `GOOGLE_SERVICE_ACCOUNT_JSON` **tidak perlu** dibuat ulang — kredensial yang sama
 dipakai untuk kedua sheet, asalkan Langkah 2 sudah dikerjakan.
 
+### Jangan menilai dari bentuk URL
+
+Satu deployment **produksi** punya beberapa alamat sekaligus, dan **semuanya** menulis ke
+data produksi:
+
+| Alamat | Environment |
+|---|---|
+| `product-task-tracker.vercel.app` | Production |
+| `product-task-tracker-git-master-<akun>.vercel.app` | Production (alias cabang master) |
+| `product-task-tracker-<hash>-<akun>.vercel.app` | Production (potret permanen deploy yang sama) |
+
+URL berhash **bukan** staging. Env var di Vercel melekat pada **Environment**, bukan pada
+URL, jadi ketiganya membaca `SPREADSHEET_ID` milik Production.
+
+Yang benar-benar staging hanya deployment yang halaman Vercel-nya bertanda
+**`Environment: Preview`** — yaitu yang dibangun dari cabang selain `master`.
+
+Sejak **1.89.4** aplikasi tidak lagi menebak dari alamat: server mengirim `VERCEL_ENV`
+saat muat-awal, dan garis kuning STAGING muncul hanya kalau environment-nya bukan
+`production`. Jadi tanda di layar bisa dipercaya, apa pun alamat yang dipakai membukanya.
+
 ### Memastikan sudah benar
 
 Setelah preview pertama jadi, buka URL-nya lalu cek: **judul task-nya harus data

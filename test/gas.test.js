@@ -1950,6 +1950,16 @@ call('deletePackage', VP, 'Manager');
 
 // --- tampilan: satu baris setoran per proses, bisa ditambah & dihapus ---
 // Satuan 'Video + Ebook' dipakai untuk paket yang isinya sepasang, bukan dua barang terpisah.
+/* Penanda STAGING tak boleh ditebak dari alamat: satu deployment PRODUKSI punya beberapa
+   alias (alias cabang, URL hash) yang semuanya menulis ke data produksi. Pernah membuat
+   produksi tampil bergaris kuning STAGING — kebalikan dari arah gagal yang aman. */
+eq('bootstrap melaporkan environment', call('getBootstrapData', {}).meta.env, 'production');
+ok('penanda memakai kabar server lebih dulu', commHtml.indexOf("if(env) return env!=='production';") >= 0);
+ok('hostname tinggal jadi cadangan', commHtml.indexOf('return !HOST_PRODUKSI.includes(h);') >= 0);
+ok('environment dari server disimpan', commHtml.indexOf('state.env = String(data.meta.env);') >= 0);
+ok('penanda bisa DICABUT lagi', commHtml.indexOf("logo.classList.remove('bg-amber-500'); logo.classList.add('bg-indigo-600');") >= 0);
+ok('garis kuning ikut dicabut', commHtml.indexOf('if(strip) strip.remove();') >= 0);
+ok('judul halaman ikut dibersihkan', commHtml.indexOf("document.title.split('[STAGING] ').join('')") >= 0);
 ok('satuan Video + Ebook tersedia', commHtml.indexOf("const PKG_SATUAN=['Paket','BAB','Sesi','Video','Ebook','Video + Ebook'];") >= 0);
 ok('kolom satuan cukup lebar untuk menampungnya', commHtml.indexOf('pkgi-satuan ${PKG_F} w-[7rem]') >= 0);
 ok('ada pembangun baris setoran', commHtml.indexOf('function pkgSetorBaris(c, k, n)') >= 0);

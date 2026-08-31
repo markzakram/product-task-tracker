@@ -103,6 +103,16 @@ let _sheetsClient = null;
 // Reset otomatis tiap cold start. Menghemat read pada jalur tulis yang sering dipanggil.
 const _ensured = new Set();
 
+/* Environment yang sedang berjalan, apa adanya dari Vercel: production | preview |
+   development. Dikirim ke browser supaya penanda STAGING tak perlu menebak dari URL —
+   satu deployment produksi punya beberapa alias (alias cabang, URL hash) dan SEMUANYA
+   menulis ke data produksi yang sama.
+   Kalau tak diketahui (jalan lokal, host lain), sengaja BUKAN production: lebih baik
+   keliru menandai produksi sebagai uji coba daripada sebaliknya. */
+function appEnv() {
+  return String(process.env.VERCEL_ENV || process.env.APP_ENV || 'development').toLowerCase();
+}
+
 function getSpreadsheetId() {
   const id = process.env.SPREADSHEET_ID;
   if (!id) throw new Error('Env SPREADSHEET_ID belum diset.');
@@ -2590,6 +2600,7 @@ async function getBootstrapData(opts) {
       magangUsers: magangNames,          // daftar identitas yang boleh dipilih
       meta: {
         sheetName: CONFIG.TASK_SHEET,
+        env: appEnv(),
         managers: [], doneApprovers: [], collabManagers: [],
         users: _users.filter(u => String(u.role).toLowerCase() === 'magang')
           .map(u => ({ row: u.row, name: u.name, role: u.role, active: u.active })),
@@ -2621,6 +2632,7 @@ async function getBootstrapData(opts) {
       viewOnly: true,
       meta: {
         sheetName: CONFIG.TASK_SHEET,
+        env: appEnv(),
         managers: getManagers(),
         doneApprovers: getDoneApprovers(),
         collabManagers: getCollabManagers(),
@@ -2643,6 +2655,7 @@ async function getBootstrapData(opts) {
     collabs,
     meta: {
       sheetName: CONFIG.TASK_SHEET,
+      env: appEnv(),
       managers: getManagers(),
       doneApprovers: getDoneApprovers(),
       collabManagers: getCollabManagers(),

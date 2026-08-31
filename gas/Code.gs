@@ -26,6 +26,13 @@
 
 // Semua nilai di bawah bisa ditimpa lewat Project Settings > Script Properties.
 var _props = null;
+/* Padanan appEnv() di api/_sheets.js. Pemasangan Apps Script selalu manual dan menempel
+   pada satu spreadsheet, jadi bawaannya production; bisa ditimpa lewat Script Property
+   APP_ENV kalau dipakai sebagai salinan uji. */
+function appEnv_() {
+  return String(prop_('APP_ENV', 'production')).toLowerCase();
+}
+
 function prop_(key, dflt) {
   if (_props === null) {
     try { _props = PropertiesService.getScriptProperties().getProperties() || {}; }
@@ -2467,6 +2474,7 @@ function getBootstrapData(opts) {
 
   var meta = {
     sheetName: CONFIG.TASK_SHEET,
+    env: appEnv_(),
     managers: getManagers_(),
     doneApprovers: getDoneApprovers_(),
     collabManagers: getCollabManagers_(),

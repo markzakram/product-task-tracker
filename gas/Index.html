@@ -852,7 +852,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.89.3'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.89.4'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1102,6 +1102,9 @@ function init() {
       // meta.users hanya dikirim backend yang mendukung sheet USERS (versi Apps Script).
       if (data.meta && data.meta.users) { state.users = data.meta.users; state.usersSupported = true; }
       if (data.meta && data.meta.roles && data.meta.roles.length) state.roles = data.meta.roles;
+      // Environment dari server (VERCEL_ENV). Inilah dasar penanda STAGING —
+      // alamat URL tidak bisa dipercaya, satu deployment produksi punya banyak alias.
+      if (data.meta && data.meta.env) state.env = String(data.meta.env);
       afterLoad();
     }).withFailureHandler(err => {
       var gate=document.getElementById('loginGate');
@@ -1117,27 +1120,51 @@ function init() {
 }
 
 function renderAppVersion(){ const label='v'+APP_VERSION; ['appVersion','appVersionSettings'].forEach(id=>{ const el=document.getElementById(id); if(el) el.textContent=label; }); renderStagingMark(); }
-/* Penanda staging. Preview Vercel memakai kode yang sama persis dengan produksi, jadi satu-
-   satunya pembeda yang tersedia di browser adalah alamatnya. Daftar host produksi ditulis
-   eksplisit dan SISANYA dianggap staging — arah gagal yang aman: keliru menandai produksi
-   sebagai staging cuma bikin malu, sebaliknya bisa bikin orang mengira data uji itu nyata. */
+/* Penanda staging. JANGAN ditebak dari alamat.
+
+   Sebabnya konkret: satu deployment PRODUKSI punya beberapa alias sekaligus — alias
+   cabang (`...-git-master-prod6.vercel.app`) dan URL hash (`...-q8qggk4g2-prod6.vercel.app`)
+   — dan ketiganya menulis ke data produksi yang sama. Menebak dari hostname membuat dua
+   alias itu tampil bergaris kuning STAGING padahal datanya asli: persis kebalikan dari
+   arah gagal yang aman, dan sudah pernah membuat orang mengira sedang di lingkungan uji.
+
+   Sumber yang benar adalah environment yang DILAPORKAN SERVER (VERCEL_ENV), karena env var
+   di Vercel melekat pada Environment, bukan pada URL. Hostname hanya dipakai sebagai
+   cadangan selama server belum sempat memberi tahu. */
 const HOST_PRODUKSI=['product-task-tracker.vercel.app'];
 function isStagingHost(){
+  const env=String((typeof state!=='undefined' && state && state.env)||'').toLowerCase();
+  if(env) return env!=='production';                 // kata server: itu yang dipakai
   if(GAS_NATIVE) return false;                       // Apps Script: dipasang manual, bukan preview
   const h=String((location&&location.hostname)||'').toLowerCase();
   if(!h) return false;
   return !HOST_PRODUKSI.includes(h);
 }
 function renderStagingMark(){
-  if(!isStagingHost()) return;
+  const staging=isStagingHost();
   const logo=document.getElementById('brandLogo');
+  const sub=document.querySelector('#sidebar .uppercase.tracking-widest');
+  const strip=document.getElementById('stagingStrip');
+  if(!staging){
+    /* WAJIB bisa dicabut: penanda bisa terlanjur terpasang oleh cadangan hostname sebelum
+       server memberi tahu environment-nya. Kalau tak pernah dicabut, produksi tetap
+       terlihat seperti staging — dan penanda yang salah lebih buruk daripada tak ada. */
+    if(logo && logo.classList.contains('bg-amber-500')){
+      logo.classList.remove('bg-amber-500'); logo.classList.add('bg-indigo-600'); logo.title='ProductTrack';
+    }
+    const merek=document.querySelector('#sidebar .text-amber-600');
+    if(merek){ merek.classList.remove('text-amber-600'); merek.classList.add('text-indigo-600'); }
+    if(sub && sub.innerHTML.indexOf('STAGING')>=0) sub.textContent='Divisi Produk';
+    if(strip) strip.remove();
+    document.title=document.title.split('[STAGING] ').join('');
+    return;
+  }
   if(logo){ logo.classList.remove('bg-indigo-600'); logo.classList.add('bg-amber-500'); logo.title='ProductTrack — STAGING'; }
   const merek=document.querySelector('#sidebar .text-indigo-600');
   if(merek){ merek.classList.remove('text-indigo-600'); merek.classList.add('text-amber-600'); }
-  const sub=document.querySelector('#sidebar .uppercase.tracking-widest');
   if(sub){ sub.innerHTML='<span class="text-amber-600 dark:text-amber-400">STAGING</span> · Divisi Produk'; }
   // Garis di tepi atas layar: satu-satunya penanda yang tetap terlihat walau sidebar disembunyikan.
-  if(!document.getElementById('stagingStrip')){
+  if(!strip){
     const s=document.createElement('div');
     s.id='stagingStrip';
     s.className='fixed top-0 left-0 right-0 h-1 bg-amber-500 z-[200] pointer-events-none';
@@ -1145,8 +1172,7 @@ function renderStagingMark(){
     document.body.appendChild(s);
   }
   if(document.title.indexOf('STAGING')<0) document.title='[STAGING] '+document.title;
-}
-function afterLoad() {
+}function afterLoad() {
   // Layar "Memuat…" WAJIB hilang apa pun yang terjadi. Kalau ada satu bagian yang gagal
   // (mis. library CDN diblokir jaringan kantor), aplikasi tetap bisa dipakai dan
   // pesan errornya ditampilkan — bukan layar loading yang menggantung selamanya.
@@ -4549,6 +4575,7 @@ function refreshData(force){
     state.checklistSummary=data.checklistSummary||state.checklistSummary; state.collabs=data.collabs||state.collabs;
     if(data.meta&&data.meta.managers&&data.meta.managers.length) state.managers=data.meta.managers;
     if(data.meta&&data.meta.users) state.users=data.meta.users;
+    if(data.meta&&data.meta.env) state.env=String(data.meta.env);
     if(data.meta&&data.meta.doneApprovers&&data.meta.doneApprovers.length) state.doneApprovers=data.meta.doneApprovers;
     if(data.meta&&data.meta.collabManagers&&data.meta.collabManagers.length) state.collabManagers=data.meta.collabManagers;
     updateCollabTurnBadge();

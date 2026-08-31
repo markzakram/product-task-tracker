@@ -735,5 +735,14 @@ function resetAll() { ['TSK-001', 'TSK-002', 'TSK-003', 'TSK-004'].forEach(id =>
     ((await backend.getOptions()).platform || []).filter(v => v === 'Jangan Ganda').length, 0);
   suntik.append = [];
 
+  // Tanpa VERCEL_ENV (jalan lokal / host lain) sengaja BUKAN production: lebih baik keliru
+  // menandai produksi sebagai uji coba daripada uji coba tampak seperti produksi.
+  eq('tanpa VERCEL_ENV -> bukan production', (await backend.getBootstrapData({})).meta.env, 'development');
+  process.env.VERCEL_ENV = 'preview';
+  eq('VERCEL_ENV preview diteruskan apa adanya', (await backend.getBootstrapData({})).meta.env, 'preview');
+  process.env.VERCEL_ENV = 'production';
+  eq('VERCEL_ENV production diteruskan apa adanya', (await backend.getBootstrapData({})).meta.env, 'production');
+  delete process.env.VERCEL_ENV;
+
   console.log(`\n✅ Semua ${passed} assertion lulus.`);
 })().catch(e => { console.error('\n❌ GAGAL:', e && e.stack ? e.stack : e); process.exit(1); });
