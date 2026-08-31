@@ -849,7 +849,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.87.3'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.87.5'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3255,7 +3255,9 @@ function openCollabModal(id=''){
   state._collabExpanded={};   // reset sub-ceklis yang terbuka
   if(c) loadCollabFeed(c.id); else document.getElementById('collabComments').innerHTML=emptyState('Komentar tersedia setelah task disimpan.');
   renderCollabSteps(c);
-  state._paketId=null; renderPackagePanel();
+  // Tiap kali task dibuka, blok rancangan mulai tertutup — yang dicari orang di modal ini
+  // adalah Proses Beruntun, bukan daftar target yang bisa berpuluh baris.
+  state._paketId=null; state._pkgOpen=false; renderPackagePanel();
 }
 
 /* ---------- Rancangan Paket (entitas sendiri, PKG-xxx) ----------
@@ -3374,6 +3376,14 @@ function pkgKategoriBlok(p, bisaRancang, c){
           ${bisaRancang?`<button type="button" onclick="pkgAddItem('${escapeAttr(kat)}')" class="text-[11px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5"><span class="material-icons-round text-[13px]">add</span>Target</button>`:''}
         </span>
       </div>
+      ${(bisaRancang&&list.length)?`<div class="flex items-center gap-1 px-1.5 pt-1 text-[9px] font-bold uppercase tracking-wider text-gray-400 dark:text-slate-500 select-none">
+        <span class="w-[6.5rem] shrink-0">grup</span>
+        <span class="flex-1 min-w-0">nama target</span>
+        <span class="w-[3.6rem] shrink-0 text-right" title="Berapa yang dibutuhkan seluruhnya">target</span>
+        <span class="w-[4.6rem] shrink-0 pl-1">satuan</span>
+        <span class="w-[3.6rem] shrink-0 text-right" title="Yang sudah tersedia sebelum ada task apa pun — langsung dihitung terpenuhi">awal</span>
+        <span class="w-[5.5rem] shrink-0"></span>
+      </div>`:''}
       <div class="divide-y divide-gray-100 dark:divide-slate-800">${list.map(o=>{
         const it=o.x;
         const pct=it.target?Math.min(100,Math.round(it.terpenuhi/it.target*100)):0;
@@ -3385,7 +3395,7 @@ function pkgKategoriBlok(p, bisaRancang, c){
                  <input class="pkgi-nama ${PKG_F} flex-1 min-w-0" value="${escapeAttr(it.nama||'')}" placeholder="nama target">
                  <input class="pkgi-target ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.target||''))}" inputmode="numeric" title="Target">
                  <select class="pkgi-satuan ${PKG_F} w-[4.6rem] shrink-0">${PKG_SATUAN.map(u=>`<option ${same(u,it.satuan)?'selected':''}>${escapeHtml(u)}</option>`).join('')}</select>
-                 <input class="pkgi-awal ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.awal||''))}" inputmode="numeric" title="Sudah tersedia sebelum task apa pun">`
+                 <input class="pkgi-awal ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.awal||''))}" inputmode="numeric" placeholder="0" title="Awal — yang sudah tersedia sebelum ada task apa pun. Langsung dihitung terpenuhi, tanpa perlu setoran.">`
               : `<span class="flex-1 min-w-0 text-xs text-gray-700 dark:text-slate-200 truncate">${escapeHtml(it.nama||'')}${it.grup?`<span class="text-gray-400"> · ${escapeHtml(it.grup)}</span>`:''}</span>
                  <span class="shrink-0 text-[11px] font-mono text-gray-500 dark:text-slate-400">${it.terpenuhi}/${it.target} ${escapeHtml(it.satuan||'')}</span>`}
             ${pkgStatusPil(it)}
@@ -3490,6 +3500,10 @@ function renderPackagePanel(){
   ((p.items)||[]).forEach(it=>{ const u=String(it.satuan||'Paket'); hitungSatuan[u]=(hitungSatuan[u]||0)+1; });
   const satuanUtama=(Object.keys(hitungSatuan).sort((a,b)=>hitungSatuan[b]-hitungSatuan[a])[0]||'Paket').toLowerCase();
   // Rancangan (daftar target) wewenang Manager; setoran diatur pengelola task.
+  /* Dilipat HANYA di modal task kolaborasi: rancangan bisa berpuluh baris dan yang dicari
+     orang di sana adalah Proses Beruntun. Di menu Rancangan Paket justru daftar itu isinya,
+     jadi di sana tetap terbentang. */
+  const lipat=!!c;
   const bisaRancang=isManager(state.currentUser) && !isViewOnly();
   const bisaP=canEditPkgArea(p,'produk');
   const bos=isManager(state.currentUser)||isLeader(state.currentUser);
@@ -3534,11 +3548,11 @@ function renderPackagePanel(){
       </div>`:''}
       ${suplai?`<div class="flex items-center gap-1.5 flex-wrap text-[11px] text-gray-500 dark:text-slate-400"><span class="material-icons-round text-[13px]">account_tree</span>Disuplai ${(p.collabIds||[]).length} task:${suplai}</div>`:''}
 
-      <div class="rounded-lg border border-indigo-200 dark:border-indigo-900/50 overflow-hidden">
-        <div class="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/25 flex items-center justify-between gap-2 flex-wrap">
+      <${lipat?'details':'div'} class="rounded-lg border border-indigo-200 dark:border-indigo-900/50 overflow-hidden" ${lipat?(state._pkgOpen?'open':''):''} ${lipat?'ontoggle="state._pkgOpen=this.open"':''}>
+        <${lipat?'summary':'div'} class="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/25 flex items-center justify-between gap-2 flex-wrap ${lipat?'cursor-pointer select-none':''}">
           <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Rancangan — target &amp; setoran</span>
-          <span class="flex items-center gap-1.5 text-[11px] text-indigo-700 dark:text-indigo-300">${picSel('pkg-produkPic', p.produkPic||'', bos)}<b>${rk.terpenuhi}/${rk.target||0} ${escapeHtml(satuanUtama)}</b>${rk.kurang?`<span class="text-rose-600 dark:text-rose-400">${rk.kurang} belum penuh</span>`:''}</span>
-        </div>
+          <span class="flex items-center gap-1.5 text-[11px] text-indigo-700 dark:text-indigo-300">${picSel('pkg-produkPic', p.produkPic||'', bos)}<b>${rk.terpenuhi}/${rk.target||0} ${escapeHtml(satuanUtama)}</b>${rk.kurang?`<span class="text-rose-600 dark:text-rose-400">${rk.kurang} belum penuh</span>`:''}${lipat?`<span class="material-icons-round text-[16px] text-indigo-400">${state._pkgOpen?'expand_less':'expand_more'}</span>`:''}</span>
+        </${lipat?'summary':'div'}>
         <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,11rem)_minmax(0,1fr)]">
           <div class="p-2 bg-gray-50 dark:bg-slate-800/50 border-b lg:border-b-0 lg:border-r border-gray-100 dark:border-slate-700">
             <div class="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5 px-1">Proses</div>
@@ -3554,7 +3568,7 @@ function renderPackagePanel(){
           </div>
           <div class="p-2 space-y-2" id="pkgItemBox">${pkgKategoriBlok(p,bisaRancang,c)}</div>
         </div>
-      </div>
+      </${lipat?'details':'div'}>
 
       <details class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden" ${(PKG_FIELDS.produk.some(fd=>String(p[fd.k]||'').trim()))?'open':''}>
         <summary class="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 cursor-pointer text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400 select-none">Bonus angkatan lama &amp; catatan <span class="font-normal normal-case tracking-normal text-gray-400">— teks bebas, tidak dihitung sebagai pekerjaan</span></summary>

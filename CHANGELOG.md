@@ -31,6 +31,46 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.87.5 — Blok Rancangan bisa dilipat di modal task kolaborasi
+
+Rancangan bisa berpuluh baris — PCPM BI 41 saja punya 27 target. Di modal task kolaborasi
+itu mendorong **Proses Beruntun**, yang justru dicari orang di sana, jauh ke bawah.
+
+Blok **Rancangan — target & setoran** kini bisa dilipat seperti blok *Bonus angkatan lama
+& catatan*, dan **mulai tertutup** setiap kali sebuah task dibuka.
+
+Tiga hal dijaga supaya melipat tidak berarti menyembunyikan keadaan:
+
+- **Ringkasannya tetap terbaca di kepala** walau tertutup — `20/40 paket · 1 belum penuh`.
+- **Isinya tetap ada di DOM**, jadi menyimpan tetap membawa setoran yang sudah diketik
+  meski bloknya sedang tertutup.
+- Sekali dibuka, **tetap terbuka** selama task itu masih dibuka — mengetik satu angka lalu
+  panelnya menutup sendiri akan menyiksa.
+
+Di menu **Rancangan Paket** ia tetap terbentang: di sana daftar target itu memang isinya.
+
+---
+
+## 1.87.4 — Judul kolom pada baris target
+
+Baris rancangan tak punya keterangan kolom, sehingga kolom terakhir tak terbaca maksudnya
+dan harus ditebak. Sekarang ada judulnya: **grup · nama target · target · satuan · awal**.
+
+`awal` = jumlah yang **sudah tersedia sebelum ada task apa pun** (warisan angkatan lalu).
+Ia langsung dihitung terpenuhi tanpa perlu setoran:
+
+```
+terpenuhi = awal + setoran yang prosesnya sudah selesai
+kurang    = target − terpenuhi
+```
+
+Contoh dari hasil impor: `Latsol Numeric PCPM BI 41` bertarget 20 dengan awal 10 — sheet
+menuliskannya `10 Paket + 10 Paket COMING SOON`, jadi yang kurang tinggal 10.
+
+`grup` dan `awal` dua-duanya boleh dikosongkan.
+
+---
+
 ## 1.87.3 — Tautan paket tidak lagi hilang sendiri setelah halaman dimuat ulang
 
 Tautan task ke paket disimpan di **kolom J** sheet `COLLAB`. Jalur muat-awal

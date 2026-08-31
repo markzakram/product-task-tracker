@@ -1224,6 +1224,16 @@ ok('field bisa diisi diberi latar pembeda', commHtml.indexOf('bg-gray-50 dark:bg
 ok('kolom grup digambar sebelum nama target',
   commHtml.indexOf('pkgi-grup') < commHtml.indexOf('pkgi-nama'));
 ok('grup ditandai opsional', commHtml.indexOf("placeholder=\"grup (ops.)\"") >= 0);
+// Barisnya tak punya keterangan kolom, sehingga kolom terakhir (awal) tak terbaca
+// maksudnya. Judul kolom ditambahkan supaya tak perlu ditebak.
+ok('baris target punya judul kolom', commHtml.indexOf('>nama target</span>') >= 0 && commHtml.indexOf('>awal</span>') >= 0);
+ok('arti kolom awal dijelaskan', commHtml.indexOf('yang sudah tersedia sebelum ada task apa pun') >= 0);
+// Rancangan bisa berpuluh baris; di modal task kolaborasi ia dilipat dan mulai tertutup
+// supaya Proses Beruntun — yang justru dicari orang di sana — tak terdorong jauh ke bawah.
+ok('rancangan dilipat hanya di modal collab', commHtml.indexOf('const lipat=!!c;') >= 0);
+ok('memakai details/summary saat dilipat', commHtml.indexOf("lipat?'details':'div'") >= 0 && commHtml.indexOf("lipat?'summary':'div'") >= 0);
+ok('mulai tertutup tiap task dibuka', commHtml.indexOf('state._pkgOpen=false; renderPackagePanel();') >= 0);
+ok('keadaan buka bertahan saat digambar ulang', commHtml.indexOf('state._pkgOpen=this.open') >= 0);
 ok('field panjang melebar penuh', commHtml.indexOf("fd.area?'lg:col-span-2':''") >= 0);
 // Multi-select untuk merapikan hasil impor berpuluh baris sekaligus.
 ok('kartu paket punya kotak centang', commHtml.indexOf('pkg-pilih') >= 0);
