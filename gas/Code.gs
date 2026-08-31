@@ -1740,6 +1740,36 @@ function setPackageContrib(paketId, collabId, list, actor) {
   return { success: true, message: 'Setoran task tersimpan.', packages: getPackages(), collabs: getCollabs() };
 }
 
+/* Hapus BANYAK paket sekaligus. Bukan sekadar kenyamanan: deletePackage memuat ulang
+   seluruh paket + collab tiap kali dipanggil, jadi menghapus 20 paket satu per satu
+   menembus kuota baca Google dan berhenti di tengah jalan. Di sini pembacaan ulangnya
+   dilakukan SEKALI, di akhir. */
+function deletePackages(ids, actor) {
+  actor = String(actor || '').trim() || 'Unknown';
+  if (!isManagerActor_(actor) && !isLeaderActor_(actor)) return { success: false, message: 'Hanya Leader atau Manager yang bisa menghapus paket.' };
+  var seen = {}, daftar = [];
+  (ids || []).forEach(function (x) {
+    var v = String(x || '').trim();
+    if (v && !seen[v]) { seen[v] = 1; daftar.push(v); }
+  });
+  if (!daftar.length) return { success: false, message: 'Tak ada paket yang dipilih.' };
+  ensurePackageSheets_();
+  var ikut = 0;
+  daftar.forEach(function (paketId) {
+    ikut += purgeRowsForRef_(CONFIG.PACKAGE_VARIANT_SHEET, 'F', 0, paketId);
+    ikut += purgeRowsForRef_(CONFIG.PACKAGE_ITEM_SHEET, 'J', 1, paketId);
+    ikut += purgeRowsForRef_(CONFIG.PACKAGE_CONTRIB_SHEET, 'F', 0, paketId);
+    purgeRowsForRef_(CONFIG.PACKAGE_SHEET, 'S', 0, paketId);
+  });
+  var crows = [];
+  try { crows = valuesGet_(CONFIG.COLLAB_SHEET + '!A2:J'); } catch (e) { crows = []; }
+  for (var i = 0; i < crows.length; i++) {
+    if (seen[String((crows[i] || [])[9] || '').trim()]) valuesUpdate_(CONFIG.COLLAB_SHEET + '!J' + (i + 2), [['']]);
+  }
+  logActivity_(actor, 'Package Delete', '', daftar.length + ' paket dihapus (' + ikut + ' varian/target/setoran ikut dibuang): ' + daftar.join(', '));
+  return { success: true, message: daftar.length + ' paket dihapus.', packages: getPackages(), collabs: getCollabs() };
+}
+
 function deletePackage(paketId, actor) {
   actor = String(actor || '').trim() || 'Unknown';
   paketId = String(paketId || '').trim();

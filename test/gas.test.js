@@ -1195,7 +1195,23 @@ ok('kelebihan tak dibulatkan jadi done', commHtml.indexOf("lebih:['bg-amber-100"
 ok('ada kolom setoran per task', commHtml.indexOf('pkgs-jumlah') >= 0);
 // Bonus angkatan lama sengaja tetap teks bebas — bukan item yang harus diketik ulang.
 ok('blok bonus tetap teks bebas', commHtml.indexOf('Bonus angkatan lama') >= 0);
-ok('Area Marsel jadi rujukan, bukan sumber kebenaran kedua', commHtml.indexOf('Area Marsel <span') >= 0);
+// Area Marsel dihapus dari tampilan: Divisi Produk hanya mengurus sisi produk, dan
+// menaruh field milik tim lain di sini melahirkan sumber kebenaran kedua yang tak dirawat.
+ok('panel Area Marsel tak lagi digambar', commHtml.indexOf('Area Marsel <span') < 0 && commHtml.indexOf("picSel('pkg-marselPic'") < 0);
+ok('varian & harga ikut hilang dari tampilan', commHtml.indexOf('pkgAddVariant(') < 0 && commHtml.indexOf('Harga Diskon') < 0);
+ok('identitas paket tetap ada', commHtml.indexOf('identitas:[') >= 0);
+// Sel bonus di sheet Master bisa 52 baris; kotak 2 baris membuatnya praktis tak terbaca.
+ok('tinggi kotak catatan mengikuti isinya', commHtml.indexOf('const baris=Math.min(20, Math.max(4,') >= 0);
+ok('kotak catatan bisa ditarik lebih tinggi', commHtml.indexOf('resize-y') >= 0);
+ok('blok catatan dua kolom di layar lebar', commHtml.indexOf('grid grid-cols-1 xl:grid-cols-2 gap-3 items-start') >= 0);
+ok('field panjang melebar penuh', commHtml.indexOf("fd.area?'xl:col-span-2':''") >= 0);
+// Multi-select untuk merapikan hasil impor berpuluh baris sekaligus.
+ok('kartu paket punya kotak centang', commHtml.indexOf('pkg-pilih') >= 0);
+ok('ada bilah aksi massal', commHtml.indexOf("id=\"paketBulkBar\"") >= 0);
+ok('hapus massal satu panggilan, bukan per paket', commHtml.indexOf('.deletePackages(ids, state.currentUser)') >= 0);
+ok('pilih semua hanya yang tampil', commHtml.indexOf('const tampil=paketTersaring().map(p=>p.id);') >= 0);
+ok('pilihan yang paketnya lenyap dibuang', commHtml.indexOf('state._paketPilih=paketPilih().filter(id=>adaId.has(id));') >= 0);
+ok('hapus massal hanya Leader/Manager', commHtml.indexOf('function bisaHapusPaket()') >= 0);
 
 // Penanda staging: preview memakai kode yang sama dgn produksi, pembedanya cuma alamat.
 ok('ada deteksi host staging', commHtml.indexOf('function isStagingHost()') >= 0);
@@ -1729,6 +1745,22 @@ eq('task B masih tertaut ke paketnya', call('getCollabs').filter(c => c.id === M
 eq('staff DITOLAK menghapus paket', call('deletePackage', PID, 'Staff Data').success, false);
 eq('manager menghapus paket', call('deletePackage', PID, 'Manager').success, true);
 eq('paket hilang dari daftar', call('getPackages').filter(p => p.id === PID).length, 0);
+
+// Hapus banyak sekaligus: satu panggilan, satu pembacaan ulang. Menghapus satu per satu
+// menembus kuota baca Google saat daftarnya panjang.
+const m1=call('savePackage', '', { platform:'JadiASN', marsel:{ namaPaket:'Massal 1' } }, 'Manager').paketId;
+const m2=call('savePackage', '', { platform:'JadiASN', marsel:{ namaPaket:'Massal 2' } }, 'Manager').paketId;
+const m3=call('savePackage', '', { platform:'JadiASN', marsel:{ namaPaket:'Massal 3' } }, 'Manager').paketId;
+call('savePackage', m1, { items:[{ kategori:'Latsol', nama:'target ikut terhapus', target:5 }] }, 'Manager');
+eq('staff DITOLAK hapus massal', call('deletePackages', [m1,m2], 'Staff Data').success, false);
+eq('daftar kosong ditolak', call('deletePackages', [], 'Manager').success, false);
+eq('manager hapus 3 paket sekaligus', call('deletePackages', [m1,m2,m3], 'Manager').success, true);
+eq('ketiganya lenyap', call('getPackages').filter(p => [m1,m2,m3].indexOf(p.id) >= 0).length, 0);
+eq('targetnya ikut terhapus', call('getPackages').reduce((a,p)=>a+p.items.filter(x=>x.nama==='target ikut terhapus').length, 0), 0);
+// Nomor duplikat di daftar tidak boleh menghapus dua kali atau menggagalkan sisanya.
+const m4=call('savePackage', '', { platform:'JadiASN', marsel:{ namaPaket:'Massal 4' } }, 'Manager').paketId;
+eq('nomor kembar di daftar aman', call('deletePackages', [m4,m4], 'Manager').success, true);
+eq('dan paketnya memang hilang', call('getPackages').filter(p => p.id === m4).length, 0);
 eq('collab B TIDAK ikut terhapus', call('getCollabs').filter(c => c.id === MKB).length, 1);
 eq('tautan di collab B ikut dilepas', call('getCollabs').filter(c => c.id === MKB)[0].paketId, '');
 

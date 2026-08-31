@@ -438,6 +438,15 @@
               <input id="paketSearch" oninput="renderPaket()" placeholder="Cari nomor, nama paket, program…" class="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-slate-800 border-0 outline-none focus:ring-2 focus:ring-indigo-300 text-sm">
             </div>
             <select id="paketFilterPlatform" onchange="renderPaket()" class="px-2.5 py-2 rounded-lg text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 outline-none"><option value="">Semua Platform</option></select>
+            <button id="paketSelectAllBtn" onclick="paketPilihSemua()" class="hide px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">select_all</span>Pilih semua</button>
+          </div>
+          <!-- Bilah aksi massal: hanya muncul saat ada yang dipilih -->
+          <div id="paketBulkBar" class="hide flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/25 border border-indigo-200 dark:border-indigo-900/50">
+            <span class="material-icons-round text-[18px] text-indigo-600 dark:text-indigo-300">checklist</span>
+            <span id="paketBulkCount" class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">0 paket terpilih</span>
+            <button id="paketBulkAll" onclick="paketPilihSemua()" class="text-xs font-semibold text-indigo-600 dark:text-indigo-300 hover:underline">Pilih semua yang tampil</button>
+            <button onclick="paketBatalPilih()" class="text-xs font-semibold text-gray-500 dark:text-slate-400 hover:underline">Batal</button>
+            <button onclick="hapusPaketTerpilih()" class="ml-auto px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center gap-1"><span class="material-icons-round text-[15px]">delete</span>Hapus terpilih</button>
           </div>
           <div id="paketList" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
         </div>
@@ -840,7 +849,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.86.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.87.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -929,7 +938,7 @@ function onGoogleCredential(resp){
       else { var e=document.getElementById('googleErr'); if(e){ e.textContent=(d&&d.message)||'Email tidak diizinkan.'; e.classList.remove('hide'); } }
     }).catch(function(){ var e=document.getElementById('googleErr'); if(e) e.classList.remove('hide'); });
 }
-var BACKEND_ACTIONS = ['getBootstrapData','getTasks','getOptions','getActivityLog','getComments','saveTask','deleteTask','quickUpdateField','quickUpdateDates','addComment','getChecklist','addChecklistItem','copyChecklist','setChecklistLink','setChecklistDone','deleteChecklistItem','getCollabs','saveCollab','setCollabStepDone','setCollabStepNote','setCollabStepLink','setCollabType','deleteCollab','savePackage','getPackages','deletePackage','setCollabPackage','setPackageContrib','getNotifications','markNotificationsRead','saveOption','deleteOption','setupTaskTracker','assignMissingTaskIds','verifyPin','setUserPin','deleteUserPin','listPinUsers','editOption','addUserLink','updateUserLink','deleteUserLink','renameUserFolder','deleteUserFolder','addDashboard','updateDashboard','deleteDashboard','seedFormulaTemplate','addNote','updateNote','deleteNote','renameNoteFolder','deleteNoteFolder','getUsers','saveUser','deleteUser','renameUser'];
+var BACKEND_ACTIONS = ['getBootstrapData','getTasks','getOptions','getActivityLog','getComments','saveTask','deleteTask','quickUpdateField','quickUpdateDates','addComment','getChecklist','addChecklistItem','copyChecklist','setChecklistLink','setChecklistDone','deleteChecklistItem','getCollabs','saveCollab','setCollabStepDone','setCollabStepNote','setCollabStepLink','setCollabType','deleteCollab','savePackage','getPackages','deletePackage','deletePackages','setCollabPackage','setPackageContrib','getNotifications','markNotificationsRead','saveOption','deleteOption','setupTaskTracker','assignMissingTaskIds','verifyPin','setUserPin','deleteUserPin','listPinUsers','editOption','addUserLink','updateUserLink','deleteUserLink','renameUserFolder','deleteUserFolder','addDashboard','updateDashboard','deleteDashboard','seedFormulaTemplate','addNote','updateNote','deleteNote','renameNoteFolder','deleteNoteFolder','getUsers','saveUser','deleteUser','renameUser'];
 function makeRunner(){
   var onSuccess = null, onFailure = null;
   var runner = {
@@ -3148,20 +3157,17 @@ function setCollabTypeUI(id, type){
   GAS.withSuccessHandler(res=>{ if(!res||!res.success){ showToast((res&&res.message)||'Gagal mengubah tipe', false); renderCollab(); return; } state.collabs=res.collabs||state.collabs; showToast(res.message); renderCollab(); })
      .withFailureHandler(err=>{ showToast(err.message||err,false); renderCollab(); }).setCollabType(id, type, state.currentUser);
 }
-/* Pita ringkas Rancangan Paket di kartu: jumlah varian, rentang harga, kelengkapan field,
+/* Pita ringkas Rancangan Paket di kartu: nomor paket, kemajuan target,
    dan status dua gate. Kartu tanpa data paket sama sekali tak menampilkan apa-apa,
    supaya task kolaborasi yang bukan paket tetap terlihat seperti dulu. */
 function collabPkgStrip(c){
   const p=(c&&c.pkg)||null; if(!p) return '';
   const f=p.filled||{total:0,grandTotal:13};
-  const nv=(p.variants||[]).length;
   const gateStep=(g)=>pkgGateStep(c,g);
   const adaGate=PKG_GATES.some(g=>gateStep(g));
-  if(!f.total && !nv && !adaGate && !((p.items||[]).length)) return '';
-  const harga=pkgHargaRange(p);
+  if(!adaGate && !((p.items||[]).length)) return '';
   const rk=p.ringkas||{siap:0,total:0};
-  const bagian=[p.id].concat(nv?[nv+' varian']:[]).concat(harga?[harga]:[])
-    .concat(rk.target?[rk.terpenuhi+'/'+rk.target+' terpenuhi']:[]);
+  const bagian=[p.id].concat(rk.target?[rk.terpenuhi+'/'+rk.target+' terpenuhi']:['belum ada target']);
   const gates=PKG_GATES.map(g=>{
     const s=gateStep(g); if(!s) return '';
     const turn=isMyTurnStep(c,s);
@@ -3174,7 +3180,7 @@ function collabPkgStrip(c){
     <div class="flex items-center gap-1.5 flex-wrap">
       <span class="material-icons-round text-[14px] text-amber-700 dark:text-amber-300">inventory_2</span>
       <span class="text-[11px] font-semibold text-amber-800 dark:text-amber-200">${escapeHtml(bagian.join(' · '))}</span>
-      <span class="ml-auto text-[10px] font-bold text-amber-700 dark:text-amber-300">${f.total}/${f.grandTotal} field</span>
+      <span class="ml-auto text-[10px] font-bold text-amber-700 dark:text-amber-300">${rk.done}/${(p.items||[]).length} target</span>
     </div>
     ${gates?`<div class="mt-1 flex items-center gap-1 flex-wrap">${gates}</div>`:''}
   </div>`;
@@ -3258,14 +3264,16 @@ function openCollabModal(id=''){
    collab: modal task cuma menumpang menampilkan paket yang ditautkan padanya.
    Server yang menentukan hak ubah per area; di sini cerminannya saja, supaya field yang
    bukan milik Anda tampil terkunci alih-alih tampak bisa diisi lalu ditolak. */
+/* Area Marsel sengaja TIDAK ditampilkan — Divisi Produk hanya mengurus sisi produk, dan
+   menaruh field milik tim lain di sini cuma melahirkan sumber kebenaran kedua yang tak
+   ada yang merawat. Kolomnya tetap ada di sheet (tagline, benefit, harga, varian) supaya
+   data hasil impor tidak hilang; ia hanya berhenti disunting dari aplikasi ini.
+   Yang tersisa cuma "identitas": Program & Nama Paket bukan materi jualan — tanpa
+   keduanya paketnya tak punya nama. */
 const PKG_FIELDS={
-  marsel:[
-    {k:'program',   l:'Program',        ph:'mis. Program Super Intensif Lolos Polri TA 2026'},
-    {k:'namaPaket', l:'Nama Paket',     ph:'tanpa embel masa aktif — itu sudah jadi varian'},
-    {k:'tagline',   l:'Tagline',        ph:'kalimat jualannya'},
-    {k:'benefit',   l:'Benefit × Fitur',ph:'satu poin per baris', area:1},
-    {k:'tanggal',   l:'Tanggal Rilis',  ph:'YYYY-MM-DD', tipe:'date'},
-    {k:'tujuan',    l:'Tujuan Belajar', ph:'arah paket fokus ke mana', area:1},
+  identitas:[
+    {k:'program',   l:'Program',    ph:'mis. Program Super Intensif Lolos Polri TA 2026'},
+    {k:'namaPaket', l:'Nama Paket', ph:'nama paket sebagaimana dikenal tim'},
   ],
   produk:[
     {k:'dibimbing', l:'Dibimbing',   ph:'nama journey/bimbingan'},
@@ -3310,12 +3318,6 @@ function canEditPkgArea(p,area){
   });
 }
 function fmtRupiah(n){ const v=Number(n||0)||0; return v?v.toLocaleString('id-ID'):''; }
-function pkgHargaRange(p){
-  const hs=((p&&p.variants)||[]).map(v=>Number(v.hargaDiskon||0)||0).filter(x=>x>0);
-  if(!hs.length) return '';
-  const mn=Math.min(...hs), mx=Math.max(...hs), rb=x=>Math.round(x/1000);
-  return 'Rp'+(mn===mx?rb(mn):rb(mn)+'–'+rb(mx))+'rb';
-}
 function pkgStatusPil(it){
   const s=String(it&&it.status||'belum');
   const peta={
@@ -3442,24 +3444,6 @@ function pkgRemoveItem(i){
   renderPackagePanel();
 }
 
-function pkgReadVariants(){
-  const body=document.getElementById('pkgVariantBody'); if(!body) return [];
-  return [...body.querySelectorAll('tr[data-vrow]')].map(tr=>({
-    masaAktif:(tr.querySelector('.pkgv-masa')||{}).value||'',
-    hargaAwal:Number(((tr.querySelector('.pkgv-awal')||{}).value||'').replace(/[^0-9]/g,''))||0,
-    hargaDiskon:Number(((tr.querySelector('.pkgv-diskon')||{}).value||'').replace(/[^0-9]/g,''))||0,
-    status:'aktif',
-  }));
-}
-function pkgAddVariant(){
-  const p=currentPackage(); if(!p) return;
-  p.variants=pkgReadVariants().concat([{masaAktif:'',hargaAwal:0,hargaDiskon:0,status:'aktif'}]);
-  renderPackagePanel();
-}
-function pkgRemoveVariant(i){
-  const p=currentPackage(); if(!p) return;
-  const list=pkgReadVariants(); list.splice(i,1); p.variants=list; renderPackagePanel();
-}
 
 /* Panel dipakai di DUA tempat: modal task kolaborasi (paket yang tertaut) dan modal
    Paket tersendiri. Karena itu ia menggambar dari paket, dan wadahnya dicari dinamis. */
@@ -3484,12 +3468,17 @@ function renderPackagePanel(){
   const satuanUtama=(Object.keys(hitungSatuan).sort((a,b)=>hitungSatuan[b]-hitungSatuan[a])[0]||'Paket').toLowerCase();
   // Rancangan (daftar target) wewenang Manager; setoran diatur pengelola task.
   const bisaRancang=isManager(state.currentUser) && !isViewOnly();
-  const bisaM=canEditPkgArea(p,'marsel'), bisaP=canEditPkgArea(p,'produk');
+  const bisaP=canEditPkgArea(p,'produk');
   const bos=isManager(state.currentUser)||isLeader(state.currentUser);
   const field=(fd,area,bisa)=>{
     const v=String(p[fd.k]||''); const dis=bisa?'':'disabled'; const kosong=!v.trim();
+    /* Tinggi kotak mengikuti isinya. Sel Latsol di sheet Master bisa 52 baris — dengan
+       rows=2 tetap, isinya praktis tak terbaca dan orang harus menggulung di dalam kotak
+       sekecil itu. Dibatasi 20 baris supaya satu field panjang tak mendorong sisanya
+       keluar layar, dan resize-y dibiarkan hidup kalau mau ditarik lebih tinggi. */
+    const baris=Math.min(20, Math.max(4, v.split('\n').length+1));
     const ctl=fd.area
-      ? `<textarea id="pkg-${fd.k}" rows="2" ${dis} class="form-control text-xs ${bisa?'':'opacity-70'}" placeholder="${escapeAttr(bisa?fd.ph:'(belum diisi)')}">${escapeHtml(v)}</textarea>`
+      ? `<textarea id="pkg-${fd.k}" rows="${baris}" ${dis} class="form-control text-xs leading-relaxed resize-y ${bisa?'':'opacity-70'}" placeholder="${escapeAttr(bisa?fd.ph:'(belum diisi)')}">${escapeHtml(v)}</textarea>`
       : `<input id="pkg-${fd.k}" ${fd.tipe==='date'?'type="date"':''} value="${escapeAttr(v)}" ${dis} class="form-control text-xs ${bisa?'':'opacity-70'}" placeholder="${escapeAttr(bisa?fd.ph:'(belum diisi)')}">`;
     return `<div><label class="form-label flex items-center gap-1">${escapeHtml(fd.l)}${kosong?'<span class="text-[10px] font-normal text-rose-500">belum diisi</span>':''}</label>${ctl}</div>`;
   };
@@ -3504,16 +3493,6 @@ function renderPackagePanel(){
     const ket=s.done?(s.doneBy||''):(stepPicLabel(s.pic)||'');
     return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold ${cls}"><span class="material-icons-round text-[12px]">${ic}</span>${escapeHtml(g)}${ket?` · ${escapeHtml(ket)}`:''}</span>`;
   }).join(''):'';
-  const vrows=(p.variants||[]).map((v,i)=>{
-    const pot=(Number(v.hargaAwal)>0&&Number(v.hargaDiskon)>0)?Math.round((1-v.hargaDiskon/v.hargaAwal)*100)+'%':'—';
-    return `<tr data-vrow="${i}">
-      <td class="px-2 py-1"><input class="pkgv-masa form-control text-xs py-0.5" ${bisaM?'':'disabled'} value="${escapeAttr(v.masaAktif||'')}" placeholder="mis. 3 Bulan"></td>
-      <td class="px-2 py-1"><input class="pkgv-awal form-control text-xs py-0.5 text-right" ${bisaM?'':'disabled'} value="${escapeAttr(String(v.hargaAwal||''))}" inputmode="numeric" placeholder="0"></td>
-      <td class="px-2 py-1"><input class="pkgv-diskon form-control text-xs py-0.5 text-right" ${bisaM?'':'disabled'} value="${escapeAttr(String(v.hargaDiskon||''))}" inputmode="numeric" placeholder="0"></td>
-      <td class="px-2 py-1 text-right text-[11px] font-mono text-gray-500 dark:text-slate-400">${pot}</td>
-      <td class="px-2 py-1 text-right">${bisaM?`<button type="button" onclick="pkgRemoveVariant(${i})" title="Hapus varian" class="text-gray-300 hover:text-rose-500"><span class="material-icons-round text-[15px]">close</span></button>`:''}</td>
-    </tr>`;
-  }).join('');
   const suplai=(p.collabIds||[]).map(cid=>{
     const cc=(state.collabs||[]).find(x=>x.id===cid);
     return `<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300" title="${escapeAttr(cc?cc.title:'')}">${escapeHtml(cid)}</span>`;
@@ -3523,7 +3502,7 @@ function renderPackagePanel(){
       <div class="font-semibold text-sm flex items-center gap-1.5 text-amber-800 dark:text-amber-200"><span class="material-icons-round text-[18px]">inventory_2</span> Rancangan Paket
         <span class="font-mono text-[11px] font-normal text-amber-700 dark:text-amber-300">${escapeHtml(p.id)}</span>
         ${p.platform?`<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-white/70 dark:bg-slate-900/40 text-amber-800 dark:text-amber-200">${escapeHtml(p.platform)}</span>`:''}</div>
-      <div class="flex items-center gap-2 flex-wrap">${gates}<span class="text-[11px] font-bold text-amber-700 dark:text-amber-300">${f.total}/${f.grandTotal} field</span></div>
+      <div class="flex items-center gap-2 flex-wrap">${gates}<span class="text-[11px] font-bold text-amber-700 dark:text-amber-300">${rk.done}/${(p.items||[]).length} target</span></div>
     </div>
     <div class="p-4 space-y-4">
       ${(c&&canManageCollab())?`<div class="flex items-center gap-2 flex-wrap text-[11px] text-gray-500 dark:text-slate-400">
@@ -3556,31 +3535,14 @@ function renderPackagePanel(){
 
       <details class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden" ${(PKG_FIELDS.produk.some(fd=>String(p[fd.k]||'').trim()))?'open':''}>
         <summary class="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 cursor-pointer text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400 select-none">Bonus angkatan lama &amp; catatan <span class="font-normal normal-case tracking-normal text-gray-400">— teks bebas, tidak dihitung sebagai pekerjaan</span></summary>
-        <div class="p-3 space-y-2">${PKG_FIELDS.produk.map(fd=>field(fd,'produk',bisaP)).join('')}</div>
+        <div class="p-3 grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">${PKG_FIELDS.produk.map(fd=>`<div class="${fd.area?'xl:col-span-2':''}">${field(fd,'produk',bisaP)}</div>`).join('')}</div>
       </details>
 
-      <details class="rounded-lg border border-amber-200 dark:border-amber-900/50 overflow-hidden">
-        <summary class="px-3 py-1.5 bg-amber-100/70 dark:bg-amber-900/25 cursor-pointer text-[11px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-200 select-none">Area Marsel <span class="font-normal normal-case tracking-normal">— rujukan${bisaM?'':', baca-saja'}</span> <span class="font-normal">${f.marsel}/${f.marselTotal}</span></summary>
-        <div class="p-3 space-y-2">
-          <div class="flex items-center gap-1.5 text-[11px] text-amber-800 dark:text-amber-200">PIC ${picSel('pkg-marselPic', p.marselPic||'', bos)}</div>
-          ${PKG_FIELDS.marsel.map(fd=>field(fd,'marsel',bisaM)).join('')}
-          <div class="rounded border border-gray-200 dark:border-slate-700 overflow-hidden">
-            <div class="px-2 py-1 bg-gray-50 dark:bg-slate-800 flex items-center justify-between gap-2">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Varian — masa aktif &amp; harga</span>
-              ${bisaM?`<button type="button" onclick="pkgAddVariant()" class="text-[11px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5"><span class="material-icons-round text-[13px]">add</span>Varian</button>`:''}
-            </div>
-            <div class="overflow-x-auto"><table class="w-full text-xs"><thead><tr class="text-[10px] uppercase tracking-wide text-gray-400 border-b border-gray-100 dark:border-slate-700">
-              <th class="px-2 py-1 text-left font-semibold">Masa Aktif</th><th class="px-2 py-1 text-right font-semibold">Harga Awal</th>
-              <th class="px-2 py-1 text-right font-semibold">Harga Diskon</th><th class="px-2 py-1 text-right font-semibold">Potongan</th><th></th>
-            </tr></thead><tbody id="pkgVariantBody">${vrows||`<tr><td colspan="5" class="px-2 py-3 text-center text-[11px] text-gray-400">Belum ada varian.</td></tr>`}</tbody></table></div>
-          </div>
-        </div>
-      </details>
 
-      ${(bisaM||bisaP)?`<div class="flex items-center justify-between gap-2 flex-wrap">
+      ${(bisaP||bisaRancang||(c&&canManageCollab()))?`<div class="flex items-center justify-between gap-2 flex-wrap">
         <span class="text-[11px] text-gray-400">${p.updatedBy?`Terakhir diubah ${escapeHtml(p.updatedBy)}${p.updatedAt?' · '+escapeHtml(p.updatedAt):''}`:'Belum pernah disimpan.'}</span>
         <button type="button" onclick="savePackagePanel()" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan</button>
-      </div>`:`<div class="text-[11px] text-gray-400">Kedua area sudah punya PIC dan bukan Anda, jadi isinya hanya bisa dilihat.</div>`}
+      </div>`:`<div class="text-[11px] text-gray-400">Paket ini sudah punya PIC dan bukan Anda, jadi isinya hanya bisa dilihat.</div>`}
     </div>`;
 }
 /* Pemilih paket — muncul setelah Platform dipilih, persis di modal task kolaborasi.
@@ -3656,18 +3618,17 @@ function createPackageForCollab(){
 function savePackagePanel(){
   const p=currentPackage(); if(!p){ showToast('Tautkan ke sebuah paket dulu.', false); return; }
   const c=currentCollab();
-  const bisaM=canEditPkgArea(p,'marsel'), bisaP=canEditPkgArea(p,'produk');
+  const bisaP=canEditPkgArea(p,'produk');
   const bisaRancang=isManager(state.currentUser) && !isViewOnly();
   const bisaSetor=!!c && canManageCollab();
-  if(!bisaM && !bisaP && !bisaRancang && !bisaSetor){ showToast('Anda tak berhak mengubah paket ini.', false); return; }
+  if(!bisaP && !bisaRancang && !bisaSetor){ showToast('Anda tak berhak mengubah paket ini.', false); return; }
   const bos=isManager(state.currentUser)||isLeader(state.currentUser);
   const ambil=(list)=>{ const o={}; list.forEach(fd=>{ const el=document.getElementById('pkg-'+fd.k); if(el) o[fd.k]=el.value; }); return o; };
   const payload={};
-  if(bisaM){
-    payload.marsel=ambil(PKG_FIELDS.marsel);
-    if(bos){ const el=document.getElementById('pkg-marselPic'); if(el) payload.marsel.marselPic=el.value; }
-    payload.variants=pkgReadVariants();
-  }
+  // Identitas paket (Program & Nama Paket) memakai kanal "marsel" di server — kolomnya
+  // memang di sana. Yang TIDAK lagi dikirim: tagline, benefit, tujuan, dan varian harga;
+  // itu milik tim Marsel dan tak lagi disunting dari aplikasi ini.
+  if(bos) payload.marsel=ambil(PKG_FIELDS.identitas);
   if(bisaP){
     payload.produk=ambil(PKG_FIELDS.produk);
     if(bos){ const el=document.getElementById('pkg-produkPic'); if(el) payload.produk.produkPic=el.value; }
@@ -3720,47 +3681,107 @@ function createPackageBaru(){
   }).withFailureHandler(err=>showToast('Gagal: '+(err.message||err), false))
     .savePackage('', { platform: plat, marsel: { namaPaket: String(nama).trim() } }, state.currentUser);
 }
+/* ---- Pilih banyak rancangan sekaligus ----
+   Menghapus paket satu per satu lewat modalnya terlalu lambat ketika hasil impor perlu
+   dirapikan berpuluh baris. Pilihannya disimpan di state (bukan di DOM) supaya bertahan
+   saat daftarnya digambar ulang oleh filter atau pencarian. */
+function bisaHapusPaket(){ return (isManager(state.currentUser)||isLeader(state.currentUser)) && !isViewOnly(); }
+function paketPilih(){ return state._paketPilih||(state._paketPilih=[]); }
+function togglePaketPilih(id){
+  const a=paketPilih(); const i=a.indexOf(id);
+  if(i>=0) a.splice(i,1); else a.push(id);
+  renderPaket();
+}
+// Pilih semua = yang SEDANG TAMPIL saja. Menyapu paket yang tersaring keluar adalah cara
+// paling gampang menghapus sesuatu yang tak sedang dilihat orang.
+function paketPilihSemua(){
+  const tampil=paketTersaring().map(p=>p.id);
+  const a=paketPilih();
+  const semua=tampil.length && tampil.every(id=>a.indexOf(id)>=0);
+  state._paketPilih=semua?a.filter(id=>tampil.indexOf(id)<0):[...new Set(a.concat(tampil))];
+  renderPaket();
+}
+function paketBatalPilih(){ state._paketPilih=[]; renderPaket(); }
+function hapusPaketTerpilih(){
+  const ids=paketPilih().slice();
+  if(!ids.length) return;
+  if(!bisaHapusPaket()){ showToast('Hanya Leader atau Manager yang bisa menghapus paket.', false); return; }
+  const nama=ids.slice(0,5).map(id=>{ const p=packageById(id); return '· '+id+' '+((p&&(p.namaPaket||p.program))||''); }).join('\n');
+  if(!confirm('Hapus '+ids.length+' rancangan paket beserta seluruh targetnya?\n\n'+nama+(ids.length>5?('\n… dan '+(ids.length-5)+' lagi'):'')+'\n\nTask kolaborasi yang menggarapnya TIDAK ikut terhapus.')) return;
+  // SATU panggilan untuk seluruh daftar. Menghapus satu per satu terlihat lebih sederhana,
+  // tapi tiap deletePackage memuat ulang seluruh paket + collab — 20 paket berarti 20 kali
+  // pembacaan penuh, dan itu menembus kuota baca Google lalu berhenti di tengah jalan.
+  GAS.withSuccessHandler(res=>{
+    if(!res||!res.success){ showToast((res&&res.message)||'Gagal menghapus paket', false); return; }
+    state.packages=res.packages||state.packages; state.collabs=res.collabs||state.collabs;
+    state._paketPilih=[];
+    showToast(res.message); renderPaket(); if(state.activeView==='collab') renderCollab();
+  }).withFailureHandler(err=>showToast('Gagal: '+(err.message||err), false))
+    .deletePackages(ids, state.currentUser);
+}
+// Dipakai bersama oleh renderPaket() dan "pilih semua" supaya keduanya tak pernah beda.
+function paketTersaring(){
+  const pf=document.getElementById('paketFilterPlatform');
+  const q=String((document.getElementById('paketSearch')||{}).value||'').toLowerCase().trim();
+  const plat=String((pf||{}).value||'');
+  let arr=allPackages().slice();
+  if(q) arr=arr.filter(p=>[p.id,p.namaPaket,p.program,p.tagline,p.platform].join(' ').toLowerCase().includes(q));
+  if(plat) arr=arr.filter(p=>same(p.platform,plat));
+  return arr;
+}
 function renderPaket(){
   const list=document.getElementById('paketList'); if(!list) return;
   const add=document.getElementById('paketAddBtn');
   if(add) add.classList.toggle('hide', !(isManager(state.currentUser)||isLeader(state.currentUser)) || isViewOnly());
+  // Pilihan yang paketnya sudah tak ada (terhapus / tersaring dari data) dibuang diam-diam,
+  // supaya hitungan "N terpilih" tak pernah menyebut sesuatu yang tak bisa ditindak.
+  const adaId=new Set(allPackages().map(p=>p.id));
+  state._paketPilih=paketPilih().filter(id=>adaId.has(id));
   const pf=document.getElementById('paketFilterPlatform');
   if(pf && pf.options.length<=1){
     const v=pf.value;
     pf.innerHTML='<option value="">Semua Platform</option>'+(state.options.platform||[]).map(x=>`<option value="${escapeAttr(x)}">${escapeHtml(x)}</option>`).join('');
     pf.value=v;
   }
-  const q=String((document.getElementById('paketSearch')||{}).value||'').toLowerCase().trim();
-  const plat=String((pf||{}).value||'');
-  let arr=allPackages().slice();
-  if(q) arr=arr.filter(p=>[p.id,p.namaPaket,p.program,p.tagline,p.platform].join(' ').toLowerCase().includes(q));
-  if(plat) arr=arr.filter(p=>same(p.platform,plat));
+  const arr=paketTersaring();
   const cnt=document.getElementById('paketCount');
   if(cnt) cnt.textContent=arr.length+' dari '+allPackages().length+' paket';
+  // Bilah aksi hanya muncul saat ada yang dipilih — supaya tak jadi pajangan permanen.
+  const bar=document.getElementById('paketBulkBar');
+  const dipilih=paketPilih();
+  if(bar){
+    bar.classList.toggle('hide', !dipilih.length);
+    const lbl=document.getElementById('paketBulkCount'); if(lbl) lbl.textContent=dipilih.length+' paket terpilih';
+    const semua=arr.length && arr.every(p=>dipilih.indexOf(p.id)>=0);
+    const sa=document.getElementById('paketBulkAll'); if(sa) sa.textContent=semua?'Batal pilih yang tampil':'Pilih semua yang tampil';
+  }
+  const selAll=document.getElementById('paketSelectAllBtn');
+  if(selAll) selAll.classList.toggle('hide', !bisaHapusPaket() || !arr.length);
   if(!arr.length){ list.innerHTML=`<div class="md:col-span-2 xl:col-span-3">${emptyState(allPackages().length?'Tak ada paket yang cocok.':'Belum ada paket. Buat lewat task kolaborasi, atau impor dari sheet Master.')}</div>`; return; }
   list.innerHTML=arr.map(p=>{
     const rk=p.ringkas||{siap:0,total:0};
     const f=p.filled||{total:0,grandTotal:13};
     const pct=rk.target?Math.round(Math.min(rk.terpenuhi,rk.target)/rk.target*100):0;
-    const harga=pkgHargaRange(p);
-    const nc=(p.collabIds||[]).length;
-    return `<div onclick="openPaketModal('${escapeAttr(p.id)}')" class="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 cursor-pointer hover:ring-2 hover:ring-indigo-200 transition">
+      const nc=(p.collabIds||[]).length;
+    const dipilih=(state._paketPilih||[]).indexOf(p.id)>=0;
+    return `<div onclick="openPaketModal('${escapeAttr(p.id)}')" class="bg-white dark:bg-slate-800 rounded-xl border ${dipilih?'border-indigo-400 ring-2 ring-indigo-200 dark:ring-indigo-900':'border-gray-200 dark:border-slate-700'} p-4 cursor-pointer hover:ring-2 hover:ring-indigo-200 transition">
       <div class="flex items-start justify-between gap-2">
-        <div class="min-w-0">
+        ${bisaHapusPaket()?`<input type="checkbox" class="pkg-pilih w-4 h-4 mt-0.5 shrink-0 accent-indigo-600 cursor-pointer" ${dipilih?'checked':''} onclick="event.stopPropagation(); togglePaketPilih('${escapeAttr(p.id)}')" title="Pilih untuk dihapus bersama">`:''}
+        <div class="min-w-0 flex-1">
           <div class="flex items-center flex-wrap gap-1">
             <span class="text-[10px] font-mono text-gray-400">${escapeHtml(p.id)}</span>
             ${p.platform?`<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">${escapeHtml(p.platform)}</span>`:''}
           </div>
           <div class="font-semibold text-sm text-gray-900 dark:text-white mt-0.5 line-clamp-2">${escapeHtml(p.namaPaket||p.program||'(tanpa nama)')}</div>
         </div>
-        <span class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${rk.target&&rk.terpenuhi>=rk.target?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300':'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}">${f.total}/${f.grandTotal} field</span>
+        <span class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${rk.target&&rk.terpenuhi>=rk.target?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300':'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}">${rk.done}/${(p.items||[]).length} target</span>
       </div>
       <div class="mt-2 flex items-center gap-2">
         <div class="flex-1 h-1.5 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden"><div class="h-full ${pct>=100?'bg-emerald-500':'bg-indigo-500'}" style="width:${pct}%"></div></div>
         <span class="text-[11px] font-semibold text-gray-500 dark:text-slate-400 shrink-0">${rk.terpenuhi}/${rk.target}</span>
       </div>
       <div class="mt-1.5 flex items-center gap-2 flex-wrap text-[11px] text-gray-500 dark:text-slate-400">
-        <span>${(p.variants||[]).length} varian</span>${harga?`<span>· ${escapeHtml(harga)}</span>`:''}
+        <span>${rk.done} dari ${(p.items||[]).length} target penuh</span>
         <span class="ml-auto flex items-center gap-0.5 ${nc?'':'text-gray-300 dark:text-slate-600'}"><span class="material-icons-round text-[13px]">account_tree</span>${nc} task</span>
       </div>
     </div>`;
@@ -3784,7 +3805,7 @@ function closePaketModal(){
 }
 function deletePaketNow(){
   const p=currentPackage(); if(!p) return;
-  if(!confirm('Hapus paket '+p.id+' beserta varian & deliverablenya?\n\nTask kolaborasi yang menggarapnya TIDAK ikut terhapus.')) return;
+  if(!confirm('Hapus paket '+p.id+' beserta seluruh targetnya?\n\nTask kolaborasi yang menggarapnya TIDAK ikut terhapus.')) return;
   GAS.withSuccessHandler(res=>{
     if(!res||!res.success){ showToast((res&&res.message)||'Gagal menghapus paket', false); return; }
     state.packages=res.packages||state.packages; state.collabs=res.collabs||state.collabs;

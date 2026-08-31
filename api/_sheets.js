@@ -1649,6 +1649,34 @@ async function setPackageContrib(paketId, collabId, list, actor) {
   return { success: true, message: 'Setoran task tersimpan.', packages: await getPackages(), collabs: await getCollabs() };
 }
 
+/* Hapus BANYAK paket sekaligus. Bukan sekadar kenyamanan: deletePackage memuat ulang
+   seluruh paket + collab tiap kali dipanggil, jadi menghapus 20 paket satu per satu
+   menembus kuota "read requests per minute" Google dan berhenti di tengah jalan.
+   Di sini pembacaan ulangnya dilakukan SEKALI, di akhir. */
+async function deletePackages(ids, actor) {
+  actor = String(actor || '').trim() || 'Unknown';
+  await loadUsers();
+  if (!isManagerActor(actor) && !isLeaderActor(actor)) return { success: false, message: 'Hanya Leader atau Manager yang bisa menghapus paket.' };
+  const daftar = [...new Set((ids || []).map(x => String(x || '').trim()).filter(Boolean))];
+  if (!daftar.length) return { success: false, message: 'Tak ada paket yang dipilih.' };
+  await ensurePackageSheets();
+  let ikut = 0;
+  for (const paketId of daftar) {
+    ikut += await purgeRowsForRef(CONFIG.PACKAGE_VARIANT_SHEET, 'F', 0, paketId);
+    ikut += await purgeRowsForRef(CONFIG.PACKAGE_ITEM_SHEET, 'J', 1, paketId);
+    ikut += await purgeRowsForRef(CONFIG.PACKAGE_CONTRIB_SHEET, 'F', 0, paketId);
+    await purgeRowsForRef(CONFIG.PACKAGE_SHEET, 'S', 0, paketId);
+  }
+  // Tautan di COLLAB dibereskan sekali jalan untuk seluruh daftar.
+  const pilih = new Set(daftar);
+  const crows = await valuesGet(`${CONFIG.COLLAB_SHEET}!A2:J`);
+  for (let i = 0; i < crows.length; i++) {
+    if (pilih.has(String((crows[i] || [])[9] || '').trim())) await valuesUpdate(`${CONFIG.COLLAB_SHEET}!J${i + 2}`, [['']]);
+  }
+  await logActivity(actor, 'Package Delete', '', `${daftar.length} paket dihapus (${ikut} varian/target/setoran ikut dibuang): ${daftar.join(', ')}`);
+  return { success: true, message: daftar.length + ' paket dihapus.', packages: await getPackages(), collabs: await getCollabs() };
+}
+
 async function deletePackage(paketId, actor) {
   actor = String(actor || '').trim() || 'Unknown';
   paketId = String(paketId || '').trim();
@@ -3064,7 +3092,7 @@ module.exports = {
   // task kolaborasi (alur beruntun antar-PIC)
   getCollabs, saveCollab, setCollabStepDone, setCollabStepNote, setCollabStepLink, setCollabType, deleteCollab,
   // master koordinasi paket (nempel pada collab)
-  savePackage, getPackages, deletePackage, setCollabPackage, setPackageContrib,
+  savePackage, getPackages, deletePackage, deletePackages, setCollabPackage, setPackageContrib,
   // notifikasi (tag @user)
   getNotifications, markNotificationsRead,
   // user & peran (Dev saja)

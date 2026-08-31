@@ -31,6 +31,61 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.87.0 — Area Marsel dilepas, isi Master jadi target, dan hapus banyak sekaligus
+
+### Area Marsel tidak lagi ditampilkan
+Divisi Produk hanya mengurus sisi produk. Menaruh field milik tim lain — tagline,
+benefit, tujuan belajar, varian & harga — di layar ini cuma melahirkan sumber kebenaran
+kedua yang tak ada yang merawat.
+
+Kolomnya **tetap ada di sheet** supaya data hasil impor tidak hilang; ia hanya berhenti
+disunting dari aplikasi. Yang tersisa cuma **Program** dan **Nama Paket**: itu identitas
+paket, bukan materi jualan — tanpa keduanya paketnya tak punya nama.
+
+### Isi Master Koordinasi jadi target sungguhan
+Kolom Dibimbing/Latsol/Materi/Tryout/Live Class sebelumnya cuma menumpuk sebagai teks.
+Sekarang diurai jadi **652 target** di 21 paket. Aturannya diturunkan dari bentuk datanya
+sendiri, bukan tebakan:
+
+| Baris | Diperlakukan sebagai |
+|---|---|
+| baris pertama sel (`PCPM BI 41`) | judul sel, dilewati |
+| diawali `BONUS` | warisan angkatan lama → tetap teks bebas |
+| `Total: N Paket` | dilewati, aplikasi menghitungnya sendiri |
+| berbullet (`•` / `-`) | selalu target |
+| tanpa bullet, diawali `Tahap`, tanpa jumlah | judul kelompok |
+| selain itu | target |
+
+Bullet jadi pembeda karena di kolom Materi ada `• Tahap 1 Seleksi Potensi Dasar (SPD)`
+yang jelas item, sementara di Latsol `Tahap 1` polos adalah judul kelompoknya.
+
+**Bawaannya "sudah tersedia".** Sheet Master mendaftar apa yang paketnya *berisi*, bukan
+antrean pekerjaan — kalau semuanya masuk sebagai belum-digarap, impor melahirkan 652
+pekerjaan palsu yang sebenarnya sudah lama jadi. Satu-satunya penanda tekstual bahwa
+sesuatu belum ada adalah **`COMING SOON`**; hanya bagian itu yang tersisa sebagai
+kekurangan.
+
+Hasilnya untuk PCPM BI 41: 27 target (Dibimbing 2, Latsol 9, Materi 5, Tryout 3, Live
+Class 8), dan tepat **3 di antaranya kurang** — dua Latsol `+10 COMING SOON` dan Tryout
+`+5 COMING SOON`. Sama persis dengan sheet-nya.
+
+### Pilih banyak rancangan untuk dihapus
+Kotak centang di tiap kartu, bilah aksi yang muncul hanya saat ada yang dipilih, dan
+"pilih semua **yang tampil**" — menyapu paket yang sedang tersaring keluar adalah cara
+paling gampang menghapus sesuatu yang tak sedang dilihat orang.
+
+Penghapusannya lewat **satu panggilan** `deletePackages`, bukan satu per satu. Ini bukan
+kerapian: tiap `deletePackage` memuat ulang seluruh paket + collab, jadi menghapus 20
+paket beruntun menembus kuota "read requests per minute" Google dan berhenti di tengah
+jalan. Ketahuan saat uji langsung di staging, bukan dari membaca kode.
+
+### Kotak catatan menyesuaikan isinya
+Sel Latsol di sheet Master bisa 52 baris; dengan kotak 2 baris isinya praktis tak
+terbaca. Tingginya kini mengikuti isi (4–20 baris), bisa ditarik lebih tinggi, dan
+bloknya dua kolom di layar lebar dengan field panjang melebar penuh.
+
+---
+
 ## 1.86.1 — Tombol buat rancangan + urutan menu mengikuti alur kerja
 
 ### Rancangan bisa dibuat dari menunya sendiri
