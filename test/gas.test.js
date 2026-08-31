@@ -1203,8 +1203,18 @@ ok('identitas paket tetap ada', commHtml.indexOf('identitas:[') >= 0);
 // Sel bonus di sheet Master bisa 52 baris; kotak 2 baris membuatnya praktis tak terbaca.
 ok('tinggi kotak catatan mengikuti isinya', commHtml.indexOf('const baris=Math.min(20, Math.max(4,') >= 0);
 ok('kotak catatan bisa ditarik lebih tinggi', commHtml.indexOf('resize-y') >= 0);
-ok('blok catatan dua kolom di layar lebar', commHtml.indexOf('grid grid-cols-1 xl:grid-cols-2 gap-3 items-start') >= 0);
-ok('field panjang melebar penuh', commHtml.indexOf("fd.area?'xl:col-span-2':''") >= 0);
+ok('blok catatan dua kolom mulai lg', commHtml.indexOf('grid grid-cols-1 lg:grid-cols-2 gap-3 items-start') >= 0);
+
+// Kelas .form-control cuma diperluas sekali saat aplikasi dimuat, jadi field yang
+// digambar belakangan tak pernah kebagian border/latar/lebarnya — tampak putih polos.
+ok('panel paket memakai kelas field sendiri', commHtml.indexOf('const PKG_F=') >= 0);
+ok('field paket tak lagi bergantung .form-control', /pkg[is]?-[a-z]+ form-control/.test(commHtml) === false);
+ok('field bisa diisi diberi latar pembeda', commHtml.indexOf('bg-gray-50 dark:bg-slate-800 border border-gray-300') >= 0);
+// Grup di depan nama, dan ditandai boleh dikosongkan.
+ok('kolom grup digambar sebelum nama target',
+  commHtml.indexOf('pkgi-grup') < commHtml.indexOf('pkgi-nama'));
+ok('grup ditandai opsional', commHtml.indexOf("placeholder=\"grup (ops.)\"") >= 0);
+ok('field panjang melebar penuh', commHtml.indexOf("fd.area?'lg:col-span-2':''") >= 0);
 // Multi-select untuk merapikan hasil impor berpuluh baris sekaligus.
 ok('kartu paket punya kotak centang', commHtml.indexOf('pkg-pilih') >= 0);
 ok('ada bilah aksi massal', commHtml.indexOf("id=\"paketBulkBar\"") >= 0);

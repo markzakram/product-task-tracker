@@ -31,6 +31,32 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.87.1 — Field rancangan kelihatan sebagai field, grup pindah ke depan
+
+### Kenapa semuanya tampak putih polos
+Kelas `.form-control` di aplikasi ini **bukan CSS** — ia diperluas jadi kelas-kelas
+utilitas oleh `injectUtilityClasses()`, yang berjalan **sekali saja saat aplikasi dimuat**.
+Panel Rancangan digambar ulang terus-menerus, jadi field-nya tak pernah kebagian border,
+latar, maupun `w-full`-nya.
+
+Akibatnya dua hal sekaligus: field tak terbaca sebagai isian, dan kotak teks menyusut ke
+lebar bawaan `<textarea>` (~20 karakter) — itu sebabnya catatan menurun sempit alih-alih
+mengisi ruang yang ada.
+
+Sekarang panel memakai kelasnya sendiri, dipasang langsung di markup. Field yang bisa
+diisi diberi **latar abu tipis + border**, jadi terbaca sebagai isian, bukan teks biasa.
+
+### Grup pindah ke depan, dan ditandai opsional
+Urutan kolom jadi **grup → nama target → jumlah → satuan → sudah tersedia**. Placeholder-nya
+`grup (ops.)` supaya jelas boleh dikosongkan.
+
+### Blok catatan mengikuti lebar yang ada
+Dua kolom mulai breakpoint **lg**, bukan `xl` — modal paket lebarnya 1200px dan tak pernah
+mencapai `xl` (1280px), jadi aturan sebelumnya tak pernah aktif. Field panjang tetap
+melebar penuh.
+
+---
+
 ## 1.87.0 — Area Marsel dilepas, isi Master jadi target, dan hapus banyak sekaligus
 
 ### Area Marsel tidak lagi ditampilkan

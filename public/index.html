@@ -849,7 +849,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.87.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.87.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3318,6 +3318,13 @@ function canEditPkgArea(p,area){
   });
 }
 function fmtRupiah(n){ const v=Number(n||0)||0; return v?v.toLocaleString('id-ID'):''; }
+/* Kelas field dipasang langsung, TIDAK lewat .form-control: kelas itu diperluas sekali
+   saat aplikasi dimuat, sedangkan panel ini digambar ulang terus-menerus — hasilnya field
+   tanpa border, tanpa latar, dan textarea menyusut ke lebar bawaannya. Latar abu tipis
+   dipakai supaya yang bisa diisi terbaca sebagai isian, bukan teks biasa. */
+const PKG_F='w-full rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 '+
+  'focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 '+
+  'outline-none px-2 py-1 text-xs text-gray-800 dark:text-slate-100 placeholder:text-gray-400';
 function pkgStatusPil(it){
   const s=String(it&&it.status||'belum');
   const peta={
@@ -3368,11 +3375,11 @@ function pkgKategoriBlok(p, bisaRancang, c){
         return `<div class="px-1.5 py-1" data-pkgi="${o.i}" data-itemid="${escapeAttr(it.itemId||'')}">
           <div class="flex items-center gap-1">
             ${bisaRancang
-              ? `<input class="pkgi-nama form-control text-xs py-0.5 flex-1 min-w-0" value="${escapeAttr(it.nama||'')}" placeholder="nama target">
-                 <input class="pkgi-grup form-control text-xs py-0.5 w-[5.5rem] shrink-0" value="${escapeAttr(it.grup||'')}" placeholder="grup">
-                 <input class="pkgi-target form-control text-xs py-0.5 w-[3.4rem] shrink-0 text-right" value="${escapeAttr(String(it.target||''))}" inputmode="numeric" title="Target">
-                 <select class="pkgi-satuan form-control text-xs py-0.5 w-[4.2rem] shrink-0">${PKG_SATUAN.map(u=>`<option ${same(u,it.satuan)?'selected':''}>${escapeHtml(u)}</option>`).join('')}</select>
-                 <input class="pkgi-awal form-control text-xs py-0.5 w-[3.4rem] shrink-0 text-right" value="${escapeAttr(String(it.awal||''))}" inputmode="numeric" title="Sudah tersedia sebelum task apa pun">`
+              ? `<input class="pkgi-grup ${PKG_F} w-[6.5rem] shrink-0" value="${escapeAttr(it.grup||'')}" placeholder="grup (ops.)" title="Kelompok, boleh dikosongkan — mis. Tahap 1">
+                 <input class="pkgi-nama ${PKG_F} flex-1 min-w-0" value="${escapeAttr(it.nama||'')}" placeholder="nama target">
+                 <input class="pkgi-target ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.target||''))}" inputmode="numeric" title="Target">
+                 <select class="pkgi-satuan ${PKG_F} w-[4.6rem] shrink-0">${PKG_SATUAN.map(u=>`<option ${same(u,it.satuan)?'selected':''}>${escapeHtml(u)}</option>`).join('')}</select>
+                 <input class="pkgi-awal ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.awal||''))}" inputmode="numeric" title="Sudah tersedia sebelum task apa pun">`
               : `<span class="flex-1 min-w-0 text-xs text-gray-700 dark:text-slate-200 truncate">${escapeHtml(it.nama||'')}${it.grup?`<span class="text-gray-400"> · ${escapeHtml(it.grup)}</span>`:''}</span>
                  <span class="shrink-0 text-[11px] font-mono text-gray-500 dark:text-slate-400">${it.terpenuhi}/${it.target} ${escapeHtml(it.satuan||'')}</span>`}
             ${pkgStatusPil(it)}
@@ -3386,8 +3393,8 @@ function pkgKategoriBlok(p, bisaRancang, c){
             }).join('')}</div>`:''}
           ${bisaSetor?`<div class="mt-1 flex items-center gap-1 pl-1 border-l-2 border-indigo-200 dark:border-indigo-900">
             <span class="text-[10px] text-gray-400 shrink-0">setoran task ini</span>
-            <input class="pkgs-jumlah form-control text-xs py-0.5 w-[3.4rem] shrink-0 text-right" value="${escapeAttr(String((setorSaya&&setorSaya.jumlah)||''))}" inputmode="numeric" placeholder="0">
-            <select class="pkgs-step form-control text-xs py-0.5 flex-1 min-w-0">${pkgStepOptions(c,(setorSaya&&setorSaya.stepOrder)||0)}</select>
+            <input class="pkgs-jumlah ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String((setorSaya&&setorSaya.jumlah)||''))}" inputmode="numeric" placeholder="0">
+            <select class="pkgs-step ${PKG_F} flex-1 min-w-0">${pkgStepOptions(c,(setorSaya&&setorSaya.stepOrder)||0)}</select>
           </div>`:''}
         </div>`;
       }).join('')||`<div class="px-2 py-1.5 text-[11px] text-gray-400">—</div>`}</div>
@@ -3478,8 +3485,8 @@ function renderPackagePanel(){
        keluar layar, dan resize-y dibiarkan hidup kalau mau ditarik lebih tinggi. */
     const baris=Math.min(20, Math.max(4, v.split('\n').length+1));
     const ctl=fd.area
-      ? `<textarea id="pkg-${fd.k}" rows="${baris}" ${dis} class="form-control text-xs leading-relaxed resize-y ${bisa?'':'opacity-70'}" placeholder="${escapeAttr(bisa?fd.ph:'(belum diisi)')}">${escapeHtml(v)}</textarea>`
-      : `<input id="pkg-${fd.k}" ${fd.tipe==='date'?'type="date"':''} value="${escapeAttr(v)}" ${dis} class="form-control text-xs ${bisa?'':'opacity-70'}" placeholder="${escapeAttr(bisa?fd.ph:'(belum diisi)')}">`;
+      ? `<textarea id="pkg-${fd.k}" rows="${baris}" ${dis} class="${PKG_F} leading-relaxed resize-y ${bisa?'':'opacity-70'}" placeholder="${escapeAttr(bisa?fd.ph:'(belum diisi)')}">${escapeHtml(v)}</textarea>`
+      : `<input id="pkg-${fd.k}" ${fd.tipe==='date'?'type="date"':''} value="${escapeAttr(v)}" ${dis} class="${PKG_F} ${bisa?'':'opacity-70'}" placeholder="${escapeAttr(bisa?fd.ph:'(belum diisi)')}">`;
     return `<div><label class="form-label flex items-center gap-1">${escapeHtml(fd.l)}${kosong?'<span class="text-[10px] font-normal text-rose-500">belum diisi</span>':''}</label>${ctl}</div>`;
   };
   const picSel=(id,sel,bisa)=>`<select id="${id}" ${bisa?'':'disabled'} class="text-[11px] rounded bg-white/70 dark:bg-slate-900/50 border-0 outline-none px-1 py-0.5 ${bisa?'':'opacity-70'}">${collabPicOptions(sel)}</select>`;
@@ -3535,7 +3542,7 @@ function renderPackagePanel(){
 
       <details class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden" ${(PKG_FIELDS.produk.some(fd=>String(p[fd.k]||'').trim()))?'open':''}>
         <summary class="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 cursor-pointer text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400 select-none">Bonus angkatan lama &amp; catatan <span class="font-normal normal-case tracking-normal text-gray-400">— teks bebas, tidak dihitung sebagai pekerjaan</span></summary>
-        <div class="p-3 grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">${PKG_FIELDS.produk.map(fd=>`<div class="${fd.area?'xl:col-span-2':''}">${field(fd,'produk',bisaP)}</div>`).join('')}</div>
+        <div class="p-3 grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">${PKG_FIELDS.produk.map(fd=>`<div class="${fd.area?'lg:col-span-2':''}">${field(fd,'produk',bisaP)}</div>`).join('')}</div>
       </details>
 
 
@@ -3565,7 +3572,7 @@ function pkgPickerHtml(c){
     <div class="p-4 space-y-2">
       <p class="text-xs text-gray-500 dark:text-slate-400">Task ini belum tertaut ke paket mana pun. Satu paket boleh digarap beberapa task${plats.length?`, dan daftarnya disaring untuk platform <b>${escapeHtml(plats.join(', '))}</b>`:''}.</p>
       ${boleh?`<div class="flex items-center gap-2 flex-wrap">
-        <select id="pkgPick" class="form-control text-xs flex-1 min-w-[12rem]">
+        <select id="pkgPick" class="${PKG_F} flex-1 min-w-[12rem]">
           <option value="">— pilih paket —</option>
           ${cocok.map(p=>`<option value="${escapeAttr(p.id)}">${escapeHtml(p.id+' · '+(p.namaPaket||p.program||'(tanpa nama)'))}</option>`).join('')}
         </select>
