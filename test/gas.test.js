@@ -155,6 +155,7 @@ const sandbox = {
     getUi: () => { throw new Error('getUi tidak tersedia di harness'); }
   },
   Utilities: {
+    sleep: () => {},          // jeda percobaan ulang: tak perlu benar-benar menunggu saat diuji
     formatDate: (d, tz, fmt) => {
       const p = n => String(n).padStart(2, '0');
       return fmt
@@ -2021,4 +2022,50 @@ const potColl = code.slice(code.indexOf('function loadCollabsRaw_('),
                            code.indexOf('var steps = {};', code.indexOf('function loadCollabsRaw_(')));
 ok('loadCollabsRaw_ melempar galat, bukan mengosongkan', potColl.indexOf('Gagal membaca data task kolaborasi: ') >= 0);
 ok('dan tak ada lagi return [] di sana', potColl.indexOf('return [];') < 0);
+
+console.log('\n=== 22. Percobaan ulang saat kena kuota ===');
+
+/* Kuota Sheets memang bisa terlampaui saat pemakaian beruntun. Yang diuji bukan cuma
+   "mengulang", tapi juga BATASNYA — sebab mengulang yang salah justru merusak: tulis yang
+   diulang setelah galat ambigu bisa menggandakan baris. */
+const sheetOpt = SS.getSheetByName('OPTIONS');
+const getRangeOpt = sheetOpt.getRange;
+let sisaGagal = 0, pesanGagal = '', percobaan = 0;
+sheetOpt.getRange = function () {
+  percobaan++;
+  if (sisaGagal > 0) { sisaGagal--; throw new Error(pesanGagal); }
+  return getRangeOpt.apply(this, arguments);
+};
+
+// BACA: kena kuota dua kali lalu berhasil.
+percobaan = 0; sisaGagal = 2; pesanGagal = 'Service invoked too many times: spreadsheets';
+const opsi = call('getOptions');
+ok('baca yang kena kuota akhirnya berhasil', !!opsi && typeof opsi === 'object');
+eq('dicoba tiga kali (1 asli + 2 ulang)', percobaan >= 3, true);
+eq('jatah gagalnya habis terpakai', sisaGagal, 0);
+
+// BACA: gangguan sesaat juga diulang.
+percobaan = 0; sisaGagal = 1; pesanGagal = 'Service Spreadsheets timed out';
+call('getOptions');
+eq('gangguan sesaat ikut diulang', percobaan >= 2, true);
+
+// BACA: kuota HARIAN tak boleh diulang — menunggu sedetik tak menolong.
+percobaan = 0; sisaGagal = 3; pesanGagal = 'Service invoked too many times for one day: spreadsheets';
+let harian = null;
+try { call('getOptions'); } catch (e) { harian = e; }
+eq('kuota harian dicoba sekali saja', percobaan, 1);
+sheetOpt.getRange = getRangeOpt;
+
+// Bentuk kebijakannya dikunci: baca dan tulis TIDAK boleh berbagi aturan yang sama.
+ok('ada lapisan percobaan ulang', code.indexOf('function ulangi_(jalankan, boleh)') >= 0);
+ok('baca boleh diulang saat gangguan sesaat', code.indexOf('function bolehUlangBaca_(e) { return kenaKuota_(e) || sementara_(e); }') >= 0);
+ok('tulis HANYA diulang saat kena kuota', code.indexOf('function bolehUlangTulis_(e) { return kenaKuota_(e); }') >= 0);
+ok('kuota harian dikecualikan', code.indexOf("m.indexOf('for one day') >= 0) return false;") >= 0);
+ok('jedanya bertingkat, bukan seketika', code.indexOf('var ULANG_JEDA_ = [400, 1100];') >= 0);
+// Vercel harus memakai kebijakan yang sama, kalau tidak dua backend berperilaku beda.
+const kodeV = fs.readFileSync(path.join(__dirname, '..', 'api', '_sheets.js'), 'utf8');
+ok('vercel punya lapisan yang sama', kodeV.indexOf('async function ulangi(jalankan, bolehUlang)') >= 0);
+ok('vercel: tulis hanya diulang saat kuota', kodeV.indexOf('const bolehUlangTulis = err => kenaKuota(err);') >= 0);
+ok('vercel: append memakai aturan tulis', kodeV.indexOf('insertDataOption:') >= 0 && kodeV.indexOf('}), bolehUlangTulis);') >= 0);
+ok('vercel: batas percobaan sama', kodeV.indexOf('const ULANG_JEDA = [400, 1100];') >= 0);
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

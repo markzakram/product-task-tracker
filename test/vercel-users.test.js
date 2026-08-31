@@ -70,20 +70,31 @@ const SHEET_IDS = {};
 let nextSheetId = 100;
 function ensureSheet(name) { if (!(name in SHEET_IDS)) SHEET_IDS[name] = nextSheetId++; sheet(name); }
 
+// Suntikan kegagalan untuk menguji percobaan ulang: antrean galat PER METODE, plus
+// pencacah percobaan supaya bisa dipastikan berapa kali benar-benar dicoba.
+const suntik = { get: [], batchGet: [], update: [], append: [], batchUpdate: [], meta: [] };
+const hitungan = { get: 0, batchGet: 0, update: 0, append: 0, batchUpdate: 0, meta: 0 };
+function mungkinGagal(jenis) {
+  hitungan[jenis] = (hitungan[jenis] || 0) + 1;
+  const antre = suntik[jenis];
+  if (antre && antre.length) { const e = antre.shift(); if (e) throw e; }
+}
+
 function fakeSheets() {
   return {
     spreadsheets: {
-      get: async () => ({
+      get: async () => (mungkinGagal('meta'), {
         data: { sheets: Object.keys(SHEETS).map(t => ({ properties: { sheetId: SHEET_IDS[t], title: t, gridProperties: { rowCount: 1000 } } })) },
       }),
       values: {
-        get: async ({ range }) => ({ data: { values: readRange(range) } }),
-        batchGet: async ({ ranges }) => ({ data: { valueRanges: ranges.map(r => ({ values: readRange(r) })) } }),
-        update: async ({ range, requestBody }) => { writeRange(range, requestBody.values); return {}; },
-        append: async ({ range, requestBody }) => { appendRange(range, requestBody.values); return {}; },
+        get: async ({ range }) => (mungkinGagal('get'), { data: { values: readRange(range) } }),
+        batchGet: async ({ ranges }) => (mungkinGagal('batchGet'), { data: { valueRanges: ranges.map(r => ({ values: readRange(r) })) } }),
+        update: async ({ range, requestBody }) => { mungkinGagal('update'); writeRange(range, requestBody.values); return {}; },
+        append: async ({ range, requestBody }) => { mungkinGagal('append'); appendRange(range, requestBody.values); return {}; },
         batchUpdate: async ({ requestBody }) => { (requestBody.data || []).forEach(d => writeRange(d.range, d.values)); return {}; },
       },
       batchUpdate: async ({ requestBody }) => {
+        mungkinGagal('batchUpdate');
         (requestBody.requests || []).forEach(req => {
           if (req.addSheet) ensureSheet(req.addSheet.properties.title);
           if (req.deleteDimension) {
@@ -680,6 +691,49 @@ function resetAll() { ['TSK-001', 'TSK-002', 'TSK-003', 'TSK-004'].forEach(id =>
   eq('approver dari env', bootEmpty.meta.doneApprovers.join(','), 'Nynda,Dhea,Alya');
   fresh();
   eq('Alya boleh Done lewat env', (await backend.quickUpdateField('TSK-004', 'status', 'Done', 'Alya')).success, true);
+
+
+  /* ---------- Percobaan ulang saat kena kuota ----------
+     Kuota baca Sheets dihitung per menit dan benar-benar terlampaui saat pemakaian
+     beruntun. Yang diuji di sini bukan cuma "mengulang", tapi juga BATASNYA: tulis
+     hanya boleh diulang saat kena kuota, tak boleh saat galat jaringan yang ambigu —
+     kalau tidak, satu append bisa menggandakan baris. */
+  const galatKode = (kode, pesan) => Object.assign(new Error(pesan || ('galat ' + kode)), { code: kode });
+
+  // BACA: kena kuota dua kali, lalu berhasil.
+  hitungan.get = 0; suntik.get = [galatKode(429, 'Quota exceeded for quota metric'), galatKode(429, 'Quota exceeded')];
+  const t0 = Date.now();
+  const hasilUlang = await backend.getOptions();
+  ok('baca yang kena kuota dicoba ulang sampai berhasil', !!hasilUlang && typeof hasilUlang === 'object');
+  eq('percobaannya tiga kali (1 asli + 2 ulang)', hitungan.get >= 3, true);
+  ok('jedanya nyata, bukan diulang seketika', Date.now() - t0 >= 400);
+  eq('antrean galat habis terpakai', suntik.get.length, 0);
+
+  // BACA: galat permanen tak perlu diulang — hanya menunda kabar buruk.
+  hitungan.get = 0; suntik.get = [galatKode(400, 'Unable to parse range')];
+  // getOptions sendiri menelan galat bacanya (dropdown kosong, sengaja dibiarkan begitu),
+  // jadi yang diuji di sini kebijakan ULANGNYA: galat permanen tak boleh dicoba lagi.
+  await backend.getOptions().catch(() => {});
+  eq('galat permanen TIDAK diulang, cukup sekali', hitungan.get, 1);
+  suntik.get = [];
+
+  // TULIS: kena kuota berarti permintaannya DITOLAK sebelum dijalankan -> aman diulang.
+  hitungan.append = 0; suntik.append = [galatKode(429, 'Quota exceeded')];
+  await backend.saveOption('platform', 'Uji Ulang', 'Manager');
+  eq('tulis yang kena kuota dicoba ulang', hitungan.append >= 2, true);
+  eq('dan barisnya hanya masuk SEKALI',
+    ((await backend.getOptions()).platform || []).filter(v => v === 'Uji Ulang').length, 1);
+
+  // TULIS: galat jaringan AMBIGU — bisa jadi sudah terlanjur dijalankan, jawabannya yang
+  // hilang. Mengulanginya akan menggandakan baris, jadi sengaja tidak diulang.
+  hitungan.append = 0; suntik.append = [galatKode(503, 'backendError')];
+  let gagalTulis = null;
+  try { await backend.saveOption('platform', 'Jangan Ganda', 'Manager'); } catch (e) { gagalTulis = e; }
+  ok('tulis TIDAK diulang saat galat ambigu', !!gagalTulis);
+  eq('sekali percobaan saja, supaya baris tak tergandakan', hitungan.append, 1);
+  eq('dan tak ada baris yang terlanjur masuk',
+    ((await backend.getOptions()).platform || []).filter(v => v === 'Jangan Ganda').length, 0);
+  suntik.append = [];
 
   console.log(`\n✅ Semua ${passed} assertion lulus.`);
 })().catch(e => { console.error('\n❌ GAGAL:', e && e.stack ? e.stack : e); process.exit(1); });

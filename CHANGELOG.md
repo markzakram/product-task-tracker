@@ -31,6 +31,46 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.89.2 — Percobaan ulang otomatis saat kena kuota Sheets
+
+Kuota baca Google Sheets dihitung **per menit**, dan yang memicunya hampir selalu ledakan
+sesaat — beberapa ratus milidetik biasanya sudah cukup untuk lewat. Sekarang panggilan ke
+Sheets mencoba ulang sendiri, dua kali, dengan jeda 400 ms lalu 1.100 ms plus sedikit acak
+supaya permintaan yang barengan tidak bangun serentak.
+
+Anggarannya sengaja pendek (total di bawah 2 detik) karena fungsi Vercel punya batas waktu
+sendiri. Kalau tetap gagal, galatnya dilempar — dan sejak 1.89.0/1.89.1 itu sudah ditangani
+dengan benar: layar mempertahankan data terakhir yang benar, bukan menampilkan kosong.
+
+### Yang boleh diulang dibedakan dengan sengaja
+
+Ini bagian yang paling menentukan, karena **mengulang yang salah justru merusak**:
+
+- **Baca** idempoten, jadi aman diulang untuk kuota maupun gangguan sesaat (5xx, koneksi
+  putus, "timed out").
+- **Tulis hanya diulang saat kena kuota.** Kena kuota berarti permintaannya *ditolak sebelum
+  dijalankan*, jadi mengulang aman. Galat jaringan sebaliknya **ambigu**: bisa saja sudah
+  terlanjur dijalankan lalu jawabannya yang hilang. Mengulangnya akan menggandakan baris
+  pada `append`, atau menghapus dua baris pada `deleteDimension`.
+- **Kuota harian tidak diulang** sama sekali — menunggu satu detik tak akan menolong.
+
+Ada uji perilakunya, bukan sekadar bentuk kode: galat disuntikkan ke lapisan tiruan, lalu
+dipastikan baca yang kena kuota berhasil di percobaan ketiga, galat permanen tidak diulang,
+tulis yang kena kuota diulang **dan barisnya tetap masuk sekali**, sedangkan tulis yang kena
+galat ambigu tidak diulang sama sekali dan tak menyisakan baris.
+
+### Hasil nyata
+
+Tiga puluh pembacaan beruntun ke staging — pola yang sebelumnya menembus kuota — kini
+**27 berhasil, 3 gagal** dan seluruh data tetap utuh. Perlu jujur soal batasnya: percobaan
+ulang menyerap ledakan sesaat, bukan pemakaian yang memang melewati kuota terus-menerus.
+Yang berubah untuk kasus itu bukan keberhasilannya, melainkan kejujurannya — dulu diam-diam
+mengosongkan data, sekarang berkata gagal.
+
+Lapisan yang sama dipasang di `gas/Code.gs` supaya dua backend tidak melenceng.
+
+---
+
 ## 1.89.1 — Gagal baca tak lagi menyamar jadi "memang kosong"
 
 Lanjutan dari 1.89.0, yang menemukan pola berbahaya di jalur baca paket: galat baca sesaat

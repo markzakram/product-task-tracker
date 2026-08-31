@@ -557,7 +557,51 @@ function trimTrailing_(vals) {
 }
 
 // Baca range. opts.display=true -> nilai tampilan (string) alih-alih nilai mentah.
+/* ---------- Percobaan ulang saat kena kuota / gangguan sesaat ----------
+   Padanan lapisan yang sama di api/_sheets.js, supaya dua backend tidak melenceng.
+   Pembedaannya sama pentingnya di sini: BACA idempoten jadi aman diulang untuk apa pun
+   yang sifatnya sementara; TULIS hanya diulang saat permintaannya jelas DITOLAK (kuota),
+   sebab galat "timed out"/"internal error" ambigu — bisa jadi sudah terlanjur dijalankan,
+   dan mengulangnya akan menggandakan baris.
+   Kuota HARIAN sengaja tidak diulang: menunggu satu detik tak akan menolong. */
+var ULANG_JEDA_ = [400, 1100];
+
+function sementara_(e) {
+  var m = String((e && (e.message || e)) || '').toLowerCase();
+  if (m.indexOf('for one day') >= 0) return false;
+  return m.indexOf('timed out') >= 0 || m.indexOf('internal error') >= 0
+      || m.indexOf('temporarily unavailable') >= 0 || m.indexOf('try again') >= 0;
+}
+function kenaKuota_(e) {
+  var m = String((e && (e.message || e)) || '').toLowerCase();
+  if (m.indexOf('for one day') >= 0) return false;
+  return m.indexOf('too many times') >= 0 || m.indexOf('quota') >= 0
+      || m.indexOf('rate limit') >= 0;
+}
+function bolehUlangBaca_(e) { return kenaKuota_(e) || sementara_(e); }
+function bolehUlangTulis_(e) { return kenaKuota_(e); }
+
+function ulangi_(jalankan, boleh) {
+  for (var i = 0; ; i++) {
+    try { return jalankan(); }
+    catch (e) {
+      if (i >= ULANG_JEDA_.length || !boleh(e)) throw e;
+      if (typeof Utilities !== 'undefined' && Utilities.sleep) Utilities.sleep(ULANG_JEDA_[i]);
+    }
+  }
+}
+
 function valuesGet_(a1, opts) {
+  return ulangi_(function () { return valuesGetSekali_(a1, opts); }, bolehUlangBaca_);
+}
+function valuesUpdateSekali_(a1, values) {
+  return ulangi_(function () { return valuesUpdateSekali_(a1, values); }, bolehUlangTulis_);
+}
+function valuesAppendSekali_(a1, values) {
+  return ulangi_(function () { return valuesAppendSekali_(a1, values); }, bolehUlangTulis_);
+}
+
+function valuesGetSekali_(a1, opts) {
   var p = a1Parse_(a1);
   if (!p) return [];
   var sh = sheet_(p.sheet, false);

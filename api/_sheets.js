@@ -316,14 +316,67 @@ function doneDeniedMessage(taskPic) {
 /* Low-level Sheets helpers                                            */
 /* ------------------------------------------------------------------ */
 
+/* ---------- Percobaan ulang saat kena kuota ----------
+   Kuota baca Google Sheets dihitung PER MENIT, dan yang memicunya hampir selalu ledakan
+   sesaat — jeda beberapa ratus milidetik biasanya sudah cukup untuk lewat. Anggarannya
+   sengaja pendek (total di bawah 2 detik) karena fungsi Vercel punya batas waktu sendiri;
+   kalau tetap gagal, galatnya dilempar dan pemanggil sudah menanganinya dengan benar.
+
+   Yang boleh diulang dibedakan dengan sengaja:
+   - BACA idempoten, jadi aman diulang untuk kuota MAUPUN gangguan sesaat (5xx, koneksi
+     putus).
+   - TULIS hanya diulang saat kena kuota. Kena kuota berarti permintaannya DITOLAK sebelum
+     dijalankan, jadi mengulang aman. Galat jaringan sebaliknya ambigu: bisa saja sudah
+     terlanjur dijalankan lalu jawabannya yang hilang — mengulangnya akan menggandakan
+     baris pada append, atau menghapus dua baris pada deleteDimension. */
+const ULANG_JEDA = [400, 1100];          // dua percobaan ulang; sisanya dilempar
+
+function kodeGalat(err) {
+  return Number((err && (err.code || (err.response && err.response.status))) || 0);
+}
+function pesanGalat(err) {
+  const dari = (err && (err.message || err.toString())) || '';
+  return String(dari).toLowerCase();
+}
+function kenaKuota(err) {
+  if (kodeGalat(err) === 429) return true;
+  const alasan = (err && err.errors && err.errors[0] && err.errors[0].reason) || '';
+  if (/ratelimitexceeded|userratelimitexceeded|quotaexceeded/i.test(alasan)) return true;
+  const m = pesanGalat(err);
+  return m.indexOf('quota exceeded') >= 0 || m.indexOf('rate limit') >= 0
+      || m.indexOf('resource_exhausted') >= 0;
+}
+function gangguanSesaat(err) {
+  const k = kodeGalat(err);
+  if (k === 500 || k === 502 || k === 503 || k === 504) return true;
+  const m = pesanGalat(err);
+  return m.indexOf('econnreset') >= 0 || m.indexOf('etimedout') >= 0
+      || m.indexOf('socket hang up') >= 0 || m.indexOf('backenderror') >= 0;
+}
+const bolehUlangBaca = err => kenaKuota(err) || gangguanSesaat(err);
+const bolehUlangTulis = err => kenaKuota(err);          // hanya kuota — lihat catatan di atas
+
+function tidur(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function ulangi(jalankan, bolehUlang) {
+  for (let i = 0; ; i++) {
+    try { return await jalankan(); }
+    catch (e) {
+      if (i >= ULANG_JEDA.length || !bolehUlang(e)) throw e;
+      // Jitter kecil supaya beberapa permintaan yang barengan tidak bangun serentak.
+      await tidur(ULANG_JEDA[i] + Math.floor(Math.random() * 250));
+    }
+  }
+}
+
 async function valuesGet(range, opts = {}) {
   const sheets = await getSheets();
-  const res = await sheets.spreadsheets.values.get({
+  const res = await ulangi(() => sheets.spreadsheets.values.get({
     spreadsheetId: getSpreadsheetId(),
     range,
     valueRenderOption: opts.valueRenderOption || 'UNFORMATTED_VALUE',
     dateTimeRenderOption: opts.dateTimeRenderOption || 'SERIAL_NUMBER',
-  });
+  }), bolehUlangBaca);
   return res.data.values || [];
 }
 
@@ -331,12 +384,12 @@ async function valuesGet(range, opts = {}) {
 // Mengembalikan map { range: values[][] }.
 async function valuesBatchGet(ranges, opts = {}) {
   const sheets = await getSheets();
-  const res = await sheets.spreadsheets.values.batchGet({
+  const res = await ulangi(() => sheets.spreadsheets.values.batchGet({
     spreadsheetId: getSpreadsheetId(),
     ranges,
     valueRenderOption: opts.valueRenderOption || 'UNFORMATTED_VALUE',
     dateTimeRenderOption: opts.dateTimeRenderOption || 'SERIAL_NUMBER',
-  });
+  }), bolehUlangBaca);
   const vr = res.data.valueRanges || [];
   const out = {};
   ranges.forEach((r, i) => { out[r] = (vr[i] && vr[i].values) || []; });
@@ -345,31 +398,31 @@ async function valuesBatchGet(ranges, opts = {}) {
 
 async function valuesUpdate(range, values) {
   const sheets = await getSheets();
-  await sheets.spreadsheets.values.update({
+  await ulangi(() => sheets.spreadsheets.values.update({
     spreadsheetId: getSpreadsheetId(),
     range,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values },
-  });
+  }), bolehUlangTulis);
 }
 
 async function valuesAppend(range, values) {
   const sheets = await getSheets();
-  await sheets.spreadsheets.values.append({
+  await ulangi(() => sheets.spreadsheets.values.append({
     spreadsheetId: getSpreadsheetId(),
     range,
     valueInputOption: 'USER_ENTERED',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values },
-  });
+  }), bolehUlangTulis);
 }
 
 async function getSheetMeta() {
   const sheets = await getSheets();
-  const res = await sheets.spreadsheets.get({
+  const res = await ulangi(() => sheets.spreadsheets.get({
     spreadsheetId: getSpreadsheetId(),
     fields: 'sheets.properties(sheetId,title,gridProperties)',
-  });
+  }), bolehUlangBaca);
   const map = {};
   (res.data.sheets || []).forEach(s => {
     map[s.properties.title] = s.properties;
@@ -379,10 +432,10 @@ async function getSheetMeta() {
 
 async function batchUpdate(requests) {
   const sheets = await getSheets();
-  await sheets.spreadsheets.batchUpdate({
+  await ulangi(() => sheets.spreadsheets.batchUpdate({
     spreadsheetId: getSpreadsheetId(),
     requestBody: { requests },
-  });
+  }), bolehUlangTulis);
 }
 
 /* ------------------------------------------------------------------ */
