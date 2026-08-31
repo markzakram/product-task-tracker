@@ -113,7 +113,7 @@ SHEET_HEADERS[CONFIG.NOTES_SHEET] = ['User', 'Title', 'Body', 'UpdatedAt', 'Fold
 SHEET_HEADERS[CONFIG.CHECKLIST_SHEET] = ['Task ID', 'Item', 'Done', 'Created By', 'Checked By', 'Checked At', 'Link'];
 SHEET_HEADERS[CONFIG.COLLAB_SHEET] = ['Collab ID', 'Platform', 'Title', 'Description', 'Created By', 'Created At', 'Deadline', 'Type', 'Color', 'Paket ID'];
 SHEET_HEADERS[CONFIG.COLLAB_STEP_SHEET] = ['Collab ID', 'Order', 'Step', 'PIC', 'Deadline', 'Done', 'Done By', 'Done At', 'Note', 'Stage', 'Link'];
-SHEET_HEADERS[CONFIG.PACKAGE_SHEET] = ['Paket ID', 'Platform', 'Marsel PIC', 'Program', 'Nama Paket', 'Tagline', 'Benefit', 'Tanggal', 'Tujuan', 'Produk PIC', 'Dibimbing', 'Latsol', 'Materi', 'Tryout', 'Drilling', 'Live Class', 'Catatan', 'Updated By', 'Updated At'];
+SHEET_HEADERS[CONFIG.PACKAGE_SHEET] = ['Paket ID', 'Platform', 'Marsel PIC', 'Program', 'Nama Paket', 'Tagline', 'Benefit', 'Tanggal', 'Tujuan', 'Produk PIC', 'Dibimbing', 'Latsol', 'Materi', 'Tryout', 'Drilling', 'Live Class', 'Catatan', 'Updated By', 'Updated At', 'Mirror'];
 SHEET_HEADERS[CONFIG.PACKAGE_VARIANT_SHEET] = ['Paket ID', 'Order', 'Masa Aktif', 'Harga Awal', 'Harga Diskon', 'Status'];
 SHEET_HEADERS[CONFIG.PACKAGE_ITEM_SHEET] = ['Item ID', 'Paket ID', 'Order', 'Kategori', 'Grup', 'Nama', 'Target', 'Satuan', 'Awal', 'Catatan'];
 SHEET_HEADERS[CONFIG.PACKAGE_CONTRIB_SHEET] = ['Paket ID', 'Item ID', 'Collab ID', 'Step Order', 'Jumlah', 'Catatan'];
@@ -1417,8 +1417,8 @@ var ITM_ID_RE = new RegExp('^ITM-[0-9]+$');
 function ensurePackageSheets_() {
   sheet_(CONFIG.PACKAGE_SHEET, true);
   var head = [];
-  try { head = valuesGet_(CONFIG.PACKAGE_SHEET + '!A1:S1'); } catch (e) { head = []; }
-  if (!((head[0] || [])[0])) valuesUpdate_(CONFIG.PACKAGE_SHEET + '!A1:S1', [SHEET_HEADERS[CONFIG.PACKAGE_SHEET]]);
+  try { head = valuesGet_(CONFIG.PACKAGE_SHEET + '!A1:T1'); } catch (e) { head = []; }
+  if (!((head[0] || [])[0])) valuesUpdate_(CONFIG.PACKAGE_SHEET + '!A1:T1', [SHEET_HEADERS[CONFIG.PACKAGE_SHEET]]);
   sheet_(CONFIG.PACKAGE_VARIANT_SHEET, true);
   try { head = valuesGet_(CONFIG.PACKAGE_VARIANT_SHEET + '!A1:F1'); } catch (e) { head = []; }
   if (!((head[0] || [])[0])) valuesUpdate_(CONFIG.PACKAGE_VARIANT_SHEET + '!A1:F1', [SHEET_HEADERS[CONFIG.PACKAGE_VARIANT_SHEET]]);
@@ -1431,7 +1431,7 @@ function ensurePackageSheets_() {
 }
 
 function emptyPackage_(paketId) {
-  var o = { id: String(paketId || ''), row: 0, platform: '', marselPic: '', produkPic: '', updatedBy: '', updatedAt: '', variants: [], items: [] };
+  var o = { id: String(paketId || ''), row: 0, platform: '', marselPic: '', produkPic: '', updatedBy: '', updatedAt: '', mirror: false, variants: [], items: [] };
   PKG_MARSEL.concat(PKG_PRODUK).forEach(function (k) { o[k] = ''; });
   return o;
 }
@@ -1446,6 +1446,8 @@ function rowToPackage_(r, rowNum) {
     dibimbing: g(10), latsol: g(11), materi: g(12), tryout: g(13),
     drilling: g(14), liveClass: g(15), catatan: g(16),
     updatedBy: g(17), updatedAt: stampStr_(r && r[18]),
+    // Kolom T: paket ini ikut ditampilkan ke Lintas Divisi atau tidak.
+    mirror: ['', 'tidak', 'no', 'false', '0'].indexOf(g(19).toLowerCase()) < 0,
     variants: [], items: []
   };
 }
@@ -1454,7 +1456,7 @@ function packageToRow_(p) {
   return [p.id, p.platform, p.marselPic, p.program, p.namaPaket, p.tagline, p.benefit,
     p.tanggal ? toSheetDate_(p.tanggal) : '', p.tujuan, p.produkPic,
     p.dibimbing, p.latsol, p.materi, p.tryout, p.drilling, p.liveClass, p.catatan,
-    p.updatedBy, p.updatedAt];
+    p.updatedBy, p.updatedAt, p.mirror ? 'TRUE' : ''];
 }
 
 function packageFilled_(p) {
@@ -1531,7 +1533,7 @@ function buildStepIndex_(collabs) {
 function readPackages_(stepIndex) {
   var prows = [], vrows = [], irows = [], crows = [];
   try {
-    prows = valuesGet_(CONFIG.PACKAGE_SHEET + '!A2:S');
+    prows = valuesGet_(CONFIG.PACKAGE_SHEET + '!A2:T');
     vrows = valuesGet_(CONFIG.PACKAGE_VARIANT_SHEET + '!A2:F');
     irows = valuesGet_(CONFIG.PACKAGE_ITEM_SHEET + '!A2:J');
     crows = valuesGet_(CONFIG.PACKAGE_CONTRIB_SHEET + '!A2:F');
@@ -1639,6 +1641,10 @@ function savePackage(paketId, payload, actor) {
     if (!bos) return { success: false, message: 'Platform paket hanya bisa diubah Leader atau Manager.' };
     baru.platform = String(payload.platform || '').trim(); sentuh++;
   }
+  if (payload.mirror !== undefined) {
+    if (!isManagerActor_(actor)) return { success: false, message: 'Hanya Manager yang bisa membagikan paket ke Lintas Divisi.' };
+    baru.mirror = !!payload.mirror; sentuh++;
+  }
   if (payload.marsel) {
     if (!bolehMarsel) return { success: false, message: 'Hanya PIC Area Marsel, Leader, atau Manager yang bisa mengubah sisi ini.' };
     PKG_MARSEL.forEach(function (k) { if (payload.marsel[k] !== undefined) baru[k] = String(payload.marsel[k] || '').trim(); });
@@ -1663,8 +1669,8 @@ function savePackage(paketId, payload, actor) {
   baru.id = paketId;
   baru.updatedBy = actor; baru.updatedAt = nowStamp_();
   var rowData = packageToRow_(baru);
-  if (lama.row) valuesUpdate_(CONFIG.PACKAGE_SHEET + '!A' + lama.row + ':S' + lama.row, [rowData]);
-  else valuesAppend_(CONFIG.PACKAGE_SHEET + '!A:S', [rowData]);
+  if (lama.row) valuesUpdate_(CONFIG.PACKAGE_SHEET + '!A' + lama.row + ':T' + lama.row, [rowData]);
+  else valuesAppend_(CONFIG.PACKAGE_SHEET + '!A:T', [rowData]);
   if (payload.variants !== undefined) {
     purgeRowsForRef_(CONFIG.PACKAGE_VARIANT_SHEET, 'F', 0, paketId);
     var vl = (payload.variants || []).filter(function (v) { return v && String(v.masaAktif || '').trim(); });
@@ -1759,7 +1765,7 @@ function deletePackages(ids, actor) {
     ikut += purgeRowsForRef_(CONFIG.PACKAGE_VARIANT_SHEET, 'F', 0, paketId);
     ikut += purgeRowsForRef_(CONFIG.PACKAGE_ITEM_SHEET, 'J', 1, paketId);
     ikut += purgeRowsForRef_(CONFIG.PACKAGE_CONTRIB_SHEET, 'F', 0, paketId);
-    purgeRowsForRef_(CONFIG.PACKAGE_SHEET, 'S', 0, paketId);
+    purgeRowsForRef_(CONFIG.PACKAGE_SHEET, 'T', 0, paketId);
   });
   var crows = [];
   try { crows = valuesGet_(CONFIG.COLLAB_SHEET + '!A2:J'); } catch (e) { crows = []; }
@@ -1779,7 +1785,7 @@ function deletePackage(paketId, actor) {
   ikut += purgeRowsForRef_(CONFIG.PACKAGE_VARIANT_SHEET, 'F', 0, paketId);
   ikut += purgeRowsForRef_(CONFIG.PACKAGE_ITEM_SHEET, 'J', 1, paketId);
   ikut += purgeRowsForRef_(CONFIG.PACKAGE_CONTRIB_SHEET, 'F', 0, paketId);
-  purgeRowsForRef_(CONFIG.PACKAGE_SHEET, 'S', 0, paketId);
+  purgeRowsForRef_(CONFIG.PACKAGE_SHEET, 'T', 0, paketId);
   var crows = [];
   try { crows = valuesGet_(CONFIG.COLLAB_SHEET + '!A2:J'); } catch (e) { crows = []; }
   for (var i = 0; i < crows.length; i++) {

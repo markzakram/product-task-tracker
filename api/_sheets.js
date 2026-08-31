@@ -1284,7 +1284,7 @@ const PKG_MARSEL = ['program', 'namaPaket', 'tagline', 'benefit', 'tanggal', 'tu
 const PKG_PRODUK = ['dibimbing', 'latsol', 'materi', 'tryout', 'drilling', 'liveClass', 'catatan'];
 const PKG_HEADERS = ['Paket ID', 'Platform', 'Marsel PIC', 'Program', 'Nama Paket', 'Tagline', 'Benefit',
   'Tanggal', 'Tujuan', 'Produk PIC', 'Dibimbing', 'Latsol', 'Materi', 'Tryout', 'Drilling',
-  'Live Class', 'Catatan', 'Updated By', 'Updated At'];
+  'Live Class', 'Catatan', 'Updated By', 'Updated At', 'Mirror'];
 const PKGV_HEADERS = ['Paket ID', 'Order', 'Masa Aktif', 'Harga Awal', 'Harga Diskon', 'Status'];
 /* Target rancangan. "Awal" = yang sudah tersedia sebelum task apa pun (mis. warisan
    angkatan lalu) — dihitung sebagai terpenuhi tanpa perlu kontribusi palsu. */
@@ -1299,8 +1299,8 @@ const PKG_ID_RE = new RegExp('^PKG-[0-9]+$');
 async function ensurePackageSheets() {
   if (_ensured.has('package')) return;
   await ensureSheetExists(CONFIG.PACKAGE_SHEET);
-  let head = await valuesGet(`${CONFIG.PACKAGE_SHEET}!A1:S1`);
-  if (!((head[0] || [])[0])) await valuesUpdate(`${CONFIG.PACKAGE_SHEET}!A1:S1`, [PKG_HEADERS]);
+  let head = await valuesGet(`${CONFIG.PACKAGE_SHEET}!A1:T1`);
+  if (!((head[0] || [])[0])) await valuesUpdate(`${CONFIG.PACKAGE_SHEET}!A1:T1`, [PKG_HEADERS]);
   await ensureSheetExists(CONFIG.PACKAGE_VARIANT_SHEET);
   head = await valuesGet(`${CONFIG.PACKAGE_VARIANT_SHEET}!A1:F1`);
   if (!((head[0] || [])[0])) await valuesUpdate(`${CONFIG.PACKAGE_VARIANT_SHEET}!A1:F1`, [PKGV_HEADERS]);
@@ -1314,7 +1314,7 @@ async function ensurePackageSheets() {
 }
 
 function emptyPackage(paketId) {
-  const o = { id: String(paketId || ''), row: 0, platform: '', marselPic: '', produkPic: '', updatedBy: '', updatedAt: '', variants: [], items: [] };
+  const o = { id: String(paketId || ''), row: 0, platform: '', marselPic: '', produkPic: '', updatedBy: '', updatedAt: '', mirror: false, variants: [], items: [] };
   PKG_MARSEL.concat(PKG_PRODUK).forEach(k => { o[k] = ''; });
   return o;
 }
@@ -1332,6 +1332,9 @@ function rowToPackage(r, rowNum) {
     dibimbing: g(10), latsol: g(11), materi: g(12), tryout: g(13),
     drilling: g(14), liveClass: g(15), catatan: g(16),
     updatedBy: g(17), updatedAt: stampStr(r && r[18]),
+    // Kolom T: paket ini ikut ditampilkan ke Lintas Divisi atau tidak. Pola & kata
+    // penyangkalnya disamakan dengan kolom Mirror pada task biasa.
+    mirror: !['', 'tidak', 'no', 'false', '0'].includes(g(19).toLowerCase()),
     variants: [], items: [],
   };
 }
@@ -1340,7 +1343,7 @@ function packageToRow(p) {
   return [p.id, p.platform, p.marselPic, p.program, p.namaPaket, p.tagline, p.benefit,
     p.tanggal ? toSheetDate(p.tanggal) : '', p.tujuan, p.produkPic,
     p.dibimbing, p.latsol, p.materi, p.tryout, p.drilling, p.liveClass, p.catatan,
-    p.updatedBy, p.updatedAt];
+    p.updatedBy, p.updatedAt, p.mirror ? 'TRUE' : ''];
 }
 
 function packageFilled(p) {
@@ -1422,9 +1425,9 @@ function buildStepIndex(collabs) {
 async function readPackages(stepIndex) {
   let prows = [], vrows = [], irows = [], crows = [];
   try {
-    const b = await valuesBatchGet([`${CONFIG.PACKAGE_SHEET}!A2:S`, `${CONFIG.PACKAGE_VARIANT_SHEET}!A2:F`,
+    const b = await valuesBatchGet([`${CONFIG.PACKAGE_SHEET}!A2:T`, `${CONFIG.PACKAGE_VARIANT_SHEET}!A2:F`,
       `${CONFIG.PACKAGE_ITEM_SHEET}!A2:J`, `${CONFIG.PACKAGE_CONTRIB_SHEET}!A2:F`]);
-    prows = b[`${CONFIG.PACKAGE_SHEET}!A2:S`] || [];
+    prows = b[`${CONFIG.PACKAGE_SHEET}!A2:T`] || [];
     vrows = b[`${CONFIG.PACKAGE_VARIANT_SHEET}!A2:F`] || [];
     irows = b[`${CONFIG.PACKAGE_ITEM_SHEET}!A2:J`] || [];
     crows = b[`${CONFIG.PACKAGE_CONTRIB_SHEET}!A2:F`] || [];
@@ -1530,6 +1533,10 @@ async function savePackage(paketId, payload, actor) {
     if (!bos) return { success: false, message: 'Platform paket hanya bisa diubah Leader atau Manager.' };
     baru.platform = String(payload.platform || '').trim(); sentuh++;
   }
+  if (payload.mirror !== undefined) {
+    if (!isManagerActor(actor)) return { success: false, message: 'Hanya Manager yang bisa membagikan paket ke Lintas Divisi.' };
+    baru.mirror = !!payload.mirror; sentuh++;
+  }
   if (payload.marsel) {
     if (!bolehMarsel) return { success: false, message: 'Hanya PIC Area Marsel, Leader, atau Manager yang bisa mengubah sisi ini.' };
     PKG_MARSEL.forEach(k => { if (payload.marsel[k] !== undefined) baru[k] = String(payload.marsel[k] || '').trim(); });
@@ -1555,8 +1562,8 @@ async function savePackage(paketId, payload, actor) {
   baru.id = paketId;
   baru.updatedBy = actor; baru.updatedAt = nowStamp();
   const rowData = packageToRow(baru);
-  if (lama.row) await valuesUpdate(`${CONFIG.PACKAGE_SHEET}!A${lama.row}:S${lama.row}`, [rowData]);
-  else await valuesAppend(`${CONFIG.PACKAGE_SHEET}!A:S`, [rowData]);
+  if (lama.row) await valuesUpdate(`${CONFIG.PACKAGE_SHEET}!A${lama.row}:T${lama.row}`, [rowData]);
+  else await valuesAppend(`${CONFIG.PACKAGE_SHEET}!A:T`, [rowData]);
   if (payload.variants !== undefined) {
     await purgeRowsForRef(CONFIG.PACKAGE_VARIANT_SHEET, 'F', 0, paketId);
     const list = (payload.variants || []).filter(v => v && String(v.masaAktif || '').trim());
@@ -1665,7 +1672,7 @@ async function deletePackages(ids, actor) {
     ikut += await purgeRowsForRef(CONFIG.PACKAGE_VARIANT_SHEET, 'F', 0, paketId);
     ikut += await purgeRowsForRef(CONFIG.PACKAGE_ITEM_SHEET, 'J', 1, paketId);
     ikut += await purgeRowsForRef(CONFIG.PACKAGE_CONTRIB_SHEET, 'F', 0, paketId);
-    await purgeRowsForRef(CONFIG.PACKAGE_SHEET, 'S', 0, paketId);
+    await purgeRowsForRef(CONFIG.PACKAGE_SHEET, 'T', 0, paketId);
   }
   // Tautan di COLLAB dibereskan sekali jalan untuk seluruh daftar.
   const pilih = new Set(daftar);
@@ -1688,7 +1695,7 @@ async function deletePackage(paketId, actor) {
   ikut += await purgeRowsForRef(CONFIG.PACKAGE_ITEM_SHEET, 'J', 1, paketId);
   ikut += await purgeRowsForRef(CONFIG.PACKAGE_CONTRIB_SHEET, 'F', 0, paketId);
   // Nomor paket dipakai ulang (max+1) — baris menggantung akan diwarisi paket berikutnya.
-  await purgeRowsForRef(CONFIG.PACKAGE_SHEET, 'S', 0, paketId);
+  await purgeRowsForRef(CONFIG.PACKAGE_SHEET, 'T', 0, paketId);
   const crows = await valuesGet(`${CONFIG.COLLAB_SHEET}!A2:J`);
   for (let i = 0; i < crows.length; i++) {
     if (String((crows[i] || [])[9] || '').trim() === paketId) await valuesUpdate(`${CONFIG.COLLAB_SHEET}!J${i + 2}`, [['']]);

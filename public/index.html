@@ -438,6 +438,7 @@
               <input id="paketSearch" oninput="renderPaket()" placeholder="Cari nomor, nama paket, program…" class="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-slate-800 border-0 outline-none focus:ring-2 focus:ring-indigo-300 text-sm">
             </div>
             <select id="paketFilterPlatform" onchange="renderPaket()" class="px-2.5 py-2 rounded-lg text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 outline-none"><option value="">Semua Platform</option></select>
+            <button id="paketCopyBtn" onclick="salinRancanganKeKlip(paketPilih())" title="Salin sebagai baris siap tempel ke sheet Marsel (Ctrl+V)" class="px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">content_paste_go</span>Salin utk Marsel</button>
             <button id="paketSelectAllBtn" onclick="paketPilihSemua()" class="hide px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">select_all</span>Pilih semua</button>
           </div>
           <!-- Bilah aksi massal: hanya muncul saat ada yang dipilih -->
@@ -446,7 +447,8 @@
             <span id="paketBulkCount" class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">0 paket terpilih</span>
             <button id="paketBulkAll" onclick="paketPilihSemua()" class="text-xs font-semibold text-indigo-600 dark:text-indigo-300 hover:underline">Pilih semua yang tampil</button>
             <button onclick="paketBatalPilih()" class="text-xs font-semibold text-gray-500 dark:text-slate-400 hover:underline">Batal</button>
-            <button onclick="hapusPaketTerpilih()" class="ml-auto px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center gap-1"><span class="material-icons-round text-[15px]">delete</span>Hapus terpilih</button>
+            <button onclick="salinRancanganKeKlip(paketPilih())" class="ml-auto px-3 py-1.5 rounded-lg border border-indigo-300 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-semibold flex items-center gap-1"><span class="material-icons-round text-[15px]">content_paste_go</span>Salin terpilih</button>
+            <button onclick="hapusPaketTerpilih()" class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center gap-1"><span class="material-icons-round text-[15px]">delete</span>Hapus terpilih</button>
           </div>
           <div id="paketList" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
         </div>
@@ -836,6 +838,7 @@
       </div>
 
       <div class="shrink-0 px-5 py-4 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between">
+        <button id="collabDupBtn" onclick="duplikatCollabDariModal()" title="Buat task kolaborasi baru memakai task ini sebagai template" class="hide px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold text-gray-600 dark:text-slate-300 flex items-center gap-1.5"><span class="material-icons-round text-[16px]">content_copy</span>Duplikat</button>
         <button id="collabDeleteBtn" onclick="deleteCollabFromModal()" class="hide px-3 py-2 rounded-lg border border-rose-200 text-rose-600 dark:border-rose-900/50 dark:text-rose-400 font-semibold text-sm hover:bg-rose-50">Hapus</button>
         <div class="ml-auto flex gap-2">
           <button onclick="closeCollabModal()" class="px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-semibold text-sm hover:bg-gray-50">Tutup</button>
@@ -849,7 +852,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.87.5'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.88.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3225,32 +3228,46 @@ function collabCard(c){
   </div>`;
 }
 
-function openCollabModal(id=''){
+/* dupFrom: buka sebagai task BARU tapi terisi dari task lain — pola yang sama dengan
+   Duplikat pada task biasa. Yang dibawa cuma kerangkanya (platform, tipe, warna, daftar
+   proses & PIC-nya); centang, komentar, tautan paket, dan deadline TIDAK ikut, karena
+   itu jejak pengerjaan task lama, bukan template. */
+function openCollabModal(id='', dupFrom=''){
   const manage=canManageCollab();
   const c=id?(state.collabs||[]).find(x=>x.id===id):null;
+  const sumber=(!c&&dupFrom)?(state.collabs||[]).find(x=>x.id===dupFrom):null;
   const isNew=!c;
   if(isNew && !manage){ showToast('Hanya manager/Dev yang bisa membuat task kolaborasi.', false); return; }
   state._collabId=c?c.id:null;
   state._collabEdit=isNew;                         // task baru langsung mode edit
-  state._collabDraft=isNew?[{name:'',pic:'',deadline:'',stage:'',link:'',srcOrder:0}]:[]; state._collabDirty=false;
+  state._collabDraft=isNew
+    ? (sumber?(sumber.steps||[]).map(st=>({name:st.name,pic:st.pic,deadline:'',stage:st.stage||'',link:'',srcOrder:0}))
+            :[{name:'',pic:'',deadline:'',stage:'',link:'',srcOrder:0}])
+    : []; state._collabDirty=!!sumber;
   document.getElementById('collabModal').classList.remove('hide');
-  document.getElementById('collabModalTitle').textContent=isNew?'Task Kolaborasi Baru':(manage?'Kelola Task Kolaborasi':'Detail Task Kolaborasi');
+  document.getElementById('collabModalTitle').textContent=isNew?(sumber?'Duplikat Task Kolaborasi':'Task Kolaborasi Baru'):(manage?'Kelola Task Kolaborasi':'Detail Task Kolaborasi');
   document.getElementById('collabModalSub').textContent=c?(c.id+' • dibuat oleh '+(c.createdBy||'—')):'Cukup platform + judul + daftar proses (tiap proses punya PIC & deadline).';
   const plat=document.getElementById('collabPlatform');
   plat.innerHTML=(state.options.platform||[]).map(v=>`<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-  const selPlat=String((c&&c.platform)||'').split(',').map(x=>x.trim()).filter(Boolean);   // platform bisa >1 (dipisah koma)
+  const asal=c||sumber;   // duplikat mengisi form dari sumbernya
+  const selPlat=String((asal&&asal.platform)||'').split(',').map(x=>x.trim()).filter(Boolean);   // platform bisa >1 (dipisah koma)
   [...plat.options].forEach(o=>o.selected=selPlat.includes(o.value));
   const typeSel=document.getElementById('collabType');
   typeSel.innerHTML='<option value="">(Tanpa tipe)</option>'+COLLAB_TYPES.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-  typeSel.value=c?(c.type||''):'';
-  state._collabColor=c?safeColor(c.color):''; renderCollabColorPicker();
-  setVal('collabTitle', c?c.title:''); setVal('collabDesc', c?c.description:''); setVal('collabDeadline', c?c.deadline:'');
+  typeSel.value=asal?(asal.type||''):'';
+  state._collabColor=asal?safeColor(asal.color):''; renderCollabColorPicker();
+  // Judul diberi awalan supaya duplikatnya tak tertukar dengan aslinya di daftar.
+  // Deadline TIDAK ikut: jadwal task lama hampir tak pernah cocok untuk yang baru.
+  setVal('collabTitle', c?c.title:(sumber?('Salinan — '+(sumber.title||'')):''));
+  setVal('collabDesc', c?c.description:(sumber?(sumber.description||''):''));
+  setVal('collabDeadline', c?c.deadline:'');
   const roHead=!manage;
   plat.disabled=roHead; typeSel.disabled=roHead; document.getElementById('collabTitle').disabled=roHead; document.getElementById('collabDesc').disabled=roHead; document.getElementById('collabDeadline').disabled=roHead;
   // Deadline project: tampilkan versi teks (dengan flag telat) untuk non-manager.
   const dv=document.getElementById('collabDeadlineView'); const dfield=document.getElementById('collabDeadline');
   if(dv && dfield){ if(roHead){ dfield.classList.add('hide'); dv.classList.remove('hide'); const od=c&&c.deadline&&c.status!=='Selesai'&&c.deadline<todayStr(); dv.innerHTML=c&&c.deadline?`<span class="${od?'text-rose-600 font-semibold':'text-gray-600 dark:text-slate-300'}">${escapeHtml(c.deadline)}${od?' (telat)':''}</span>`:'<span class="text-gray-400">—</span>'; } else { dfield.classList.remove('hide'); dv.classList.add('hide'); } }
   document.getElementById('collabDeleteBtn').classList.toggle('hide', !manage || isNew);
+  const dup=document.getElementById('collabDupBtn'); if(dup) dup.classList.toggle('hide', !manage || isNew);
   document.getElementById('collabCommentRow').classList.toggle('hide', isNew || isViewOnly());
   state._collabExpanded={};   // reset sub-ceklis yang terbuka
   if(c) loadCollabFeed(c.id); else document.getElementById('collabComments').innerHTML=emptyState('Komentar tersedia setelah task disimpan.');
@@ -3578,6 +3595,7 @@ function renderPackagePanel(){
 
       ${(bisaP||bisaRancang||(c&&canManageCollab()))?`<div class="flex items-center justify-between gap-2 flex-wrap">
         <span class="text-[11px] text-gray-400">${p.updatedBy?`Terakhir diubah ${escapeHtml(p.updatedBy)}${p.updatedAt?' · '+escapeHtml(p.updatedAt):''}`:'Belum pernah disimpan.'}</span>
+        ${(!lipat&&isManager(state.currentUser))?`<button type="button" onclick="togglePaketMirror()" title="Tampilkan rancangan ini di layar Lintas Divisi" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border ${p.mirror?'border-emerald-300 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20':'border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400'} text-[11px] font-semibold"><span class="material-icons-round text-[13px]">${p.mirror?'visibility':'visibility_off'}</span>${p.mirror?'Tampil di Lintas Divisi':'Bagikan ke Lintas Divisi'}</button>`:''}
         <button type="button" onclick="savePackagePanel()" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan</button>
       </div>`:`<div class="text-[11px] text-gray-400">Paket ini sudah punya PIC dan bukan Anda, jadi isinya hanya bisa dilihat.</div>`}
     </div>`;
@@ -3761,11 +3779,83 @@ function paketTersaring(){
   const pf=document.getElementById('paketFilterPlatform');
   const q=String((document.getElementById('paketSearch')||{}).value||'').toLowerCase().trim();
   const plat=String((pf||{}).value||'');
+  /* Lintas Divisi hanya melihat paket yang SENGAJA dibagikan — pola yang sama dengan
+     kolom Mirror pada task biasa. Tanpa saringan ini seluruh rancangan internal ikut
+     terbuka begitu seseorang masuk lewat tautan berbagi. */
   let arr=allPackages().slice();
+  if(isViewOnly()) arr=arr.filter(p=>p.mirror);
   if(q) arr=arr.filter(p=>[p.id,p.namaPaket,p.program,p.tagline,p.platform].join(' ').toLowerCase().includes(q));
   if(plat) arr=arr.filter(p=>same(p.platform,plat));
   return arr;
 }
+/* ---------- Salin rancangan ke papan klip, siap ditempel ke sheet Marsel ----------
+   Sengaja TIDAK mengunduh berkas Excel. Alasannya: yang dituju adalah Google Spreadsheet,
+   dan menempel langsung menghasilkan satu sel per kolom apa adanya — tanpa unduh, tanpa
+   impor, tanpa berkas menumpuk di folder unduhan. Format TSV dengan sel berpetik, persis
+   yang dipahami Sheets saat di-paste.
+   Susunan kolomnya mengikuti sheet Master: APK, Dibimbing, Latsol, Materi, Tryout,
+   Drilling, Live Class, Catatan Produk — jadi bisa ditempel ke barisnya langsung. */
+function pkgSelTeks(p, kat){
+  const items=(p.items||[]).filter(x=>same(x.kategori,kat));
+  const baris=[];
+  let grupTerakhir=null;
+  items.forEach(it=>{
+    const g=String(it.grup||'').trim();
+    if(g!==grupTerakhir){ if(baris.length) baris.push(''); if(g) baris.push(g); grupTerakhir=g; }
+    // Yang belum penuh ditandai apa adanya, meniru "+ N Paket COMING SOON" di sheet asal.
+    const kurang=Math.max(0, Number(it.target||0)-Number(it.terpenuhi||0));
+    const inti=' • '+it.nama+' – '+it.terpenuhi+' '+it.satuan;
+    baris.push(kurang?(inti+' + '+kurang+' '+it.satuan+' COMING SOON'):inti);
+  });
+  const total=items.reduce((a,x)=>a+(Number(x.target)||0),0);
+  if(items.length) baris.push(' Total: '+total+' '+(items[0].satuan||'Paket'));
+  const bonusKey={Dibimbing:'dibimbing',Latsol:'latsol',Materi:'materi',Tryout:'tryout',Drilling:'drilling','Live Class':'liveClass'}[kat];
+  const bonus=String((bonusKey&&p[bonusKey])||'').trim();
+  if(bonus) baris.push('', bonus);
+  return baris.join('\n').trim();
+}
+function pkgBarisTsv(p){
+  const sel=[p.platform||'', pkgSelTeks(p,'Dibimbing'), pkgSelTeks(p,'Latsol'), pkgSelTeks(p,'Materi'),
+    pkgSelTeks(p,'Tryout'), pkgSelTeks(p,'Drilling'), pkgSelTeks(p,'Live Class'), String(p.catatan||'')];
+  // Sel yang memuat baris baru / tab / petik WAJIB dibungkus petik ganda, kalau tidak
+  // Sheets memecahnya jadi banyak baris saat ditempel.
+  return sel.map(v=>{ const s=String(v==null?'':v); return /["\t\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join('\t');
+}
+function salinRancanganKeKlip(ids){
+  const daftar=(ids&&ids.length?ids:paketTersaring().map(p=>p.id)).map(packageById).filter(Boolean);
+  if(!daftar.length){ showToast('Tak ada paket untuk disalin.', false); return; }
+  const kepala=['APK','Dibimbing','Latsol','Materi','Tryout','Drilling','Live Class','Catatan Produk'].join('\t');
+  const teks=[kepala].concat(daftar.map(pkgBarisTsv)).join('\n');
+  const beres=()=>showToast(daftar.length+' paket disalin — tinggal tempel (Ctrl+V) di sheet Marsel.');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(teks).then(beres).catch(()=>salinCaraLama(teks, beres));
+  } else salinCaraLama(teks, beres);
+}
+// Cadangan untuk peramban/konteks yang menolak Clipboard API (mis. iframe Apps Script).
+function salinCaraLama(teks, beres){
+  const ta=document.createElement('textarea');
+  ta.value=teks; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.top='-1000px';
+  document.body.appendChild(ta); ta.select();
+  let ok=false; try{ ok=document.execCommand('copy'); }catch(e){ ok=false; }
+  document.body.removeChild(ta);
+  if(ok) beres(); else showToast('Peramban menolak menyalin. Buka paketnya lalu salin manual.', false);
+}
+
+/* ---------- Bagikan rancangan ke Lintas Divisi ----------
+   Mengikuti pola "mirror" pada task biasa: wewenang Manager, dan yang tak dibagikan
+   tak pernah sampai ke layar Lintas Divisi. */
+function togglePaketMirror(){
+  const p=currentPackage(); if(!p) return;
+  if(!isManager(state.currentUser)){ showToast('Hanya Manager yang bisa membagikan paket ke Lintas Divisi.', false); return; }
+  GAS.withSuccessHandler(res=>{
+    if(!res||!res.success){ showToast((res&&res.message)||'Gagal mengubah', false); return; }
+    state.packages=res.packages||state.packages; state.collabs=res.collabs||state.collabs;
+    showToast(p.mirror?'Paket tak lagi tampil untuk Lintas Divisi.':'Paket dibagikan ke Lintas Divisi.');
+    renderPackagePanel(); renderPaket();
+  }).withFailureHandler(err=>showToast('Gagal: '+(err.message||err), false))
+    .savePackage(p.id, { mirror: !p.mirror }, state.currentUser);
+}
+
 function renderPaket(){
   const list=document.getElementById('paketList'); if(!list) return;
   const add=document.getElementById('paketAddBtn');
@@ -3851,6 +3941,15 @@ function deletePaketNow(){
     .deletePackage(p.id, state.currentUser);
 }
 
+/* Duplikat dijalankan dari modal task yang sedang dibuka: modalnya ditutup lalu dibuka
+   ulang sebagai task BARU yang terisi dari task ini. */
+function duplikatCollabDariModal(){
+  const c=currentCollab(); if(!c) return;
+  if(!canManageCollab()){ showToast('Hanya Leader atau Manager yang bisa membuat task kolaborasi.', false); return; }
+  if(state._collabDirty && !confirm('Ada perubahan yang belum disimpan di task ini. Lanjut menduplikat?')) return;
+  closeCollabModal();
+  openCollabModal('', c.id);
+}
 function closeCollabModal(){ document.getElementById('collabModal').classList.add('hide'); const mm=document.getElementById('collabMentionMenu'); if(mm) mm.classList.add('hide'); state._collabId=null; state._collabEdit=false; state._collabDirty=false; state._collabDraft=[]; if(state.activeView==='collab') renderCollab(); }
 function notifOutsideClose(e){ const bell=document.getElementById('notifBell'), menu=document.getElementById('notifMenu'); if(!menu||menu.classList.contains('hide')) return; if(bell&&bell.contains(e.target)) return; if(menu.contains(e.target)) return; menu.classList.add('hide'); }
 /* PENTING: keluar dari mode Edit TIDAK boleh membuang isian. Dulu "Selesai edit" langsung

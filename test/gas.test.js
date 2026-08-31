@@ -1478,7 +1478,8 @@ ok('Simpan memakai rancangan bila ada', /state\._collabDirty \? \(state\._collab
 // Menyimpan dari mode baca dulu menghapus seluruh stage karena tak ikut dipetakan.
 ok('stage ikut di jalur mode baca', /\(\(cur&&cur\.steps\)\|\|\[\]\)\.map\(s=>\(\{name:s\.name, pic:s\.pic, deadline:s\.deadline, stage:s\.stage\|\|'', srcOrder:s\.order\}\)\)/.test(commHtml));
 ok('tanda tertunda dibersihkan setelah tersimpan', /state\._collabDirty=false; state\._collabDraft=\[\];\s*\/\/ sudah tersimpan/.test(commHtml));
-ok('tanda tertunda direset saat modal dibuka', commHtml.indexOf("state._collabDraft=isNew?[{name:'',pic:'',deadline:'',stage:'',link:'',srcOrder:0}]:[]; state._collabDirty=false;") >= 0);
+ok('tanda tertunda direset saat modal dibuka', /state\._collabDraft=isNew[\s\S]{0,400}state\._collabDirty=!!sumber;/.test(commHtml));
+ok('task baru biasa tetap mulai dengan satu baris kosong', commHtml.indexOf(":[{name:'',pic:'',deadline:'',stage:'',link:'',srcOrder:0}]") >= 0);
 ok('tanda tertunda direset saat modal ditutup', /state\._collabEdit=false; state\._collabDirty=false; state\._collabDraft=\[\];/.test(commHtml));
 
 // Pemilih identitas: kolom menyesuaikan jumlah nama supaya barisnya seimbang.
@@ -1814,4 +1815,70 @@ call('deletePackage', buat2.paketId, 'Manager');
 call('deleteCollab', MKB, 'Manager');
 
 
+
+console.log('\n=== 18. Uncheck, salin ke Marsel, duplikat task, bagikan ke Lintas Divisi ===');
+
+// --- (1) UNCHECK harus mengembalikan rancangan, bukan sekadar menghentikan pertambahan ---
+call('saveCollab', { title: 'Uji Uncheck', platform: 'JadiASN', type: 'Course',
+  steps: [{ order: 1, name: 'Garap paket', pic: 'Staff Data' }] }, 'Manager');
+const UC = call('getCollabs').filter(c => c.title === 'Uji Uncheck')[0].id;
+const UP = call('savePackage', '', { platform: 'JadiASN', marsel: { namaPaket: 'Paket Uncheck' } }, 'Manager').paketId;
+call('setCollabPackage', UC, UP, 'Manager');
+call('savePackage', UP, { items: [
+  { kategori: 'Latsol', grup: 'Tahap 1', nama: 'Latsol Uncheck', target: 10, satuan: 'Paket' } ] }, 'Manager');
+const upk = function () { return call('getPackages').filter(p => p.id === UP)[0]; };
+const uit = function () { return upk().items.filter(x => x.nama === 'Latsol Uncheck')[0]; };
+call('setPackageContrib', UP, UC, [{ itemId: uit().itemId, stepOrder: 1, jumlah: 4 }], 'Manager');
+
+eq('sebelum dicentang: masih menunggu', uit().menunggu, 4);
+eq('sebelum dicentang: belum terpenuhi', uit().terpenuhi, 0);
+call('setCollabStepDone', UC, 1, true, 'Staff Data');
+eq('dicentang -> setoran terhitung', uit().terpenuhi, 4);
+eq('dicentang -> tak ada lagi yang menunggu', uit().menunggu, 0);
+// INTI PERMINTAANNYA: batal centang harus tercermin di rancangan, bukan angka yang telanjur naik.
+call('setCollabStepDone', UC, 1, false, 'Manager');
+eq('UNCHECK -> setoran ditarik lagi', uit().terpenuhi, 0);
+eq('UNCHECK -> kembali jadi menunggu', uit().menunggu, 4);
+eq('UNCHECK -> kekurangan dihitung ulang', uit().sisa, 10);
+eq('UNCHECK -> statusnya balik ke proses', uit().status, 'proses');
+eq('UNCHECK -> ringkasan paket ikut mundur', upk().ringkas.terpenuhi, 0);
+call('setCollabStepDone', UC, 1, true, 'Staff Data');
+eq('dicentang lagi -> naik lagi (bolak-balik aman)', uit().terpenuhi, 4);
+
+// --- (4) Bagikan rancangan ke Lintas Divisi: wewenang Manager, seperti task biasa ---
+eq('rancangan baru TIDAK otomatis dibagikan', upk().mirror, false);
+eq('staff DITOLAK membagikan rancangan', call('savePackage', UP, { mirror: true }, 'Staff Data').success, false);
+eq('leader DITOLAK membagikan rancangan', call('savePackage', UP, { mirror: true }, 'Leader Konten').success, false);
+eq('penolakan itu tak diam-diam mengubah', upk().mirror, false);
+eq('manager boleh membagikan', call('savePackage', UP, { mirror: true }, 'Manager').success, true);
+eq('rancangan tercatat dibagikan', upk().mirror, true);
+eq('membagikan tak merusak target', upk().items.length, 1);
+eq('membagikan tak merusak setoran', uit().terpenuhi, 4);
+eq('manager boleh menarik kembali', (call('savePackage', UP, { mirror: false }, 'Manager'), upk().mirror), false);
+
+call('deletePackage', UP, 'Manager');
+call('deleteCollab', UC, 'Manager');
+
+// --- (2) Salin untuk sheet Marsel: TSV, bukan berkas Excel ---
+ok('ada penyalin rancangan ke papan klip', commHtml.indexOf('function salinRancanganKeKlip') >= 0);
+ok('barisnya disusun mengikuti kolom sheet Master', commHtml.indexOf('function pkgBarisTsv') >= 0);
+ok('teks selnya dibangun ulang dari target', commHtml.indexOf('function pkgSelTeks') >= 0);
+ok('kekurangan ditandai COMING SOON seperti di sheet asal', commHtml.indexOf('COMING SOON') >= 0);
+ok('kolomnya dipisah TAB, bukan koma', commHtml.indexOf(String.fromCharCode(46,106,111,105,110,40,39,92,116,39,41)) >= 0);
+ok('sel bermultibaris dibungkus petik ganda', commHtml.indexOf(String.fromCharCode(92) + 'r]/.test(s)') >= 0);
+ok('petik di dalam sel digandakan', commHtml.indexOf("replace(/\"/g,'\"\"')") >= 0);
+ok('memakai Clipboard API', commHtml.indexOf('navigator.clipboard.writeText') >= 0);
+ok('punya cadangan bila peramban menolak', /execCommand\('copy'\)/.test(commHtml));
+ok('tombol salin ada di menu rancangan', commHtml.indexOf('Salin utk Marsel') >= 0);
+ok('yang terpilih saja pun bisa disalin', commHtml.indexOf('Salin terpilih') >= 0);
+
+// --- (3) Duplikat task kolaborasi, seperti copy task biasa ---
+ok('modal collab menerima sumber duplikat', commHtml.indexOf("function openCollabModal(id='', dupFrom='')") >= 0);
+ok('ada tombol Duplikat di modal collab', commHtml.indexOf('id="collabDupBtn"') >= 0);
+ok('tombolnya memanggil penyalin', commHtml.indexOf('onclick="duplikatCollabDariModal()"') >= 0);
+ok('salinan diberi penanda judul', commHtml.indexOf('Salinan — ') >= 0);
+ok('tombol duplikat disembunyikan saat task baru', commHtml.indexOf("dup.classList.toggle('hide', !manage || isNew)") >= 0);
+
+// Lintas Divisi hanya melihat rancangan yang memang dibagikan.
+ok('daftar rancangan disaring untuk Lihat Saja', commHtml.indexOf('if(isViewOnly()) arr=arr.filter(p=>p.mirror);') >= 0);
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

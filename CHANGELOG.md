@@ -31,6 +31,48 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.88.0 — Salin rancangan ke sheet Marsel, duplikat task kolaborasi, bagikan ke Lintas Divisi
+
+Empat hal sekaligus, semuanya berputar di sekitar Rancangan Paket.
+
+**Batal centang kini tercermin di rancangan.** Sebenarnya ini sudah benar sejak awal —
+setoran dihitung ulang dari status proses, bukan ditumpuk saat dicentang — tapi belum
+pernah diuji secara khusus. Sekarang ada tujuh assertion yang mengunci perilakunya:
+centang → setoran masuk, batal centang → setoran **ditarik lagi**, kembali jadi *menunggu*,
+kekurangan dihitung ulang, status balik ke `proses`, dan ringkasan paket ikut mundur.
+Bolak-balik centang tak menyisakan angka nyasar.
+
+**Tombol "Salin utk Marsel".** Tidak diunduh sebagai berkas Excel — dan itu disengaja.
+Tujuannya Google Spreadsheet, jadi menyalin sebagai TSV lalu `Ctrl+V` langsung mendarat
+satu sel per kolom: tanpa unduh, tanpa impor, tanpa berkas menumpuk di folder unduhan.
+Berkas `.xlsx` justru menambah tiga langkah untuk hasil yang sama.
+
+Teks selnya **dibangun ulang dari target yang hidup**, meniru bentuk sheet asalnya:
+
+    Tahap 1
+     • Latsol Verbal PCPM BI 41 – 10 Paket
+     • Latsol Numerik PCPM BI 41 – 10 Paket + 10 Paket COMING SOON
+     Total: 20 Paket
+
+Yang belum penuh otomatis ditandai `+ N COMING SOON`, persis kebiasaan di sheet Marsel.
+Kolomnya mengikuti susunan sheet Master — APK, Dibimbing, Latsol, Materi, Tryout,
+Drilling, Live Class, Catatan Produk — jadi bisa ditempel ke barisnya langsung. Sel yang
+memuat banyak baris dibungkus petik ganda, kalau tidak Sheets memecahnya jadi banyak
+baris. Ada tombol untuk **semua** yang tersaring, dan untuk **yang terpilih saja**.
+Peramban yang menolak Clipboard API (mis. iframe Apps Script) jatuh ke cara lama.
+
+**Duplikat task kolaborasi**, seperti copy task biasa. Tombol *Duplikat* di modal task
+menyalin platform, tipe, warna, deskripsi, dan seluruh daftar proses lengkap dengan PIC
+dan stage-nya. Judulnya diberi awalan `Salinan — ` supaya tak tertukar di daftar.
+**Deadline dan centang tidak ikut**: jadwal task lama hampir tak pernah cocok untuk yang
+baru, dan mewarisi centang berarti mewarisi pekerjaan yang belum dikerjakan.
+
+**Rancangan bisa dibagikan ke Lintas Divisi**, mengikuti pola task biasa: wewenang
+**Manager**, dan yang tak dibagikan tak pernah sampai ke layar Lintas Divisi. Sheet
+`PACKAGES` melebar ke kolom **T**.
+
+---
+
 ## 1.87.5 — Blok Rancangan bisa dilipat di modal task kolaborasi
 
 Rancangan bisa berpuluh baris — PCPM BI 41 saja punya 27 target. Di modal task kolaborasi
