@@ -31,6 +31,57 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.90.0 — Salin isi antar kategori, penanda Lintas Divisi, dan importer masuk repo
+
+### Isi rancangan bisa disalin antar kategori
+
+Nama target sering berulang: *Verbal*, *Hitung Cepat*, *Bangun Ruang* muncul di **Latsol**,
+**Materi**, dan **Tryout** sekaligus. Mengetiknya tiga kali itu pekerjaan sia-sia — dan
+rawan salah ketik, yang bikin dua target yang sebenarnya sama terlihat berbeda.
+
+Tiap kategori yang sudah ada isinya kini punya pilihan **"Salin ke…"** di kepalanya.
+Yang disalin apa adanya: grup, nama, target, satuan, dan awal — biasanya yang perlu diubah
+cuma satuan dan angkanya, dan itu lebih cepat disunting daripada diketik ulang.
+
+Tiga hal yang dijaga:
+
+- **Yang namanya sudah ada di kategori tujuan dilewati**, jadi menyalin dua kali tidak
+  melahirkan baris kembar.
+- **Setoran tidak ikut.** Setoran menempel pada pekerjaan yang benar-benar terjadi, bukan
+  pada nama target.
+- **Nomor target dikosongkan** supaya server memberi nomor baru — kalau diwarisi, dua
+  kategori akan menunjuk baris target yang sama.
+
+Hasil salinan belum tersimpan sampai **Simpan** ditekan, dan pesannya mengatakan itu.
+
+### Penanda Lintas Divisi di daftar rancangan
+
+Sebelumnya status "sudah dibagikan atau belum" hanya kelihatan setelah paketnya dibuka.
+Sekarang ada penandanya langsung di kartu: **chip hijau "Lintas Divisi"** kalau sudah
+dibagikan. Manager bisa mengklik penanda itu untuk menyalakan/mematikan tanpa membuka
+paketnya — mengikuti pola ikon `cast` pada task biasa. Yang bukan Manager hanya melihat,
+dan kalau paketnya belum dibagikan mereka tak melihat apa-apa.
+
+### Importer rancangan masuk repo
+
+`scripts/impor-rancangan-produksi.js` beserta penguraiannya (`scripts/urai-master.js`),
+dokumentasi pemakaian (`scripts/README.md`), dan **37 assertion** di `test/impor.test.js`
+yang ikut `npm test`. Sebelumnya skrip ini hidup di luar repo — padahal ia menulis langsung
+ke spreadsheet produksi, justru yang paling perlu diuji.
+
+Satu perbaikan ikut terbawa ke penguraiannya: baris ringkasan dulu hanya dikenali kalau
+berbentuk `Total:` atau `Total=`, sehingga `Total TWK: 50 Paket` dan
+`Total Keseluruhan: 210 Paket` lolos jadi target. Di kolom Latsol JadiASN itu berarti 22
+item asli senilai 210 Paket ditambah **420 Paket palsu** dari empat baris ringkasan.
+Sekarang semua baris yang diawali kata "Total" dilewati.
+
+Pengaman skripnya: uji coba adalah bawaannya (menulis hanya dengan `--apply`), paket yang
+namanya sudah ada dilewati bukan ditimpa, nomor `PKG-`/`ITM-` selalu lanjut dari yang
+tertinggi, dan kolom Mirror dibiarkan kosong — hasil impor tidak otomatis tampil ke Lintas
+Divisi.
+
+---
+
 ## 1.89.4 — Penanda STAGING diambil dari environment, bukan ditebak dari alamat
 
 Penanda staging sebelumnya menebak dari hostname: satu daftar host produksi, sisanya

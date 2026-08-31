@@ -1960,6 +1960,21 @@ ok('environment dari server disimpan', commHtml.indexOf('state.env = String(data
 ok('penanda bisa DICABUT lagi', commHtml.indexOf("logo.classList.remove('bg-amber-500'); logo.classList.add('bg-indigo-600');") >= 0);
 ok('garis kuning ikut dicabut', commHtml.indexOf('if(strip) strip.remove();') >= 0);
 ok('judul halaman ikut dibersihkan', commHtml.indexOf("document.title.split('[STAGING] ').join('')") >= 0);
+/* Nama target sering berulang antar kategori ("Verbal" ada di Latsol, Materi, dan Tryout).
+   Mengetiknya berkali-kali rawan salah ketik, dan salah ketik bikin dua target yang
+   sebenarnya sama terlihat berbeda. */
+ok('isi kategori bisa disalin ke kategori lain', commHtml.indexOf('function pkgSalinKategori(dari, ke)') >= 0);
+ok('ada kontrol Salin ke di kepala kategori', commHtml.indexOf('Salin ke…') >= 0);
+ok('tujuannya tak boleh kategori itu sendiri', commHtml.indexOf('PKG_KATEGORI.filter(k=>k!==kat)') >= 0);
+ok('yang sudah ada dilewati, bukan digandakan', commHtml.indexOf('sumber.filter(x=>!sudahAda.has(kunci(x)))') >= 0);
+ok('salinan dapat nomor baru dari server', commHtml.indexOf("salin.map(x=>({ itemId: ''") >= 0 || commHtml.indexOf("itemId:'', kategori:ke") >= 0);
+
+// Penanda apakah rancangan sudah dibagikan ke Lintas Divisi, terlihat langsung dari daftar.
+ok('kartu rancangan memberi penanda Lintas Divisi', commHtml.indexOf('Lintas Divisi</span>') >= 0 || commHtml.indexOf("'Lintas Divisi'") >= 0);
+ok('penandanya bisa diklik Manager dari daftar', commHtml.indexOf("togglePaketMirror('") >= 0);
+ok('togglePaketMirror menerima nomor paket', commHtml.indexOf('function togglePaketMirror(id)') >= 0);
+ok('klik penanda tak ikut membuka kartunya', commHtml.indexOf('event.stopPropagation(); togglePaketMirror(') >= 0);
+ok('yang bukan Manager hanya melihat, tak bisa mengubah', commHtml.indexOf("${canMirror()") >= 0);
 ok('satuan Video + Ebook tersedia', commHtml.indexOf("const PKG_SATUAN=['Paket','BAB','Sesi','Video','Ebook','Video + Ebook'];") >= 0);
 ok('kolom satuan cukup lebar untuk menampungnya', commHtml.indexOf('pkgi-satuan ${PKG_F} w-[7rem]') >= 0);
 ok('ada pembangun baris setoran', commHtml.indexOf('function pkgSetorBaris(c, k, n)') >= 0);
