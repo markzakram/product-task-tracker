@@ -1418,7 +1418,9 @@ function ensurePackageSheets_() {
   sheet_(CONFIG.PACKAGE_SHEET, true);
   var head = [];
   try { head = valuesGet_(CONFIG.PACKAGE_SHEET + '!A1:T1'); } catch (e) { head = []; }
-  if (!((head[0] || [])[0])) valuesUpdate_(CONFIG.PACKAGE_SHEET + '!A1:T1', [SHEET_HEADERS[CONFIG.PACKAGE_SHEET]]);
+  // Dicek per PANJANG, bukan sekadar A1 kosong: sheet PACKAGES yang sudah telanjur ada
+  // masih berjudul 19 kolom, jadi kolom Mirror yang baru tak akan pernah dapat judulnya.
+  if (((head[0] || []).length) < SHEET_HEADERS[CONFIG.PACKAGE_SHEET].length) valuesUpdate_(CONFIG.PACKAGE_SHEET + '!A1:T1', [SHEET_HEADERS[CONFIG.PACKAGE_SHEET]]);
   sheet_(CONFIG.PACKAGE_VARIANT_SHEET, true);
   try { head = valuesGet_(CONFIG.PACKAGE_VARIANT_SHEET + '!A1:F1'); } catch (e) { head = []; }
   if (!((head[0] || [])[0])) valuesUpdate_(CONFIG.PACKAGE_VARIANT_SHEET + '!A1:F1', [SHEET_HEADERS[CONFIG.PACKAGE_VARIANT_SHEET]]);

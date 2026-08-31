@@ -1867,7 +1867,16 @@ ok('kekurangan ditandai COMING SOON seperti di sheet asal', commHtml.indexOf('CO
 ok('kolomnya dipisah TAB, bukan koma', commHtml.indexOf(String.fromCharCode(46,106,111,105,110,40,39,92,116,39,41)) >= 0);
 ok('sel bermultibaris dibungkus petik ganda', commHtml.indexOf(String.fromCharCode(92) + 'r]/.test(s)') >= 0);
 ok('petik di dalam sel digandakan', commHtml.indexOf("replace(/\"/g,'\"\"')") >= 0);
-ok('memakai Clipboard API', commHtml.indexOf('navigator.clipboard.writeText') >= 0);
+ok('memakai Clipboard API', commHtml.indexOf('navigator.clipboard.write') >= 0);
+// Sel Latsol bisa 10 baris; tempelan teks polos berisiko memecahnya jadi 10 BARIS sheet.
+// Rasa text/html membuat Sheets membacanya sebagai tabel, jadi baris tetap di dalam sel.
+ok('menyalin sekalian sebagai tabel HTML', commHtml.indexOf('function pkgBarisHtml') >= 0);
+ok('sel HTML dibangun terpisah', commHtml.indexOf('function pkgSelHtml') >= 0);
+ok('dua rasa ditaruh bersamaan', commHtml.indexOf(String.fromCharCode(39)+'text/html'+String.fromCharCode(39)) >= 0 && commHtml.indexOf('ClipboardItem') >= 0);
+ok('baris baru jadi <br>, bukan sel baru', commHtml.indexOf(String.fromCharCode(39)+'<br>'+String.fromCharCode(39)) >= 0);
+ok('isi sel HTML tetap di-escape', commHtml.indexOf('escapeHtml(pkgSelTeks(p, kat))') >= 0);
+ok('cadangan pun membawa dua rasa', commHtml.indexOf("dt.setData('text/html', html)") >= 0);
+ok('cadangan menerima html', commHtml.indexOf('function salinCaraLama(teks, html, beres)') >= 0);
 ok('punya cadangan bila peramban menolak', /execCommand\('copy'\)/.test(commHtml));
 ok('tombol salin ada di menu rancangan', commHtml.indexOf('Salin utk Marsel') >= 0);
 ok('yang terpilih saja pun bisa disalin', commHtml.indexOf('Salin terpilih') >= 0);
@@ -1881,4 +1890,7 @@ ok('tombol duplikat disembunyikan saat task baru', commHtml.indexOf("dup.classLi
 
 // Lintas Divisi hanya melihat rancangan yang memang dibagikan.
 ok('daftar rancangan disaring untuk Lihat Saja', commHtml.indexOf('if(isViewOnly()) arr=arr.filter(p=>p.mirror);') >= 0);
+ok('tombol bagikan memakai penjaga yang sama dengan task biasa', commHtml.indexOf('(!lipat&&canMirror())') >= 0);
+ok('togglePaketMirror pun dijaga canMirror', commHtml.indexOf('if(!canMirror()){ showToast(') >= 0);
+ok('Lihat Saja tak ditawari salin utk Marsel', commHtml.indexOf("salinBtn.classList.toggle('hide', isViewOnly()") >= 0);
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

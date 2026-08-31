@@ -1300,7 +1300,9 @@ async function ensurePackageSheets() {
   if (_ensured.has('package')) return;
   await ensureSheetExists(CONFIG.PACKAGE_SHEET);
   let head = await valuesGet(`${CONFIG.PACKAGE_SHEET}!A1:T1`);
-  if (!((head[0] || [])[0])) await valuesUpdate(`${CONFIG.PACKAGE_SHEET}!A1:T1`, [PKG_HEADERS]);
+  // Dicek per PANJANG, bukan sekadar A1 kosong: sheet PACKAGES yang sudah telanjur ada
+  // masih berjudul 19 kolom, jadi kolom Mirror yang baru tak akan pernah dapat judulnya.
+  if (((head[0] || []).length) < PKG_HEADERS.length) await valuesUpdate(`${CONFIG.PACKAGE_SHEET}!A1:T1`, [PKG_HEADERS]);
   await ensureSheetExists(CONFIG.PACKAGE_VARIANT_SHEET);
   head = await valuesGet(`${CONFIG.PACKAGE_VARIANT_SHEET}!A1:F1`);
   if (!((head[0] || [])[0])) await valuesUpdate(`${CONFIG.PACKAGE_VARIANT_SHEET}!A1:F1`, [PKGV_HEADERS]);

@@ -438,7 +438,7 @@
               <input id="paketSearch" oninput="renderPaket()" placeholder="Cari nomor, nama paket, program…" class="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-slate-800 border-0 outline-none focus:ring-2 focus:ring-indigo-300 text-sm">
             </div>
             <select id="paketFilterPlatform" onchange="renderPaket()" class="px-2.5 py-2 rounded-lg text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 outline-none"><option value="">Semua Platform</option></select>
-            <button id="paketCopyBtn" onclick="salinRancanganKeKlip(paketPilih())" title="Salin sebagai baris siap tempel ke sheet Marsel (Ctrl+V)" class="px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">content_paste_go</span>Salin utk Marsel</button>
+            <button id="paketCopyBtn" onclick="salinRancanganKeKlip(paketPilih())" title="Salin sebagai baris siap tempel ke sheet Marsel (Ctrl+V)" class="hide px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">content_paste_go</span>Salin utk Marsel</button>
             <button id="paketSelectAllBtn" onclick="paketPilihSemua()" class="hide px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">select_all</span>Pilih semua</button>
           </div>
           <!-- Bilah aksi massal: hanya muncul saat ada yang dipilih -->
@@ -852,7 +852,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.88.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.88.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3595,7 +3595,7 @@ function renderPackagePanel(){
 
       ${(bisaP||bisaRancang||(c&&canManageCollab()))?`<div class="flex items-center justify-between gap-2 flex-wrap">
         <span class="text-[11px] text-gray-400">${p.updatedBy?`Terakhir diubah ${escapeHtml(p.updatedBy)}${p.updatedAt?' · '+escapeHtml(p.updatedAt):''}`:'Belum pernah disimpan.'}</span>
-        ${(!lipat&&isManager(state.currentUser))?`<button type="button" onclick="togglePaketMirror()" title="Tampilkan rancangan ini di layar Lintas Divisi" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border ${p.mirror?'border-emerald-300 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20':'border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400'} text-[11px] font-semibold"><span class="material-icons-round text-[13px]">${p.mirror?'visibility':'visibility_off'}</span>${p.mirror?'Tampil di Lintas Divisi':'Bagikan ke Lintas Divisi'}</button>`:''}
+        ${(!lipat&&canMirror())?`<button type="button" onclick="togglePaketMirror()" title="Tampilkan rancangan ini di layar Lintas Divisi" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border ${p.mirror?'border-emerald-300 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20':'border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400'} text-[11px] font-semibold"><span class="material-icons-round text-[13px]">${p.mirror?'visibility':'visibility_off'}</span>${p.mirror?'Tampil di Lintas Divisi':'Bagikan ke Lintas Divisi'}</button>`:''}
         <button type="button" onclick="savePackagePanel()" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan</button>
       </div>`:`<div class="text-[11px] text-gray-400">Paket ini sudah punya PIC dan bukan Anda, jadi isinya hanya bisa dilihat.</div>`}
     </div>`;
@@ -3821,32 +3821,64 @@ function pkgBarisTsv(p){
   // Sheets memecahnya jadi banyak baris saat ditempel.
   return sel.map(v=>{ const s=String(v==null?'':v); return /["\t\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join('\t');
 }
+/* Satu sel dalam bentuk HTML. Sheets membaca rasa text/html sebagai tabel sungguhan,
+   jadi baris baru di dalam sel tetap jadi baris baru DI DALAM sel — bukan memecah
+   satu paket jadi belasan baris di sheet Marsel. */
+function pkgSelHtml(p, kat){
+  return escapeHtml(pkgSelTeks(p, kat)).split('\n').join('<br>');
+}
+function pkgBarisHtml(p){
+  const sel=[escapeHtml(p.platform||''), pkgSelHtml(p,'Dibimbing'), pkgSelHtml(p,'Latsol'), pkgSelHtml(p,'Materi'),
+    pkgSelHtml(p,'Tryout'), pkgSelHtml(p,'Drilling'), pkgSelHtml(p,'Live Class'),
+    escapeHtml(String(p.catatan||'')).split('\n').join('<br>')];
+  return '<tr>'+sel.map(v=>'<td>'+v+'</td>').join('')+'</tr>';
+}
 function salinRancanganKeKlip(ids){
   const daftar=(ids&&ids.length?ids:paketTersaring().map(p=>p.id)).map(packageById).filter(Boolean);
   if(!daftar.length){ showToast('Tak ada paket untuk disalin.', false); return; }
-  const kepala=['APK','Dibimbing','Latsol','Materi','Tryout','Drilling','Live Class','Catatan Produk'].join('\t');
-  const teks=[kepala].concat(daftar.map(pkgBarisTsv)).join('\n');
+  const KOLOM=['APK','Dibimbing','Latsol','Materi','Tryout','Drilling','Live Class','Catatan Produk'];
+  const teks=[KOLOM.join('\t')].concat(daftar.map(pkgBarisTsv)).join('\n');
+  /* DUA rasa sekaligus, dan itu memang perlu: sel Latsol bisa 10 baris, dan penempelan
+     teks polos berisiko memecahnya jadi 10 baris sheet. Sheets mengutamakan text/html
+     bila ada, jadi bentuk tabelnya yang dipakai; text/plain tetap disertakan untuk
+     tujuan lain (Excel, Notion, editor teks). */
+  const html='<table><tr>'+KOLOM.map(k=>'<th>'+escapeHtml(k)+'</th>').join('')+'</tr>'
+    +daftar.map(pkgBarisHtml).join('')+'</table>';
   const beres=()=>showToast(daftar.length+' paket disalin — tinggal tempel (Ctrl+V) di sheet Marsel.');
-  if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(teks).then(beres).catch(()=>salinCaraLama(teks, beres));
-  } else salinCaraLama(teks, beres);
+  if(navigator.clipboard && navigator.clipboard.write && typeof ClipboardItem!=='undefined'){
+    try{
+      navigator.clipboard.write([new ClipboardItem({
+        'text/plain': new Blob([teks], {type:'text/plain'}),
+        'text/html' : new Blob([html], {type:'text/html'}),
+      })]).then(beres).catch(()=>salinCaraLama(teks, html, beres));
+      return;
+    }catch(e){ /* ClipboardItem ada tapi ditolak konteksnya -> cara lama */ }
+  }
+  salinCaraLama(teks, html, beres);
 }
-// Cadangan untuk peramban/konteks yang menolak Clipboard API (mis. iframe Apps Script).
-function salinCaraLama(teks, beres){
+/* Cadangan untuk peramban/konteks yang menolak Clipboard API (mis. iframe Apps Script).
+   Textarea dipakai supaya ADA yang terseleksi (syarat execCommand di sebagian peramban),
+   lalu event copy dibajak agar kedua rasa tetap ikut, bukan cuma teks polos. */
+function salinCaraLama(teks, html, beres){
+  const bajak=(e)=>{
+    const dt=e.clipboardData||window.clipboardData; if(!dt) return;
+    try{ dt.setData('text/plain', teks); if(html) dt.setData('text/html', html); e.preventDefault(); }catch(err){}
+  };
+  document.addEventListener('copy', bajak, true);
   const ta=document.createElement('textarea');
   ta.value=teks; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.top='-1000px';
   document.body.appendChild(ta); ta.select();
   let ok=false; try{ ok=document.execCommand('copy'); }catch(e){ ok=false; }
   document.body.removeChild(ta);
+  document.removeEventListener('copy', bajak, true);
   if(ok) beres(); else showToast('Peramban menolak menyalin. Buka paketnya lalu salin manual.', false);
 }
-
 /* ---------- Bagikan rancangan ke Lintas Divisi ----------
    Mengikuti pola "mirror" pada task biasa: wewenang Manager, dan yang tak dibagikan
    tak pernah sampai ke layar Lintas Divisi. */
 function togglePaketMirror(){
   const p=currentPackage(); if(!p) return;
-  if(!isManager(state.currentUser)){ showToast('Hanya Manager yang bisa membagikan paket ke Lintas Divisi.', false); return; }
+  if(!canMirror()){ showToast('Hanya Manager yang bisa membagikan paket ke Lintas Divisi.', false); return; }
   GAS.withSuccessHandler(res=>{
     if(!res||!res.success){ showToast((res&&res.message)||'Gagal mengubah', false); return; }
     state.packages=res.packages||state.packages; state.collabs=res.collabs||state.collabs;
@@ -3882,6 +3914,9 @@ function renderPaket(){
     const semua=arr.length && arr.every(p=>dipilih.indexOf(p.id)>=0);
     const sa=document.getElementById('paketBulkAll'); if(sa) sa.textContent=semua?'Batal pilih yang tampil':'Pilih semua yang tampil';
   }
+  // Salin-utk-Marsel tak berguna bagi Lintas Divisi: sheet Marsel itu urusan internal.
+  const salinBtn=document.getElementById('paketCopyBtn');
+  if(salinBtn) salinBtn.classList.toggle('hide', isViewOnly() || !arr.length);
   const selAll=document.getElementById('paketSelectAllBtn');
   if(selAll) selAll.classList.toggle('hide', !bisaHapusPaket() || !arr.length);
   if(!arr.length){ list.innerHTML=`<div class="md:col-span-2 xl:col-span-3">${emptyState(allPackages().length?'Tak ada paket yang cocok.':'Belum ada paket. Buat lewat task kolaborasi, atau impor dari sheet Master.')}</div>`; return; }

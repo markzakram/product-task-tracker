@@ -31,6 +31,41 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.88.1 — Hasil QC sebelum naik produksi
+
+Empat temuan dari pemeriksaan menyeluruh atas 1.88.0. Tak ada yang mengubah cara kerja
+fiturnya; semuanya menutup celah yang baru kelihatan saat ditelusuri satu per satu.
+
+**Salinan untuk Marsel kini dibawa dalam dua rasa.** Ini temuan terpenting. Sel Latsol
+PCPM BI 41 panjangnya belasan baris, dan tempelan **teks polos** berisiko dipecah Sheets
+menjadi belasan **baris sheet** — kekacauan yang mendarat langsung di file Marsel yang
+dipakai orang. Sekarang papan klip diisi `text/plain` (TSV) **dan** `text/html` (tabel
+sungguhan, baris baru jadi `<br>`). Sheets mengutamakan rasa HTML, jadi satu paket tetap
+satu baris dengan isi utuh di dalam selnya; TSV tetap disertakan untuk Excel, Notion, atau
+editor teks. Jalur cadangan pun ikut membawa kedua rasa lewat event `copy`, bukan cuma
+teks polos.
+
+**Tombol "Bagikan ke Lintas Divisi" memakai penjaga yang sama dengan task biasa.**
+Sebelumnya syaratnya `isManager(...)` telanjang, sedangkan idiom aplikasi untuk hal yang
+sama persis adalah `canMirror()` — yang juga menutup mode tamu dan Lihat Saja. Backend
+memang sudah menolak, jadi tak pernah ada data yang bocor; yang salah hanya tombolnya
+sempat tampil.
+
+**Lihat Saja tak lagi ditawari "Salin utk Marsel".** Sheet Marsel urusan internal.
+
+**Judul kolom Mirror kini benar-benar terpasang.** Perbaikan header hanya jalan kalau A1
+kosong, jadi sheet `PACKAGES` yang sudah telanjur ada — staging maupun produksi nanti —
+akan berhenti di 19 judul dan kolom T menganga tanpa nama. Sekarang dicek per **panjang**
+header, bukan per sel pertama. Sudah dijalankan di staging: `T1` kosong → `Mirror`.
+
+Diperiksa juga dan memang sudah benar: paritas dua backend untuk kolom T (`rowToPackage`,
+`packageToRow`, rentang `A1:T1`/`A2:T`/`A:T`, penjaga izin), baris pendek 19 kolom terbaca
+aman sebagai `mirror: false`, tak ada `id` atau nama fungsi kembar, seluruh 144 handler
+HTML punya fungsinya, dan duplikat task kolaborasi sudah menolak dengan konfirmasi bila
+ada perubahan belum tersimpan.
+
+---
+
 ## 1.88.0 — Salin rancangan ke sheet Marsel, duplikat task kolaborasi, bagikan ke Lintas Divisi
 
 Empat hal sekaligus, semuanya berputar di sekitar Rancangan Paket.
