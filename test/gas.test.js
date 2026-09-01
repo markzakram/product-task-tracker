@@ -2223,4 +2223,15 @@ ok('ditandai opsional', commHtml.indexOf('opsional, boleh lebih dari satu') >= 0
 ok('URL tanpa skema dirapikan', commHtml.indexOf('function pkgRapiUrl(u)') >= 0);
 ok('dibuka di tab baru', commHtml.indexOf("window.open(u, '_blank', 'noopener')") >= 0);
 ok('tautan ikut dikirim saat menyimpan', commHtml.indexOf('payload.links=pkgReadTautan();') >= 0);
+
+/* Chip di kepala panel: menunjukkan BAHWA ada tautan sekaligus jadi jalan pintas ke sana,
+   tanpa perlu menggulung ke bawah dulu. */
+ok('kepala panel menampilkan chip tautan', commHtml.indexOf('(p.links||[]).map(pkgChipTautan)') >= 0);
+ok('ada pembuat chip', commHtml.indexOf('function pkgChipTautan(t)') >= 0);
+ok('tanpa label chip memakai nama host', commHtml.indexOf('function pkgNamaTautan(t)') >= 0);
+// new URL() sengaja dihindari: alamat yang belum sempurna akan melempar dan merontokkan
+// seluruh panel, padahal ini cuma soal label.
+ok('nama host diambil lewat pola, bukan new URL()', commHtml.indexOf('.exec(pkgRapiUrl((t&&t.url)') >= 0);
+ok('klik chip tak ikut membuka kartunya', commHtml.indexOf("event.stopPropagation(); window.open(") >= 0);
+ok('nama panjang dipotong, tata letak tak terdorong', commHtml.indexOf('max-w-[10rem]') >= 0);
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

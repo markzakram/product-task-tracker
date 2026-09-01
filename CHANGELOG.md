@@ -31,6 +31,31 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.92.1 — Tautan terlihat dan langsung bisa dibuka dari kepala panel
+
+Tautan yang sudah disematkan kini muncul sebagai **chip di kepala Rancangan Paket**, di
+baris yang sama dengan hitungan target. Dua gunanya sekaligus: terlihat **bahwa** paket ini
+punya tautan tanpa perlu menggulung ke bawah, dan sekali klik langsung terbuka di tab baru.
+
+Chipnya memakai **label** tautan kalau ada; kalau labelnya kosong, dipakai **nama host** —
+`drive.google.com` masih memberi tahu orang ini mau ke mana, sedangkan URL penuh terlalu
+panjang untuk chip. URL selengkapnya tetap terbaca lewat tooltip.
+
+Tiga hal kecil yang dijaga:
+
+- **Nama host diambil dengan pola, bukan `new URL()`.** Alamat yang belum sempurna akan
+  membuat `new URL()` melempar galat dan merontokkan seluruh panel — padahal ini cuma soal
+  label. Alamat tak keruan cukup jatuh ke kata "tautan".
+- **Klik chip tidak merambat** ke panel di belakangnya, jadi membuka tautan tak ikut
+  membuka atau menutup bloknya.
+- **Nama panjang dipotong** dan lebarnya dibatasi, supaya satu label panjang tak mendorong
+  hitungan target keluar baris.
+
+Yang ditampilkan adalah tautan yang **sudah tersimpan**; baris yang baru diketik muncul di
+kepala setelah ditekan Simpan.
+
+---
+
 ## 1.92.0 — Tautan pendukung paket: opsional, boleh lebih dari satu
 
 Rancangan paket kini bisa menyematkan tautan — folder akademik, dokumen kisi-kisi, hasil
