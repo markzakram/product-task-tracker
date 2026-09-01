@@ -31,6 +31,50 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.93.0 — Task kolaborasi bisa dibagikan ke Lintas Divisi
+
+Melengkapi yang sudah berlaku untuk task biasa dan rancangan paket: task kolaborasi kini
+bisa ditandai untuk tampil di layar **Lintas Divisi**. Penandanya ada di kartu daftar
+sekaligus jadi tombolnya, dan ada juga di dalam modal tasknya.
+
+Kolom baru **K "Mirror"** di sheet `COLLAB`, ditulis lewat aksi tersendiri
+(`setCollabMirror`) yang menyentuh **kolom K saja** — persis pola `setCollabPackage` untuk
+kolom J. Sengaja tidak lewat `saveCollab`: fungsi itu menulis rentang `A:I`, dan menariknya
+sampai K berarti tiap penyimpanan biasa berisiko menimpa kolom yang bukan urusannya. Pola
+itulah yang dulu membuat tautan paket hilang sendiri, jadi ada dua assertion khusus
+memastikan menyimpan task dan menautkan paket **tidak** mencabut pembagiannya.
+
+### Lintas Divisi sekarang punya tab Kolaborasi
+
+Sebelumnya menu itu disembunyikan sepenuhnya dari mode Lihat Saja. Sekarang dibuka, tapi
+isinya **disaring**: hanya task yang memang dibagikan. Disaring di satu tempat
+(`filteredCollabs`) yang dipakai seluruh tampilan — grid, kanban, dan hitungannya — jadi
+tak ada jalur yang lupa menyaring.
+
+Seluruh tombol ubah tetap tertutup lewat `canManageCollab()`, dan kotak komentar tetap
+disembunyikan seperti sebelumnya.
+
+**Paket yang belum dibagikan tak ikut terbuka.** Task yang dibagikan bisa saja tertaut ke
+rancangan paket yang belum dibagikan; tanpa penjagaan, membagikan satu task diam-diam ikut
+membuka rancangannya. `currentPackage()` kini menahannya.
+
+### Wewenang
+
+Sama dengan mirror **paket**: **Leader & Manager**. Berbeda dari mirror **task biasa** yang
+tetap PM/Dev saja — task kolaborasi memang dikelola Leader sehari-hari. Penjaganya ditulis
+sebagai fungsi sendiri (`canMirrorCollab`), bukan memakai ulang yang sudah ada: aturannya
+kebetulan sama hari ini, tapi menyatukannya berarti melonggarkan yang satu diam-diam
+melonggarkan yang lain.
+
+| | Manager | Leader | Staff | Lihat Saja |
+|---|---|---|---|---|
+| Bagikan task kolaborasi | ✅ | ✅ | — | — |
+| Bagikan rancangan paket | ✅ | ✅ | — | — |
+| Bagikan task biasa | ✅ | — | — | — |
+| Melihat yang dibagikan | ✅ | ✅ | ✅ | ✅ |
+
+---
+
 ## 1.92.2 — Penanda tautan di daftar Rancangan Paket
 
 Sekarang ketahuan paket mana yang punya tautan **tanpa membukanya dulu**: kartu di daftar

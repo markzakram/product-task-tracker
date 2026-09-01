@@ -119,7 +119,7 @@ SHEET_HEADERS[CONFIG.LINKS_SHEET] = ['User', 'Title', 'URL', 'Folder'];
 SHEET_HEADERS[CONFIG.DASHBOARDS_SHEET] = ['Title', 'Desc', 'Icon', 'URL'];
 SHEET_HEADERS[CONFIG.NOTES_SHEET] = ['User', 'Title', 'Body', 'UpdatedAt', 'Folder'];
 SHEET_HEADERS[CONFIG.CHECKLIST_SHEET] = ['Task ID', 'Item', 'Done', 'Created By', 'Checked By', 'Checked At', 'Link'];
-SHEET_HEADERS[CONFIG.COLLAB_SHEET] = ['Collab ID', 'Platform', 'Title', 'Description', 'Created By', 'Created At', 'Deadline', 'Type', 'Color', 'Paket ID'];
+SHEET_HEADERS[CONFIG.COLLAB_SHEET] = ['Collab ID', 'Platform', 'Title', 'Description', 'Created By', 'Created At', 'Deadline', 'Type', 'Color', 'Paket ID', 'Mirror'];
 SHEET_HEADERS[CONFIG.COLLAB_STEP_SHEET] = ['Collab ID', 'Order', 'Step', 'PIC', 'Deadline', 'Done', 'Done By', 'Done At', 'Note', 'Stage', 'Link'];
 SHEET_HEADERS[CONFIG.PACKAGE_SHEET] = ['Paket ID', 'Platform', 'Marsel PIC', 'Program', 'Nama Paket', 'Tagline', 'Benefit', 'Tanggal', 'Tujuan', 'Produk PIC', 'Dibimbing', 'Latsol', 'Materi', 'Tryout', 'Drilling', 'Live Class', 'Catatan', 'Updated By', 'Updated At', 'Mirror'];
 SHEET_HEADERS[CONFIG.PACKAGE_VARIANT_SHEET] = ['Paket ID', 'Order', 'Masa Aktif', 'Harga Awal', 'Harga Diskon', 'Status'];
@@ -1862,7 +1862,7 @@ function deletePackages(ids, actor) {
     purgeRowsForRef_(CONFIG.PACKAGE_SHEET, 'T', 0, paketId);
   });
   var crows = [];
-  try { crows = valuesGet_(CONFIG.COLLAB_SHEET + '!A2:J'); } catch (e) { crows = []; }
+  try { crows = valuesGet_(CONFIG.COLLAB_SHEET + '!A2:K'); } catch (e) { crows = []; }
   for (var i = 0; i < crows.length; i++) {
     if (seen[String((crows[i] || [])[9] || '').trim()]) valuesUpdate_(CONFIG.COLLAB_SHEET + '!J' + (i + 2), [['']]);
   }
@@ -1882,12 +1882,29 @@ function deletePackage(paketId, actor) {
     ikut += purgeRowsForRef_(CONFIG.PACKAGE_LINK_SHEET, 'D', 0, paketId);
   purgeRowsForRef_(CONFIG.PACKAGE_SHEET, 'T', 0, paketId);
   var crows = [];
-  try { crows = valuesGet_(CONFIG.COLLAB_SHEET + '!A2:J'); } catch (e) { crows = []; }
+  try { crows = valuesGet_(CONFIG.COLLAB_SHEET + '!A2:K'); } catch (e) { crows = []; }
   for (var i = 0; i < crows.length; i++) {
     if (String((crows[i] || [])[9] || '').trim() === paketId) valuesUpdate_(CONFIG.COLLAB_SHEET + '!J' + (i + 2), [['']]);
   }
   logActivity_(actor, 'Package Delete', '', 'Paket ' + paketId + ' dihapus (' + ikut + ' varian/target/setoran ikut dibuang)');
   return { success: true, message: 'Paket dihapus.', packages: getPackages(), collabs: getCollabs() };
+}
+
+/* Padanan setCollabMirror di api/_sheets.js — menyentuh kolom K saja. */
+function setCollabMirror(collabId, on, actor) {
+  actor = String(actor || '').trim() || 'Unknown';
+  collabId = String(collabId || '').trim();
+  if (!canManageCollabActor_(actor)) return { success: false, message: 'Hanya Leader atau Manager yang bisa membagikan task ke Lintas Divisi.' };
+  ensureCollabSheets_();
+  var crows = [];
+  try { crows = valuesGet_(CONFIG.COLLAB_SHEET + '!A2:A'); } catch (e) { crows = []; }
+  var i = -1;
+  crows.forEach(function (r, k) { if (String((r && r[0]) || '').trim() === collabId) i = k; });
+  if (i < 0) return { success: false, message: 'Task kolaborasi tidak ditemukan.' };
+  var nyala = !!on;
+  valuesUpdate_(CONFIG.COLLAB_SHEET + '!K' + (i + 2), [[nyala ? 'TRUE' : '']]);
+  logActivity_(actor, 'Collab Mirror', collabId, nyala ? (collabId + ' dibagikan ke Lintas Divisi') : (collabId + ' tak lagi dibagikan'));
+  return { success: true, message: nyala ? 'Task tampil di Lintas Divisi.' : 'Task tak lagi tampil di Lintas Divisi.', collabs: getCollabs() };
 }
 
 function setCollabPackage(collabId, paketId, actor) {
@@ -1934,7 +1951,7 @@ function loadCollabsRaw_(preC, preS) {
   if (preC !== undefined) { crows = preC || []; srows = preS || []; }
   else {
     try {
-      crows = valuesGet_(CONFIG.COLLAB_SHEET + '!A2:J');
+      crows = valuesGet_(CONFIG.COLLAB_SHEET + '!A2:K');
       srows = valuesGet_(CONFIG.COLLAB_STEP_SHEET + '!A2:K');
     } catch (e) {
       /* JANGAN dijadikan daftar kosong. Indeks proses inilah yang menentukan setoran mana
@@ -2002,6 +2019,7 @@ function loadCollabsRaw_(preC, preS) {
       // Kolom J hanya diakui kalau berpola PKG-xxx — di sheet lama sempat dipakai orang
       // untuk hal lain, dan menganggapnya tautan paket akan memunculkan paket hantu.
       paketId: (function () { var v = String((r && r[9]) || '').trim(); return PKG_ID_RE.test(v) ? v : ''; })(),
+      mirror: ['', 'tidak', 'no', 'false', '0'].indexOf(String((r && r[10]) || '').trim().toLowerCase()) < 0,
       steps: list,
       done: done,
       total: list.length,
@@ -2642,14 +2660,15 @@ function ensureChecklistSheet_() {
 
 function ensureCollabSheets_() {
   sheet_(CONFIG.COLLAB_SHEET, true);
-  var head = valuesGet_(CONFIG.COLLAB_SHEET + '!A1:J1');
+  var head = valuesGet_(CONFIG.COLLAB_SHEET + '!A1:K1');
   var h0 = head[0] || [];
-  if (!h0[0]) valuesUpdate_(CONFIG.COLLAB_SHEET + '!A1:J1', [SHEET_HEADERS[CONFIG.COLLAB_SHEET]]);
+  if (!h0[0]) valuesUpdate_(CONFIG.COLLAB_SHEET + '!A1:K1', [SHEET_HEADERS[CONFIG.COLLAB_SHEET]]);
   else {
     if (!h0[6]) valuesUpdate_(CONFIG.COLLAB_SHEET + '!G1', [['Deadline']]);
     if (!h0[7]) valuesUpdate_(CONFIG.COLLAB_SHEET + '!H1', [['Type']]);
     if (!h0[8]) valuesUpdate_(CONFIG.COLLAB_SHEET + '!I1', [['Color']]);
     if (!h0[9]) valuesUpdate_(CONFIG.COLLAB_SHEET + '!J1', [['Paket ID']]);
+    if (!h0[10]) valuesUpdate_(CONFIG.COLLAB_SHEET + '!K1', [['Mirror']]);
   }
   sheet_(CONFIG.COLLAB_STEP_SHEET, true);
   head = valuesGet_(CONFIG.COLLAB_STEP_SHEET + '!A1:K1');

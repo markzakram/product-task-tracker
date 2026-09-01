@@ -1224,7 +1224,10 @@ ok('panel paket memakai kelas field sendiri', commHtml.indexOf('const PKG_F=') >
 ok('kotak panel yang tak aktif dikosongkan', commHtml.indexOf("if(lain && lain!==box) lain.innerHTML='';") >= 0);
 // Mencentang proses hanya mengembalikan collabs, jadi state.packages basi. Panel
 // membaca paket dari c.pkg supaya progres rancangan ikut bergerak seketika.
-ok('paket dibaca dari collab yang terbuka', commHtml.indexOf('return c.pkg || packageById(c.paketId);') >= 0);
+ok('paket dibaca dari collab yang terbuka', commHtml.indexOf('const p=c.pkg || packageById(c.paketId);') >= 0);
+/* Task yang dibagikan bisa tertaut ke paket yang BELUM dibagikan; tanpa penjagaan ini,
+   membagikan satu task diam-diam ikut membuka rancangan paketnya. */
+ok('paket belum dibagikan tak ikut terbuka lewat task', commHtml.indexOf('if(p && isViewOnly() && !p.mirror) return null;') >= 0);
 ok('panel disegarkan saat proses dicentang', /renderCollabSteps(currentCollabized?)/.test(commHtml) || commHtml.indexOf('renderPackagePanel();') >= 0);
 ok('field paket tak lagi bergantung .form-control', /pkg[is]?-[a-z]+ form-control/.test(commHtml) === false);
 ok('field bisa diisi diberi latar pembeda', commHtml.indexOf('bg-gray-50 dark:bg-slate-800 border border-gray-300') >= 0);
@@ -2238,4 +2241,51 @@ ok('nama panjang dipotong, tata letak tak terdorong', commHtml.indexOf('max-w-[1
 ok('kartu daftar diberi penanda tautan', commHtml.indexOf('function pkgPenandaTautan(p)') >= 0);
 ok('penandanya dipakai di kartu', commHtml.indexOf('${pkgPenandaTautan(p)}') >= 0);
 ok('paket tanpa tautan tak diberi penanda', commHtml.indexOf("if(!l.length) return '';") >= 0);
+
+console.log('\n=== 24. Task kolaborasi bisa dibagikan ke Lintas Divisi ===');
+
+call('saveCollab', { title: 'Task Dibagikan', platform: 'JadiASN', type: 'Course',
+  steps: [{ order: 1, name: 'Kerjakan', pic: 'Staff Data' }] }, 'Manager');
+const CM = call('getCollabs').filter(c => c.title === 'Task Dibagikan')[0].id;
+const cmk = function () { return call('getCollabs').filter(c => c.id === CM)[0]; };
+eq('task baru TIDAK otomatis dibagikan', cmk().mirror, false);
+
+// Wewenangnya sama dengan mirror paket: Leader & Manager. Staff hanya melihat.
+eq('staff DITOLAK membagikan task', call('setCollabMirror', CM, true, 'Staff Data').success, false);
+eq('penolakan tak diam-diam mengubah', cmk().mirror, false);
+eq('manager boleh membagikan', call('setCollabMirror', CM, true, 'Manager').success, true);
+eq('tercatat dibagikan', cmk().mirror, true);
+eq('Leader boleh menarik kembali', (call('setCollabMirror', CM, false, 'Leader Konten'), cmk().mirror), false);
+eq('Leader boleh membagikan lagi', (call('setCollabMirror', CM, true, 'Leader Konten'), cmk().mirror), true);
+eq('nomor task yang tak ada ditolak', call('setCollabMirror', 'COL-9999', true, 'Manager').success, false);
+
+/* PALING RAWAN: penandanya ada di kolom K, sedangkan saveCollab menulis rentang A:I.
+   Kalau suatu saat rentang itu ditarik sampai K, menyimpan task biasa akan diam-diam
+   mencabut task dari layar Lintas Divisi. Pola yang sama pernah menghapus tautan paket. */
+call('saveCollab', { id: CM, title: 'Task Dibagikan (diubah)', platform: 'JadiASN', type: 'Course',
+  steps: [{ order: 1, name: 'Kerjakan', pic: 'Staff Data' }, { order: 2, name: 'QC', pic: 'Staff QC' }] }, 'Manager');
+eq('menyimpan task TIDAK mencabut pembagiannya', cmk().mirror, true);
+eq('dan perubahannya memang tersimpan', cmk().title, 'Task Dibagikan (diubah)');
+
+// Menautkan paket menulis kolom J; penanda di K tak boleh ikut tersapu.
+const CMP = call('savePackage', '', { platform: 'JadiASN', marsel: { namaPaket: 'Paket utk Task Dibagikan' } }, 'Manager').paketId;
+call('setCollabPackage', CM, CMP, 'Manager');
+eq('menautkan paket TIDAK mencabut pembagiannya', cmk().mirror, true);
+eq('dan tautannya memang jadi', cmk().paketId, CMP);
+call('deletePackage', CMP, 'Manager');
+call('deleteCollab', CM, 'Manager');
+
+// --- tampilan ---
+ok('ada aksi membagikan task', commHtml.indexOf('function toggleCollabMirror(id, ev)') >= 0);
+/* Penjaganya sengaja fungsi sendiri: aturannya kebetulan sama dengan mirror paket hari ini,
+   tapi menyatukannya berarti melonggarkan yang satu diam-diam melonggarkan yang lain. */
+ok('penjaga izinnya terpisah', commHtml.indexOf('function canMirrorCollab()') >= 0);
+ok('mirror task biasa tetap PM/Dev saja', commHtml.indexOf('function canMirror(){ return !isViewOnly() && isManager(state.currentUser); }') >= 0);
+ok('kartu collab diberi penanda', commHtml.indexOf('function collabPenandaMirror(c)') >= 0);
+ok('penandanya dipakai di kartu', commHtml.indexOf('collabPenandaMirror(c)}') >= 0);
+ok('ada tombol bagikan di modal task', commHtml.indexOf('id="collabMirrorBtn"') >= 0);
+// Lintas Divisi kini boleh membuka tab Kolaborasi, tapi hanya melihat yang dibagikan.
+ok('daftar collab disaring untuk Lihat Saja', commHtml.indexOf('if(isViewOnly()) arr=arr.filter(c=>c.mirror);') >= 0);
+ok('menu Kolaborasi tak lagi disembunyikan', commHtml.indexOf("['nav-extdash','nav-mylinks','nav-hariini','nav-mynotes'].forEach") >= 0);
+ok('dan tombol ubah tetap tertutup lewat canManageCollab', commHtml.indexOf('function canManageCollab(){\n  if(isViewOnly()) return false;') >= 0 || commHtml.indexOf('if(isViewOnly()) return false;') >= 0);
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

@@ -1226,14 +1226,15 @@ async function getChecklistSummary(pre) {
 async function ensureCollabSheets() {
   if (_ensured.has('collab')) return;
   await ensureSheetExists(CONFIG.COLLAB_SHEET);
-  let head = await valuesGet(`${CONFIG.COLLAB_SHEET}!A1:I1`);
+  let head = await valuesGet(`${CONFIG.COLLAB_SHEET}!A1:K1`);
   let h0 = head[0] || [];
-  if (!h0[0]) await valuesUpdate(`${CONFIG.COLLAB_SHEET}!A1:J1`, [['Collab ID', 'Platform', 'Title', 'Description', 'Created By', 'Created At', 'Deadline', 'Type', 'Color', 'Paket ID']]);
+  if (!h0[0]) await valuesUpdate(`${CONFIG.COLLAB_SHEET}!A1:K1`, [['Collab ID', 'Platform', 'Title', 'Description', 'Created By', 'Created At', 'Deadline', 'Type', 'Color', 'Paket ID', 'Mirror']]);
   else {
     if (!h0[6]) await valuesUpdate(`${CONFIG.COLLAB_SHEET}!G1`, [['Deadline']]);   // deadline project keseluruhan
     if (!h0[7]) await valuesUpdate(`${CONFIG.COLLAB_SHEET}!H1`, [['Type']]);        // tipe task (untuk Kanban per-tipe)
     if (!h0[8]) await valuesUpdate(`${CONFIG.COLLAB_SHEET}!I1`, [['Color']]);       // warna kartu (grid & kanban)
     if (!h0[9]) await valuesUpdate(`${CONFIG.COLLAB_SHEET}!J1`, [['Paket ID']]);    // paket utama yang digarap task ini
+    if (!h0[10]) await valuesUpdate(`${CONFIG.COLLAB_SHEET}!K1`, [['Mirror']]);    // ikut tampil di layar Lintas Divisi
   }
   await ensureSheetExists(CONFIG.COLLAB_STEP_SHEET);
   head = await valuesGet(`${CONFIG.COLLAB_STEP_SHEET}!A1:K1`);
@@ -1273,8 +1274,8 @@ async function loadCollabsRaw(preC, preS) {
   if (preC !== undefined) { crows = preC || []; srows = preS || []; }
   else {
     try {
-      const b = await valuesBatchGet([`${CONFIG.COLLAB_SHEET}!A2:J`, `${CONFIG.COLLAB_STEP_SHEET}!A2:K`]);
-      crows = b[`${CONFIG.COLLAB_SHEET}!A2:J`] || [];
+      const b = await valuesBatchGet([`${CONFIG.COLLAB_SHEET}!A2:K`, `${CONFIG.COLLAB_STEP_SHEET}!A2:K`]);
+      crows = b[`${CONFIG.COLLAB_SHEET}!A2:K`] || [];
       srows = b[`${CONFIG.COLLAB_STEP_SHEET}!A2:K`] || [];
     } catch (e) {
       /* JANGAN dijadikan daftar kosong. Indeks proses inilah yang menentukan setoran mana
@@ -1320,6 +1321,9 @@ async function loadCollabsRaw(preC, preS) {
       // dipakai orang untuk hal lain (mis. nama stage), dan menganggapnya tautan paket
       // akan memunculkan paket hantu yang tak pernah ada.
       paketId: (function(){ const v = String((r && r[9]) || '').trim(); return PKG_ID_RE.test(v) ? v : ''; })(),
+      // Kolom K: task ini ikut tampil di layar Lintas Divisi atau tidak. Kata penyangkalnya
+      // disamakan dengan kolom Mirror pada task biasa dan paket.
+      mirror: !['', 'tidak', 'no', 'false', '0'].includes(String((r && r[10]) || '').trim().toLowerCase()),
       steps: list, done, total: list.length,
       status: (list.length && done >= list.length) ? 'Selesai' : 'Aktif',
     };
@@ -1793,7 +1797,7 @@ async function deletePackages(ids, actor) {
   }
   // Tautan di COLLAB dibereskan sekali jalan untuk seluruh daftar.
   const pilih = new Set(daftar);
-  const crows = await valuesGet(`${CONFIG.COLLAB_SHEET}!A2:J`);
+  const crows = await valuesGet(`${CONFIG.COLLAB_SHEET}!A2:K`);
   for (let i = 0; i < crows.length; i++) {
     if (pilih.has(String((crows[i] || [])[9] || '').trim())) await valuesUpdate(`${CONFIG.COLLAB_SHEET}!J${i + 2}`, [['']]);
   }
@@ -1814,12 +1818,52 @@ async function deletePackage(paketId, actor) {
     ikut += await purgeRowsForRef(CONFIG.PACKAGE_LINK_SHEET, 'D', 0, paketId);
   // Nomor paket dipakai ulang (max+1) — baris menggantung akan diwarisi paket berikutnya.
   await purgeRowsForRef(CONFIG.PACKAGE_SHEET, 'T', 0, paketId);
-  const crows = await valuesGet(`${CONFIG.COLLAB_SHEET}!A2:J`);
+  const crows = await valuesGet(`${CONFIG.COLLAB_SHEET}!A2:K`);
   for (let i = 0; i < crows.length; i++) {
     if (String((crows[i] || [])[9] || '').trim() === paketId) await valuesUpdate(`${CONFIG.COLLAB_SHEET}!J${i + 2}`, [['']]);
   }
   await logActivity(actor, 'Package Delete', '', `Paket ${paketId} dihapus (${ikut} varian/target/setoran ikut dibuang)`);
   return { success: true, message: 'Paket dihapus.', packages: await getPackages(), collabs: await getCollabs() };
+}
+
+/* Bagikan task kolaborasi ke Lintas Divisi. Menyentuh KOLOM K SAJA — saveCollab menulis
+   rentang A:I, jadi menyimpan task seperti biasa tak akan menimpa penanda ini, sama
+   seperti kolom Paket ID di J.
+   Wewenangnya disamakan dengan mirror PAKET (Leader & Manager), bukan dengan mirror TASK
+   biasa yang tetap PM/Dev saja: task kolaborasi memang dikelola Leader sehari-hari. */
+async function setCollabMirror(collabId, on, actor) {
+  actor = String(actor || '').trim() || 'Unknown';
+  collabId = String(collabId || '').trim();
+  await loadUsers();
+  if (!canManageCollabActor(actor)) return { success: false, message: 'Hanya Leader atau Manager yang bisa membagikan task ke Lintas Divisi.' };
+  await ensureCollabSheets();
+  const crows = await valuesGet(`${CONFIG.COLLAB_SHEET}!A2:A`);
+  const i = crows.findIndex(r => String((r && r[0]) || '').trim() === collabId);
+  if (i < 0) return { success: false, message: 'Task kolaborasi tidak ditemukan.' };
+  const nyala = !!on;
+  await valuesUpdate(`${CONFIG.COLLAB_SHEET}!K${i + 2}`, [[nyala ? 'TRUE' : '']]);
+  await logActivity(actor, 'Collab Mirror', collabId, nyala ? `${collabId} dibagikan ke Lintas Divisi` : `${collabId} tak lagi dibagikan`);
+  return { success: true, message: nyala ? 'Task tampil di Lintas Divisi.' : 'Task tak lagi tampil di Lintas Divisi.', collabs: await getCollabs() };
+}
+
+/* Bagikan task kolaborasi ke Lintas Divisi. Menyentuh KOLOM K SAJA — saveCollab menulis
+   rentang A:I, jadi menyimpan task seperti biasa tak akan menimpa penanda ini, sama
+   seperti kolom Paket ID di J.
+   Wewenangnya disamakan dengan mirror PAKET (Leader & Manager), bukan dengan mirror TASK
+   biasa yang tetap PM/Dev saja: task kolaborasi memang dikelola Leader sehari-hari. */
+async function setCollabMirror(collabId, on, actor) {
+  actor = String(actor || '').trim() || 'Unknown';
+  collabId = String(collabId || '').trim();
+  await loadUsers();
+  if (!canManageCollabActor(actor)) return { success: false, message: 'Hanya Leader atau Manager yang bisa membagikan task ke Lintas Divisi.' };
+  await ensureCollabSheets();
+  const crows = await valuesGet(`${CONFIG.COLLAB_SHEET}!A2:A`);
+  const i = crows.findIndex(r => String((r && r[0]) || '').trim() === collabId);
+  if (i < 0) return { success: false, message: 'Task kolaborasi tidak ditemukan.' };
+  const nyala = !!on;
+  await valuesUpdate(`${CONFIG.COLLAB_SHEET}!K${i + 2}`, [[nyala ? 'TRUE' : '']]);
+  await logActivity(actor, 'Collab Mirror', collabId, nyala ? `${collabId} dibagikan ke Lintas Divisi` : `${collabId} tak lagi dibagikan`);
+  return { success: true, message: nyala ? 'Task tampil di Lintas Divisi.' : 'Task tak lagi tampil di Lintas Divisi.', collabs: await getCollabs() };
 }
 
 async function setCollabPackage(collabId, paketId, actor) {
@@ -2586,7 +2630,7 @@ async function getBootstrapData(opts) {
     dashboards: `${CONFIG.DASHBOARDS_SHEET}!A2:D`, notes: `${CONFIG.NOTES_SHEET}!A2:E`, checklist: `${CONFIG.CHECKLIST_SHEET}!A2:C`,
     // A2:J, bukan A2:I — kolom J menyimpan Paket ID. Kalau berhenti di I, tiap muat
     // ulang mengembalikan collab tanpa tautan paket dan tautannya tampak hilang.
-    collab: `${CONFIG.COLLAB_SHEET}!A2:J`, collabSteps: `${CONFIG.COLLAB_STEP_SHEET}!A2:K`,
+    collab: `${CONFIG.COLLAB_SHEET}!A2:K`, collabSteps: `${CONFIG.COLLAB_STEP_SHEET}!A2:K`,
     users: `${CONFIG.USERS_SHEET}!A2:C`,
   };
   const present = Object.keys(R).filter(k => meta[sheetOf[k]]);
@@ -3236,7 +3280,7 @@ module.exports = {
   // task kolaborasi (alur beruntun antar-PIC)
   getCollabs, saveCollab, setCollabStepDone, setCollabStepNote, setCollabStepLink, setCollabType, deleteCollab,
   // master koordinasi paket (nempel pada collab)
-  savePackage, getPackages, deletePackage, deletePackages, setCollabPackage, setPackageContrib,
+  savePackage, getPackages, deletePackage, deletePackages, setCollabPackage, setCollabMirror, setPackageContrib,
   // notifikasi (tag @user)
   getNotifications, markNotificationsRead,
   // user & peran (Dev saja)

@@ -839,6 +839,7 @@
       </div>
 
       <div class="shrink-0 px-5 py-4 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between">
+        <button id="collabMirrorBtn" onclick="toggleCollabMirror()" title="Tampilkan task ini di layar Lintas Divisi" class="hide px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold text-gray-600 dark:text-slate-300 flex items-center gap-1.5"><span class="material-icons-round text-[16px]">cast</span><span id="collabMirrorLabel">Bagikan ke Lintas Divisi</span></button>
         <button id="collabDupBtn" onclick="duplikatCollabDariModal()" title="Buat task kolaborasi baru memakai task ini sebagai template" class="hide px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold text-gray-600 dark:text-slate-300 flex items-center gap-1.5"><span class="material-icons-round text-[16px]">content_copy</span>Duplikat</button>
         <button id="collabDeleteBtn" onclick="deleteCollabFromModal()" class="hide px-3 py-2 rounded-lg border border-rose-200 text-rose-600 dark:border-rose-900/50 dark:text-rose-400 font-semibold text-sm hover:bg-rose-50">Hapus</button>
         <div class="ml-auto flex gap-2">
@@ -853,7 +854,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.92.2'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.93.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1286,6 +1287,10 @@ function canMirror(){ return !isViewOnly() && isManager(state.currentUser); } //
 /* Mirror PAKET sengaja lebih longgar daripada mirror TASK: Leader ikut boleh, karena
    Leader yang menyusun rancangannya. Dipisah jadi fungsi sendiri supaya perbedaan itu
    terbaca, bukan tersembunyi di dalam satu fungsi yang dipakai dua hal berbeda. */
+/* Mirror TASK KOLABORASI: Leader & Manager, sama seperti mirror paket dan berbeda dari
+   mirror task biasa yang tetap PM/Dev saja. Task kolaborasi memang dikelola Leader
+   sehari-hari, jadi keputusan menampilkannya ke divisi lain ikut ke sana. */
+function canMirrorCollab(){ return !isViewOnly() && (isManager(state.currentUser)||isLeader(state.currentUser)); }
 function canMirrorPaket(){ return !isViewOnly() && (isManager(state.currentUser)||isLeader(state.currentUser)); }
 function inLintasView(t){ return isExternalTask(t) || isMirrored(t); }
 function canCreateExternal(){ return !isViewOnly() && isManager(state.currentUser); }
@@ -1392,7 +1397,11 @@ function applyRoleUI(){
   const navSettings=document.getElementById('nav-settings'); if(navSettings) navSettings.classList.toggle('hide',!mgr || vo);
   const navReport=document.getElementById('nav-report'); if(navReport) navReport.classList.toggle('hide',!mgr || vo); // Laporan: manager/dev
   // Mode lihat-saja: sembunyikan tab pribadi & manajemen. Komunikasi TETAP tampil (bisa kirim chat).
-  ['nav-extdash','nav-mylinks','nav-hariini','nav-mynotes','nav-collab'].forEach(id=>{const e=document.getElementById(id); if(e) e.classList.toggle('hide',vo);});
+  /* nav-collab TIDAK lagi disembunyikan dari Lintas Divisi: mereka boleh melihat task
+     kolaborasi yang sengaja dibagikan. Isinya disaring di filteredCollabs(), dan seluruh
+     tombol ubah tetap tertutup lewat canManageCollab(). */
+  ['nav-extdash','nav-mylinks','nav-hariini','nav-mynotes'].forEach(id=>{const e=document.getElementById(id); if(e) e.classList.toggle('hide',vo);});
+  const navCollab=document.getElementById('nav-collab'); if(navCollab) navCollab.classList.remove('hide');
   const navComm=document.getElementById('nav-communication'); if(navComm) navComm.classList.remove('hide');
   const addBtn=document.getElementById('btnAddTask'); if(addBtn) addBtn.classList.toggle('hide',vo);
   // Kunci switcher mode bila diakses lewat link berbagi (?view=lintas) ATAU tamu tanpa PIN.
@@ -3113,6 +3122,9 @@ function resetCollabFilter(){ state._collabFilter={q:'',type:'',platform:'',pic:
 function collabFilterActive(){ const f=collabFilter(); return !!(f.q||f.type||f.platform||f.pic||f.status||f.mine); }
 function filteredCollabs(){
   const f=collabFilter(); let arr=(state.collabs||[]).slice();
+  // Lintas Divisi: hanya yang memang dibagikan. Disaring di sini, satu tempat yang dipakai
+  // seluruh tampilan kolaborasi (grid, kanban, dan hitungannya).
+  if(isViewOnly()) arr=arr.filter(c=>c.mirror);
   const q=String(f.q||'').toLowerCase().trim();
   if(q) arr=arr.filter(c=>[c.id,c.title,c.platform,c.type,c.description].concat((c.steps||[]).map(s=>s.name+' '+s.pic)).join(' ').toLowerCase().includes(q));
   if(f.type) arr=arr.filter(c=>collabTypeOf(c)===f.type);
@@ -3223,6 +3235,15 @@ function collabPkgStrip(c){
     ${gates?`<div class="mt-1 flex items-center gap-1 flex-wrap">${gates}</div>`:''}
   </div>`;
 }
+/* Penanda "task ini tampil di Lintas Divisi". Bagi Leader/Manager sekaligus jadi tombol,
+   supaya tak perlu membuka tasknya dulu — mengikuti pola yang sama di kartu paket. */
+function collabPenandaMirror(c){
+  const on=!!(c&&c.mirror);
+  if(canMirrorCollab()){
+    return `<button type="button" onclick="toggleCollabMirror('${escapeAttr(c.id)}', event)" title="${on?'Tampil di Lintas Divisi — klik untuk berhenti membagikan':'Belum dibagikan — klik untuk tampilkan ke Lintas Divisi'}" class="inline-flex items-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium ${on?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300':'text-gray-300 hover:text-gray-500 dark:text-slate-600'}"><span class="material-icons-round text-[12px]">cast</span>${on?'Lintas Divisi':''}</button>`;
+  }
+  return on?`<span class="inline-flex items-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" title="Tampil di Lintas Divisi"><span class="material-icons-round text-[12px]">cast</span>Lintas Divisi</span>`:'';
+}
 function collabCard(c){
   const p=collabProgress(c);
   const myTurns=(c.steps||[]).filter(s=>isMyTurnStep(c,s));
@@ -3248,7 +3269,7 @@ function collabCard(c){
     ${turnRibbon}
     <div class="flex items-start justify-between gap-2">
       <div class="min-w-0">
-        <div class="flex items-center flex-wrap gap-1"><span class="text-[10px] font-mono text-gray-400">${escapeHtml(c.id)}</span>${c.type?`<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">${escapeHtml(c.type)}</span>`:''}${String(c.platform||'').split(',').map(x=>x.trim()).filter(Boolean).map(pf=>`<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">${escapeHtml(pf)}</span>`).join('')}</div>
+        <div class="flex items-center flex-wrap gap-1"><span class="text-[10px] font-mono text-gray-400">${escapeHtml(c.id)}</span>${collabPenandaMirror(c)}${c.type?`<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">${escapeHtml(c.type)}</span>`:''}${String(c.platform||'').split(',').map(x=>x.trim()).filter(Boolean).map(pf=>`<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">${escapeHtml(pf)}</span>`).join('')}</div>
         <div class="font-semibold text-sm text-gray-900 dark:text-white mt-0.5 line-clamp-2">${escapeHtml(c.title)}</div>
       </div>
       <span class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${c.status==='Selesai'?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300':'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'}">${escapeHtml(c.status)}</span>
@@ -3303,6 +3324,15 @@ function openCollabModal(id='', dupFrom=''){
   if(dv && dfield){ if(roHead){ dfield.classList.add('hide'); dv.classList.remove('hide'); const od=c&&c.deadline&&c.status!=='Selesai'&&c.deadline<todayStr(); dv.innerHTML=c&&c.deadline?`<span class="${od?'text-rose-600 font-semibold':'text-gray-600 dark:text-slate-300'}">${escapeHtml(c.deadline)}${od?' (telat)':''}</span>`:'<span class="text-gray-400">—</span>'; } else { dfield.classList.remove('hide'); dv.classList.add('hide'); } }
   document.getElementById('collabDeleteBtn').classList.toggle('hide', !manage || isNew);
   const dup=document.getElementById('collabDupBtn'); if(dup) dup.classList.toggle('hide', !manage || isNew);
+  const mir=document.getElementById('collabMirrorBtn');
+  if(mir){
+    mir.classList.toggle('hide', !canMirrorCollab() || isNew);
+    const on=!!(c&&c.mirror);
+    const lbl=document.getElementById('collabMirrorLabel');
+    if(lbl) lbl.textContent=on?'Tampil di Lintas Divisi':'Bagikan ke Lintas Divisi';
+    mir.classList.toggle('text-emerald-700', on);
+    mir.classList.toggle('border-emerald-300', on);
+  }
   document.getElementById('collabCommentRow').classList.toggle('hide', isNew || isViewOnly());
   state._collabExpanded={};   // reset sub-ceklis yang terbuka
   if(c) loadCollabFeed(c.id); else document.getElementById('collabComments').innerHTML=emptyState('Komentar tersedia setelah task disimpan.');
@@ -3356,11 +3386,15 @@ function packageById(id){ return allPackages().find(p=>String(p.id)===String(id)
    mengembalikan collabs, jadi state.packages jadi basi dan progres rancangan tak ikut
    bergerak sampai halaman dimuat ulang. c.pkg selalu ikut segar karena getCollabs
    menghitung ulang setoran & statusnya. */
+/* Task yang dibagikan bisa saja tertaut ke paket yang BELUM dibagikan. Tanpa penjagaan
+   ini, membagikan satu task diam-diam ikut membuka rancangan paketnya. */
 function currentPackage(){
   if(state._paketId) return packageById(state._paketId);
   const c=currentCollab();
   if(!c || !c.paketId) return null;
-  return c.pkg || packageById(c.paketId);
+  const p=c.pkg || packageById(c.paketId);
+  if(p && isViewOnly() && !p.mirror) return null;
+  return p;
 }
 function pkgNorm(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
 function pkgGateStep(c,nama){
@@ -4242,6 +4276,20 @@ function deletePaketNow(){
 
 /* Duplikat dijalankan dari modal task yang sedang dibuka: modalnya ditutup lalu dibuka
    ulang sebagai task BARU yang terisi dari task ini. */
+/* Dipanggil dari kartu (bawa id) maupun dari modal (pakai task yang sedang terbuka). */
+function toggleCollabMirror(id, ev){
+  if(ev && ev.stopPropagation) ev.stopPropagation();
+  const c=id?(state.collabs||[]).find(x=>x.id===id):currentCollab();
+  if(!c) return;
+  if(!canMirrorCollab()){ showToast('Hanya Leader atau Manager yang bisa membagikan task ke Lintas Divisi.', false); return; }
+  GAS.withSuccessHandler(res=>{
+    if(!res||!res.success){ showToast((res&&res.message)||'Gagal mengubah', false); return; }
+    state.collabs=res.collabs||state.collabs;
+    showToast(res.message);
+    renderCollab(); if(state._collabId) renderCollabSteps();
+  }).withFailureHandler(err=>showToast('Gagal: '+(err.message||err), false))
+    .setCollabMirror(c.id, !c.mirror, state.currentUser);
+}
 function duplikatCollabDariModal(){
   const c=currentCollab(); if(!c) return;
   if(!canManageCollab()){ showToast('Hanya Leader atau Manager yang bisa membuat task kolaborasi.', false); return; }
