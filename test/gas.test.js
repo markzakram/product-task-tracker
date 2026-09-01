@@ -1981,6 +1981,33 @@ ok('menyusun target boleh Leader di layar', commHtml.indexOf('const bisaRancang=
 ok('mirror TASK tetap PM/Dev saja', commHtml.indexOf('function canMirror(){ return !isViewOnly() && isManager(state.currentUser); }') >= 0);
 ok('mirror PAKET punya penjaga sendiri', commHtml.indexOf('function canMirrorPaket(){ return !isViewOnly() && (isManager(state.currentUser)||isLeader(state.currentUser)); }') >= 0);
 eq('penjaga paket dipakai di modal, penjaga togglenya, dan kartu', (commHtml.match(/canMirrorPaket()/g)||[]).length, 4);
+/* Catatan per target: kolomnya sudah lama ada di sheet (PACKAGE_ITEMS kolom J) dan sudah
+   dibaca-tulis backend, tapi belum pernah ada isiannya di layar — jadi belum pernah teruji
+   benar-benar bolak-balik. */
+const CP = call('savePackage', '', { platform: 'JadiASN', marsel: { namaPaket: 'Paket Catatan' } }, 'Manager').paketId;
+const cit = function () { return call('getPackages').filter(p => p.id === CP)[0].items[0]; };
+eq('rancangan bercatatan tersimpan',
+  call('savePackage', CP, { items: [{ kategori: 'Latsol', nama: 'Uji Catatan', target: 3, satuan: 'Paket', catatan: 'sumber: bank soal 2024' }] }, 'Manager').success, true);
+eq('catatannya kembali utuh saat dibaca', cit().catatan, 'sumber: bank soal 2024');
+call('savePackage', CP, { items: [{ kategori: 'Latsol', nama: 'Uji Catatan', target: 3, satuan: 'Paket' }] }, 'Manager');
+eq('catatan boleh dikosongkan lagi', cit().catatan, '');
+call('deletePackage', CP, 'Manager');
+ok('layar ikut mengirim catatan', commHtml.indexOf("catatan:g('pkgi-catatan').trim(),") >= 0);
+ok('ada kolom catatan di kepala tabel', commHtml.indexOf('>catatan</span>') >= 0);
+ok('catatan ikut terbawa saat menyalin kategori', commHtml.indexOf("awal:x.awal, catatan:x.catatan||''") >= 0);
+
+/* Enter memindah ke kolom yang SAMA di baris berikutnya — mengisi rancangan itu pekerjaan
+   per kolom, bukan per baris. */
+ok('ada pemindah fokus Enter', commHtml.indexOf('function pkgEnterTurun(e)') >= 0);
+ok('hanya kolom rancangan, bukan kolom setoran', commHtml.indexOf("k.indexOf('pkgi-')===0") >= 0);
+ok('dibatasi pada kategori yang sama', commHtml.indexOf("blok.querySelectorAll('[data-pkgi]')") >= 0);
+ok('baris terakhir tak membuat baris baru sendiri', commHtml.indexOf('if(!tuju) return;') >= 0);
+eq('keenam kolom rancangan dipasangi', commHtml.split('onkeydown=' + String.fromCharCode(34) + 'pkgEnterTurun(event)' + String.fromCharCode(34)).length - 1, 6);
+
+// Sumber asli rancangan tinggal sekali klik dari tab-nya.
+ok('ada tautan ke sheet Master', commHtml.indexOf('id="paketMasterLink"') >= 0);
+ok('alamatnya dari satu konstanta', commHtml.indexOf('const URL_SHEET_MASTER=') >= 0);
+ok('dibuka di tab baru dengan aman', commHtml.indexOf('rel="noopener noreferrer"') >= 0);
 ok('isi kategori bisa disalin ke kategori lain', commHtml.indexOf('function pkgSalinKategori(dari, ke)') >= 0);
 ok('ada kontrol Salin ke di kepala kategori', commHtml.indexOf('Salin ke…') >= 0);
 ok('tujuannya tak boleh kategori itu sendiri', commHtml.indexOf('PKG_KATEGORI.filter(k=>k!==kat)') >= 0);

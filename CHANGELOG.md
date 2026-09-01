@@ -31,6 +31,47 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.91.0 — Enter turun satu baris, catatan per target, dan pintasan ke sheet Master
+
+### Enter memindah ke kolom yang sama di baris berikutnya
+
+Mengisi rancangan itu pekerjaan **per kolom**, bukan per baris: sepuluh nama target dulu,
+baru sepuluh satuannya. Sebelumnya tiap pindah baris harus menekan Tab lima kali atau
+meraih mouse — untuk daftar sepanjang Materi PT.KAI itu ratusan ketukan sia-sia.
+
+Sekarang **Enter** di kolom mana pun (grup, nama, target, satuan, awal, catatan) memindahkan
+fokus ke kolom **yang sama** di baris di bawahnya, dan isinya langsung diblok supaya
+mengetik menimpanya — itu yang diharapkan saat menurunkan angka yang sama berulang kali.
+
+Dua batas yang disengaja:
+
+- **Hanya di dalam kategori yang sama.** Melompat dari baris terakhir Latsol ke baris
+  pertama Materi akan mengejutkan, dan orang baru sadar setelah salah ketik.
+- **Baris terakhir diam** — tidak membuat baris baru sendiri. Enter yang tak sengaja tidak
+  boleh melahirkan target kosong.
+
+Kolom setoran tidak ikut diambil alih; Enter di sana tetap seperti biasa.
+
+### Catatan per target
+
+Kolom **catatan** di ujung kanan tiap baris target, untuk hal yang cuma berlaku pada target
+itu — sumber soalnya, siapa yang mereview, atau kenapa jumlahnya segitu.
+
+Menariknya kolom ini **sudah lama ada di sheet** (`PACKAGE_ITEMS` kolom J) dan sudah
+dibaca-tulis kedua backend sejak awal; yang tak pernah ada cuma isiannya di layar. Jadi
+tidak ada perubahan skema dan tidak ada migrasi — dan sekarang jalur bolak-baliknya
+akhirnya diuji sungguhan, termasuk mengosongkannya kembali.
+
+Catatan ikut terbawa saat isi kategori disalin ke kategori lain.
+
+### Pintasan ke sheet Master
+
+Tombol **Sheet Master** di bilah Rancangan Paket, membuka *Master Koordinasi Paket* di tab
+baru. Alamatnya disimpan sebagai satu konstanta (`URL_SHEET_MASTER`), jadi kalau sheetnya
+pindah hanya satu tempat yang perlu diubah.
+
+---
+
 ## 1.90.1 — Leader punya wewenang penuh di Rancangan Paket
 
 Sebelumnya Leader sudah boleh membuat paket, menghapus paket, menautkan task, dan mengatur

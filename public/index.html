@@ -438,6 +438,7 @@
               <input id="paketSearch" oninput="renderPaket()" placeholder="Cari nomor, nama paket, program…" class="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-slate-800 border-0 outline-none focus:ring-2 focus:ring-indigo-300 text-sm">
             </div>
             <select id="paketFilterPlatform" onchange="renderPaket()" class="px-2.5 py-2 rounded-lg text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 outline-none"><option value="">Semua Platform</option></select>
+            <a id="paketMasterLink" target="_blank" rel="noopener noreferrer" title="Buka sheet Master Koordinasi Paket di tab baru — sumber asli rancangan" class="px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1 hover:bg-gray-50 dark:hover:bg-slate-700"><span class="material-icons-round text-[14px]">table_view</span>Sheet Master<span class="material-icons-round text-[12px] text-gray-400">open_in_new</span></a>
             <button id="paketCopyBtn" onclick="salinRancanganKeKlip(paketPilih())" title="Salin sebagai baris siap tempel ke sheet Marsel (Ctrl+V)" class="hide px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">content_paste_go</span>Salin utk Marsel</button>
             <button id="paketSelectAllBtn" onclick="paketPilihSemua()" class="hide px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">select_all</span>Pilih semua</button>
           </div>
@@ -852,7 +853,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.90.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.91.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1132,6 +1133,9 @@ function renderAppVersion(){ const label='v'+APP_VERSION; ['appVersion','appVers
    di Vercel melekat pada Environment, bukan pada URL. Hostname hanya dipakai sebagai
    cadangan selama server belum sempat memberi tahu. */
 const HOST_PRODUKSI=['product-task-tracker.vercel.app'];
+// Sumber asli rancangan paket. Ditaruh sebagai konstanta supaya kalau sheetnya pindah,
+// hanya satu tempat yang perlu diubah.
+const URL_SHEET_MASTER='https://docs.google.com/spreadsheets/d/1Hyjz2AsvOwJZXYdL7veeGRhqlQpliJ96C7IczVbOlzs/edit';
 function isStagingHost(){
   const env=String((typeof state!=='undefined' && state && state.env)||'').toLowerCase();
   if(env) return env!=='production';                 // kata server: itu yang dipakai
@@ -3430,6 +3434,7 @@ function pkgKategoriBlok(p, bisaRancang, c){
         <span class="w-[3.6rem] shrink-0 text-right" title="Berapa yang dibutuhkan seluruhnya">target</span>
         <span class="w-[7rem] shrink-0 pl-1">satuan</span>
         <span class="w-[3.6rem] shrink-0 text-right" title="Yang sudah tersedia sebelum ada task apa pun — langsung dihitung terpenuhi">awal</span>
+        <span class="w-[9rem] shrink-0 pl-1" title="Catatan khusus untuk target ini">catatan</span>
         <span class="w-[5.5rem] shrink-0"></span>
       </div>`:''}
       <div class="divide-y divide-gray-100 dark:divide-slate-800">${list.map(o=>{
@@ -3439,11 +3444,12 @@ function pkgKategoriBlok(p, bisaRancang, c){
         return `<div class="px-1.5 py-1" data-pkgi="${o.i}" data-itemid="${escapeAttr(it.itemId||'')}">
           <div class="flex items-center gap-1">
             ${bisaRancang
-              ? `<input class="pkgi-grup ${PKG_F} w-[6.5rem] shrink-0" value="${escapeAttr(it.grup||'')}" placeholder="grup (ops.)" title="Kelompok, boleh dikosongkan — mis. Tahap 1">
-                 <input class="pkgi-nama ${PKG_F} flex-1 min-w-0" value="${escapeAttr(it.nama||'')}" placeholder="nama target">
-                 <input class="pkgi-target ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.target||''))}" inputmode="numeric" title="Target">
-                 <select class="pkgi-satuan ${PKG_F} w-[7rem] shrink-0">${PKG_SATUAN.map(u=>`<option ${same(u,it.satuan)?'selected':''}>${escapeHtml(u)}</option>`).join('')}</select>
-                 <input class="pkgi-awal ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.awal||''))}" inputmode="numeric" placeholder="0" title="Awal — yang sudah tersedia sebelum ada task apa pun. Langsung dihitung terpenuhi, tanpa perlu setoran.">`
+              ? `<input class="pkgi-grup ${PKG_F} w-[6.5rem] shrink-0" value="${escapeAttr(it.grup||'')}" placeholder="grup (ops.)" onkeydown="pkgEnterTurun(event)" title="Kelompok, boleh dikosongkan — mis. Tahap 1">
+                 <input class="pkgi-nama ${PKG_F} flex-1 min-w-0" value="${escapeAttr(it.nama||'')}" placeholder="nama target" onkeydown="pkgEnterTurun(event)">
+                 <input class="pkgi-target ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.target||''))}" inputmode="numeric" onkeydown="pkgEnterTurun(event)" title="Target">
+                 <select class="pkgi-satuan ${PKG_F} w-[7rem] shrink-0" onkeydown="pkgEnterTurun(event)">${PKG_SATUAN.map(u=>`<option ${same(u,it.satuan)?'selected':''}>${escapeHtml(u)}</option>`).join('')}</select>
+                 <input class="pkgi-awal ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.awal||''))}" inputmode="numeric" placeholder="0" onkeydown="pkgEnterTurun(event)" title="Awal — yang sudah tersedia sebelum ada task apa pun. Langsung dihitung terpenuhi, tanpa perlu setoran.">
+                 <input class="pkgi-catatan ${PKG_F} w-[9rem] shrink-0" value="${escapeAttr(it.catatan||'')}" placeholder="catatan (ops.)" onkeydown="pkgEnterTurun(event)" title="Catatan khusus target ini — mis. sumber soal, siapa yang mereview, atau kenapa jumlahnya segitu">`
               : `<span class="flex-1 min-w-0 text-xs text-gray-700 dark:text-slate-200 truncate">${escapeHtml(it.nama||'')}${it.grup?`<span class="text-gray-400"> · ${escapeHtml(it.grup)}</span>`:''}</span>
                  <span class="shrink-0 text-[11px] font-mono text-gray-500 dark:text-slate-400">${it.terpenuhi}/${it.target} ${escapeHtml(it.satuan||'')}</span>`}
             ${pkgStatusPil(it)}
@@ -3464,6 +3470,31 @@ function pkgKategoriBlok(p, bisaRancang, c){
     </div>`;
   }).join('');
 }
+/* Enter memindah fokus ke KOLOM YANG SAMA di baris berikutnya.
+   Mengisi rancangan itu pekerjaan per kolom, bukan per baris: sepuluh nama target dulu,
+   baru sepuluh satuannya. Tanpa ini, tiap pindah baris harus menekan Tab lima kali atau
+   meraih mouse — untuk daftar sepanjang Materi PT.KAI itu ratusan ketukan sia-sia.
+   Sengaja dibatasi pada kategori yang sama: melompat dari baris terakhir Latsol ke baris
+   pertama Materi akan mengejutkan, dan pengguna baru sadar setelah salah ketik. */
+function pkgEnterTurun(e){
+  if(!e || e.key!=='Enter') return;
+  const el=e.target; if(!el || !el.classList) return;
+  const kelas=[...el.classList].filter(k=>k.indexOf('pkgi-')===0)[0];
+  if(!kelas) return;                       // hanya kolom rancangan, bukan kolom setoran
+  e.preventDefault();                      // Enter di dalam form jangan mengirim apa pun
+  const baris=el.closest('[data-pkgi]');
+  const blok=el.closest('[data-pkgkat]');
+  if(!baris || !blok) return;
+  const semua=[...blok.querySelectorAll('[data-pkgi]')];
+  const tuju=(semua[semua.indexOf(baris)+1]||null);
+  if(!tuju) return;                        // baris terakhir: diam, jangan bikin baris sendiri
+  const isian=tuju.querySelector('.'+kelas);
+  if(!isian) return;
+  isian.focus();
+  // Isi lama diblok supaya mengetik langsung menimpanya — itu yang diharapkan saat
+  // menurunkan angka yang sama berulang kali.
+  try{ if(isian.select) isian.select(); }catch(err){}
+}
 function pkgReadItems(){
   const box=document.getElementById('pkgItemBox'); if(!box) return [];
   const out=[];
@@ -3479,6 +3510,7 @@ function pkgReadItems(){
         target:Number(g('pkgi-target').replace(/[^0-9]/g,''))||0,
         satuan:g('pkgi-satuan')||'Paket',
         awal:Number(g('pkgi-awal').replace(/[^0-9]/g,''))||0,
+        catatan:g('pkgi-catatan').trim(),
       });
     });
   });
@@ -3552,7 +3584,7 @@ function pkgSalinKategori(dari, ke){
   // itemId dikosongkan supaya server memberi nomor baru — kalau diwarisi, dua kategori
   // akan menunjuk baris target yang sama.
   p.items=lama.concat(salin.map(x=>({ itemId:'', kategori:ke, grup:x.grup, nama:x.nama,
-    target:x.target, satuan:x.satuan, awal:x.awal,
+    target:x.target, satuan:x.satuan, awal:x.awal, catatan:x.catatan||'',
     kontrib:[], terpenuhi:0, menunggu:0, sisa:0, lebih:0, status:'belum' })));
   renderPackagePanel();
   const dilewati=sumber.length-salin.length;
@@ -3562,7 +3594,7 @@ function pkgSalinKategori(dari, ke){
 function pkgAddItem(kategori){
   const p=currentPackage(); if(!p) return;
   const lama=pkgReadItems();
-  p.items=lama.concat([{itemId:'',kategori:kategori,nama:'',grup:'',target:0,satuan:'Paket',awal:0,kontrib:[],terpenuhi:0,menunggu:0,sisa:0,status:'belum'}]);
+  p.items=lama.concat([{itemId:'',kategori:kategori,nama:'',grup:'',target:0,satuan:'Paket',awal:0,catatan:'',kontrib:[],terpenuhi:0,menunggu:0,sisa:0,status:'belum'}]);
   renderPackagePanel();
 }
 function pkgRemoveItem(i){
@@ -4029,6 +4061,9 @@ function renderPaket(){
     const sa=document.getElementById('paketBulkAll'); if(sa) sa.textContent=semua?'Batal pilih yang tampil':'Pilih semua yang tampil';
   }
   // Salin-utk-Marsel tak berguna bagi Lintas Divisi: sheet Marsel itu urusan internal.
+  // Alamatnya diisi dari satu konstanta, bukan ditulis dua kali di markup.
+  const tautMaster=document.getElementById('paketMasterLink');
+  if(tautMaster) tautMaster.href=URL_SHEET_MASTER;
   const salinBtn=document.getElementById('paketCopyBtn');
   if(salinBtn) salinBtn.classList.toggle('hide', isViewOnly() || !arr.length);
   const selAll=document.getElementById('paketSelectAllBtn');
