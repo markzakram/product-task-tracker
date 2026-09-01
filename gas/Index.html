@@ -853,7 +853,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.91.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.91.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3343,6 +3343,10 @@ const PKG_FIELDS={
 const PKG_GATES=['Input Fitur','QC VOC'];
 const PKG_KATEGORI=['Dibimbing','Latsol','Materi','Tryout','Drilling','Live Class'];
 const PKG_SATUAN=['Paket','BAB','Sesi','Video','Ebook','Video + Ebook'];
+/* Tiap kategori punya SATU kolom teks bebas di PACKAGES — catatan untuk fitur itu
+   secara keseluruhan, bukan per target. Dipakai di dua tempat (isian di blok kategori
+   dan penyusun teks salinan untuk sheet Marsel), jadi petanya ditulis sekali di sini. */
+const PKG_KAT_FIELD={Dibimbing:'dibimbing',Latsol:'latsol',Materi:'materi',Tryout:'tryout',Drilling:'drilling','Live Class':'liveClass'};
 
 function allPackages(){ return state.packages||[]; }
 function packageById(id){ return allPackages().find(p=>String(p.id)===String(id))||null; }
@@ -3410,16 +3414,21 @@ function pkgStepOptions(c, sel){
 /* Satu blok per kategori. Dua mode:
      rancang — Manager menyusun target (nama, jumlah, satuan, yang sudah tersedia)
      setor   — dibuka dari task kolaborasi: targetnya baca-saja, yang diisi setorannya */
-function pkgKategoriBlok(p, bisaRancang, c){
+function pkgKategoriBlok(p, bisaRancang, c, bisaP){
   const items=(p&&p.items)||[];
-  const kats=PKG_KATEGORI.filter(k=>items.some(x=>same(x.kategori,k))||bisaRancang);
+  // Kategori tetap muncul kalau CATATANNYA terisi, walau belum punya satu target pun —
+  // kalau tidak, catatan yang sudah ditulis orang lenyap dari layar tanpa jejak.
+  const kats=PKG_KATEGORI.filter(k=>items.some(x=>same(x.kategori,k))
+    || String(p[PKG_KAT_FIELD[k]]||'').trim() || bisaRancang);
   if(!kats.length) return '<div class="text-[11px] text-gray-400 px-1 py-2">Belum ada target. Manager menyusunnya di menu Rancangan Paket.</div>';
   const bisaSetor=!!c && canManageCollab();
   return kats.map(kat=>{
     const list=items.map((x,i)=>({x,i})).filter(o=>same(o.x.kategori,kat));
     const tgt=list.reduce((a,o)=>a+(Number(o.x.target)||0),0);
     const trp=list.reduce((a,o)=>a+(Number(o.x.terpenuhi)||0),0);
-    if(!list.length && !bisaRancang) return '';
+    // Kategori kosong tetap digambar kalau CATATANNYA terisi — kalau tidak, catatan yang
+    // sudah ditulis orang lenyap dari layar tanpa jejak.
+    if(!list.length && !bisaRancang && !String(p[PKG_KAT_FIELD[kat]]||'').trim()) return '';
     return `<div data-pkgkat="${escapeAttr(kat)}" class="rounded border border-gray-200 dark:border-slate-700 overflow-hidden">
       <div class="px-2 py-1 bg-gray-50 dark:bg-slate-800 flex items-center justify-between gap-2">
         <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">${escapeHtml(kat)}</span>
@@ -3434,7 +3443,6 @@ function pkgKategoriBlok(p, bisaRancang, c){
         <span class="w-[3.6rem] shrink-0 text-right" title="Berapa yang dibutuhkan seluruhnya">target</span>
         <span class="w-[7rem] shrink-0 pl-1">satuan</span>
         <span class="w-[3.6rem] shrink-0 text-right" title="Yang sudah tersedia sebelum ada task apa pun — langsung dihitung terpenuhi">awal</span>
-        <span class="w-[9rem] shrink-0 pl-1" title="Catatan khusus untuk target ini">catatan</span>
         <span class="w-[5.5rem] shrink-0"></span>
       </div>`:''}
       <div class="divide-y divide-gray-100 dark:divide-slate-800">${list.map(o=>{
@@ -3448,8 +3456,7 @@ function pkgKategoriBlok(p, bisaRancang, c){
                  <input class="pkgi-nama ${PKG_F} flex-1 min-w-0" value="${escapeAttr(it.nama||'')}" placeholder="nama target" onkeydown="pkgEnterTurun(event)">
                  <input class="pkgi-target ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.target||''))}" inputmode="numeric" onkeydown="pkgEnterTurun(event)" title="Target">
                  <select class="pkgi-satuan ${PKG_F} w-[7rem] shrink-0" onkeydown="pkgEnterTurun(event)">${PKG_SATUAN.map(u=>`<option ${same(u,it.satuan)?'selected':''}>${escapeHtml(u)}</option>`).join('')}</select>
-                 <input class="pkgi-awal ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.awal||''))}" inputmode="numeric" placeholder="0" onkeydown="pkgEnterTurun(event)" title="Awal — yang sudah tersedia sebelum ada task apa pun. Langsung dihitung terpenuhi, tanpa perlu setoran.">
-                 <input class="pkgi-catatan ${PKG_F} w-[9rem] shrink-0" value="${escapeAttr(it.catatan||'')}" placeholder="catatan (ops.)" onkeydown="pkgEnterTurun(event)" title="Catatan khusus target ini — mis. sumber soal, siapa yang mereview, atau kenapa jumlahnya segitu">`
+                 <input class="pkgi-awal ${PKG_F} w-[3.6rem] shrink-0 text-right" value="${escapeAttr(String(it.awal||''))}" inputmode="numeric" placeholder="0" onkeydown="pkgEnterTurun(event)" title="Awal — yang sudah tersedia sebelum ada task apa pun. Langsung dihitung terpenuhi, tanpa perlu setoran.">`
               : `<span class="flex-1 min-w-0 text-xs text-gray-700 dark:text-slate-200 truncate">${escapeHtml(it.nama||'')}${it.grup?`<span class="text-gray-400"> · ${escapeHtml(it.grup)}</span>`:''}</span>
                  <span class="shrink-0 text-[11px] font-mono text-gray-500 dark:text-slate-400">${it.terpenuhi}/${it.target} ${escapeHtml(it.satuan||'')}</span>`}
             ${pkgStatusPil(it)}
@@ -3467,6 +3474,13 @@ function pkgKategoriBlok(p, bisaRancang, c){
           </div>`:''}
         </div>`;
       }).join('')||`<div class="px-2 py-1.5 text-[11px] text-gray-400">—</div>`}</div>
+      ${/* Tinggi kotak mengikuti isinya: sel bonus di sheet Master bisa puluhan baris,
+           dan kotak dua baris membuatnya praktis tak terbaca. Dibatasi 20 baris supaya
+           satu catatan panjang tak mendorong sisa layar keluar. */''}
+      <div class="px-1.5 py-1.5 border-t border-gray-100 dark:border-slate-800">
+        <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-0.5" for="pkg-${PKG_KAT_FIELD[kat]}">Catatan ${escapeHtml(kat)}</label>
+        <textarea id="pkg-${PKG_KAT_FIELD[kat]}" rows="${Math.min(20, Math.max(3, String(p[PKG_KAT_FIELD[kat]]||'').split(String.fromCharCode(10)).length+1))}" ${bisaP?'':'disabled'} class="${PKG_F} leading-relaxed resize-y ${bisaP?'':'opacity-70'}" placeholder="${escapeAttr(bisaP?('catatan untuk seluruh '+kat+' — mis. bonus angkatan lama, sumber, atau kesepakatan'):'(belum diisi)')}">${escapeHtml(p[PKG_KAT_FIELD[kat]]||'')}</textarea>
+      </div>
     </div>`;
   }).join('');
 }
@@ -3510,7 +3524,6 @@ function pkgReadItems(){
         target:Number(g('pkgi-target').replace(/[^0-9]/g,''))||0,
         satuan:g('pkgi-satuan')||'Paket',
         awal:Number(g('pkgi-awal').replace(/[^0-9]/g,''))||0,
-        catatan:g('pkgi-catatan').trim(),
       });
     });
   });
@@ -3584,7 +3597,7 @@ function pkgSalinKategori(dari, ke){
   // itemId dikosongkan supaya server memberi nomor baru — kalau diwarisi, dua kategori
   // akan menunjuk baris target yang sama.
   p.items=lama.concat(salin.map(x=>({ itemId:'', kategori:ke, grup:x.grup, nama:x.nama,
-    target:x.target, satuan:x.satuan, awal:x.awal, catatan:x.catatan||'',
+    target:x.target, satuan:x.satuan, awal:x.awal,
     kontrib:[], terpenuhi:0, menunggu:0, sisa:0, lebih:0, status:'belum' })));
   renderPackagePanel();
   const dilewati=sumber.length-salin.length;
@@ -3594,7 +3607,7 @@ function pkgSalinKategori(dari, ke){
 function pkgAddItem(kategori){
   const p=currentPackage(); if(!p) return;
   const lama=pkgReadItems();
-  p.items=lama.concat([{itemId:'',kategori:kategori,nama:'',grup:'',target:0,satuan:'Paket',awal:0,catatan:'',kontrib:[],terpenuhi:0,menunggu:0,sisa:0,status:'belum'}]);
+  p.items=lama.concat([{itemId:'',kategori:kategori,nama:'',grup:'',target:0,satuan:'Paket',awal:0,kontrib:[],terpenuhi:0,menunggu:0,sisa:0,status:'belum'}]);
   renderPackagePanel();
 }
 function pkgRemoveItem(i){
@@ -3708,14 +3721,22 @@ function renderPackagePanel(){
             }).join(''):'<div class="px-1 text-[11px] text-gray-400">Buka lewat task kolaborasi untuk melihat prosesnya.</div>'}
             <div class="mt-1.5 pt-1.5 border-t border-gray-200 dark:border-slate-700 text-[9px] text-gray-400 px-1">Angka = deliverable yang menunggunya.</div>
           </div>
-          <div class="p-2 space-y-2" id="pkgItemBox">${pkgKategoriBlok(p,bisaRancang,c)}</div>
+          <div class="p-2 space-y-2" id="pkgItemBox">${pkgKategoriBlok(p,bisaRancang,c,bisaP)}</div>
         </div>
       </${lipat?'details':'div'}>
 
-      <details class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden" ${(PKG_FIELDS.produk.some(fd=>String(p[fd.k]||'').trim()))?'open':''}>
-        <summary class="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 cursor-pointer text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400 select-none">Bonus angkatan lama &amp; catatan <span class="font-normal normal-case tracking-normal text-gray-400">— teks bebas, tidak dihitung sebagai pekerjaan</span></summary>
-        <div class="p-3 grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">${PKG_FIELDS.produk.map(fd=>`<div class="${fd.area?'lg:col-span-2':''}">${field(fd,'produk',bisaP)}</div>`).join('')}</div>
-      </details>
+      ${(function(){
+        /* Catatan per kategori sudah pindah ke dalam blok kategorinya. Yang tersisa di
+           sini hanya catatan paket secara keseluruhan — digambar SEKALI saja, karena id
+           yang kembar di dua tempat pernah jadi sumber bug tersendiri. */
+        const kunciKat=Object.keys(PKG_KAT_FIELD).map(k=>PKG_KAT_FIELD[k]);
+        const sisa=PKG_FIELDS.produk.filter(fd=>kunciKat.indexOf(fd.k)<0);
+        if(!sisa.length) return '';
+        return `<details class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden" ${(sisa.some(fd=>String(p[fd.k]||'').trim()))?'open':''}>
+        <summary class="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 cursor-pointer text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400 select-none">Catatan paket <span class="font-normal normal-case tracking-normal text-gray-400">— berlaku untuk seluruh paket, bukan satu fitur</span></summary>
+        <div class="p-3 grid grid-cols-1 gap-3 items-start">${sisa.map(fd=>`<div>${field(fd,'produk',bisaP)}</div>`).join('')}</div>
+      </details>`;
+      })()}
 
 
       ${(bisaP||bisaRancang||(c&&canManageCollab()))?`<div class="flex items-center justify-between gap-2 flex-wrap">
@@ -3954,7 +3975,7 @@ function pkgSelTeks(p, kat){
   });
   const total=items.reduce((a,x)=>a+(Number(x.target)||0),0);
   if(items.length) baris.push(' Total: '+total+' '+(items[0].satuan||'Paket'));
-  const bonusKey={Dibimbing:'dibimbing',Latsol:'latsol',Materi:'materi',Tryout:'tryout',Drilling:'drilling','Live Class':'liveClass'}[kat];
+  const bonusKey=PKG_KAT_FIELD[kat];
   const bonus=String((bonusKey&&p[bonusKey])||'').trim();
   if(bonus) baris.push('', bonus);
   return baris.join('\n').trim();

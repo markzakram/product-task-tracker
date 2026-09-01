@@ -31,6 +31,39 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.91.1 — Catatan berlaku per FITUR, bukan per target
+
+Koreksi atas 1.91.0. Catatan di sana dipasang **per baris target** — satu kotak kecil di
+tiap "Verbal", "Hitung Cepat", "Pauli". Yang dibutuhkan justru sebaliknya: satu catatan
+untuk **seluruh Latsol**, seluruh Materi, seluruh Tryout.
+
+Kolomnya tidak dibuat baru. Sheet `PACKAGES` sudah lama punya satu kolom teks per kategori
+(`dibimbing`, `latsol`, `materi`, `tryout`, `drilling`, `liveClass`) — isinya selama ini
+tampil di panel terpisah berjudul *"Bonus angkatan lama & catatan"*, jauh dari targetnya.
+Sekarang kolom itu **dipindah ke dalam blok kategorinya masing-masing**: catatan Latsol ada
+tepat di bawah daftar target Latsol.
+
+Digambar **sekali saja**, bukan di dua tempat — id yang kembar sudah pernah jadi sumber bug
+tersendiri di aplikasi ini. Panel lama kini tinggal memuat **Catatan paket**, yang memang
+berlaku untuk seluruh paket dan bukan satu fitur.
+
+Empat hal yang dijaga:
+
+- **Tinggi kotaknya mengikuti isi.** Sel bonus di sheet Master bisa puluhan baris; kotak dua
+  baris membuatnya praktis tak terbaca. Aturan yang sama dengan panel lama dipakai di sini,
+  dibatasi 20 baris supaya satu catatan panjang tak mendorong sisa layar keluar.
+- **Kategori yang belum punya target tapi sudah bercatatan tetap ditampilkan** — kalau tidak,
+  catatan yang sudah ditulis orang lenyap dari layar tanpa jejak.
+- **Terkunci untuk yang tak berhak mengubah Area Produk**, sama seperti sebelum dipindah.
+- **Peta kategori→kolom ditulis sekali** (`PKG_KAT_FIELD`) dan dipakai bersama oleh isian
+  ini dan penyusun teks salinan untuk sheet Marsel — dulu petanya ditulis dua kali.
+
+Kolom catatan per target dicabut seluruhnya dari layar. Kolom J `PACKAGE_ITEMS` di sheet
+dibiarkan apa adanya: tidak dipakai, tidak mengganggu, dan tak perlu migrasi. Enter-turun
+sekarang mencakup lima kolom rancangan (grup, nama, target, satuan, awal).
+
+---
+
 ## 1.91.0 — Enter turun satu baris, catatan per target, dan pintasan ke sheet Master
 
 ### Enter memindah ke kolom yang sama di baris berikutnya

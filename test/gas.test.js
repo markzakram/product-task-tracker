@@ -1197,8 +1197,11 @@ ok('status target dihitung, dipakai pil', commHtml.indexOf('pkgStatusPil(it)') >
 ok('target menampilkan terpenuhi/target', commHtml.indexOf('${it.terpenuhi}/${it.target}') >= 0);
 ok('kelebihan tak dibulatkan jadi done', commHtml.indexOf("lebih:['bg-amber-100") >= 0);
 ok('ada kolom setoran per task', commHtml.indexOf('pkgs-jumlah') >= 0);
-// Bonus angkatan lama sengaja tetap teks bebas — bukan item yang harus diketik ulang.
-ok('blok bonus tetap teks bebas', commHtml.indexOf('Bonus angkatan lama') >= 0);
+/* Bonus angkatan lama sengaja tetap TEKS BEBAS — bukan item yang harus diketik ulang.
+   Sejak 1.91.1 tempatnya pindah: dari panel terpisah ke dalam blok kategorinya, jadi
+   catatan Latsol ada di bawah daftar target Latsol. */
+ok('bonus angkatan lama tetap teks bebas', commHtml.indexOf('bonus angkatan lama') >= 0);
+ok('dan tempatnya di dalam blok kategori', commHtml.indexOf('catatan untuk seluruh ') >= 0);
 // Area Marsel dihapus dari tampilan: Divisi Produk hanya mengurus sisi produk, dan
 // menaruh field milik tim lain di sini melahirkan sumber kebenaran kedua yang tak dirawat.
 ok('panel Area Marsel tak lagi digambar', commHtml.indexOf('Area Marsel <span') < 0 && commHtml.indexOf("picSel('pkg-marselPic'") < 0);
@@ -1207,7 +1210,8 @@ ok('identitas paket tetap ada', commHtml.indexOf('identitas:[') >= 0);
 // Sel bonus di sheet Master bisa 52 baris; kotak 2 baris membuatnya praktis tak terbaca.
 ok('tinggi kotak catatan mengikuti isinya', commHtml.indexOf('const baris=Math.min(20, Math.max(4,') >= 0);
 ok('kotak catatan bisa ditarik lebih tinggi', commHtml.indexOf('resize-y') >= 0);
-ok('blok catatan dua kolom mulai lg', commHtml.indexOf('grid grid-cols-1 lg:grid-cols-2 gap-3 items-start') >= 0);
+// Catatan per kategori juga ikut menyesuaikan tinggi — sel bonus Master bisa puluhan baris.
+ok('tinggi catatan kategori ikut isinya', commHtml.indexOf("Math.max(3, String(p[PKG_KAT_FIELD[kat]]") >= 0);
 
 // Kelas .form-control cuma diperluas sekali saat aplikasi dimuat, jadi field yang
 // digambar belakangan tak pernah kebagian border/latar/lebarnya — tampak putih polos.
@@ -1238,7 +1242,9 @@ ok('rancangan dilipat hanya di modal collab', commHtml.indexOf('const lipat=!!c;
 ok('memakai details/summary saat dilipat', commHtml.indexOf("lipat?'details':'div'") >= 0 && commHtml.indexOf("lipat?'summary':'div'") >= 0);
 ok('mulai tertutup tiap task dibuka', commHtml.indexOf('state._pkgOpen=false; renderPackagePanel();') >= 0);
 ok('keadaan buka bertahan saat digambar ulang', commHtml.indexOf('state._pkgOpen=this.open') >= 0);
-ok('field panjang melebar penuh', commHtml.indexOf("fd.area?'lg:col-span-2':''") >= 0);
+// Panel sisa tinggal satu kolom (hanya Catatan Produk), jadi field panjangnya otomatis
+// melebar penuh — tak perlu lagi col-span.
+ok('panel sisa satu kolom penuh', commHtml.indexOf('grid grid-cols-1 gap-3 items-start') >= 0);
 // Multi-select untuk merapikan hasil impor berpuluh baris sekaligus.
 ok('kartu paket punya kotak centang', commHtml.indexOf('pkg-pilih') >= 0);
 ok('ada bilah aksi massal', commHtml.indexOf("id=\"paketBulkBar\"") >= 0);
@@ -1981,20 +1987,34 @@ ok('menyusun target boleh Leader di layar', commHtml.indexOf('const bisaRancang=
 ok('mirror TASK tetap PM/Dev saja', commHtml.indexOf('function canMirror(){ return !isViewOnly() && isManager(state.currentUser); }') >= 0);
 ok('mirror PAKET punya penjaga sendiri', commHtml.indexOf('function canMirrorPaket(){ return !isViewOnly() && (isManager(state.currentUser)||isLeader(state.currentUser)); }') >= 0);
 eq('penjaga paket dipakai di modal, penjaga togglenya, dan kartu', (commHtml.match(/canMirrorPaket()/g)||[]).length, 4);
-/* Catatan per target: kolomnya sudah lama ada di sheet (PACKAGE_ITEMS kolom J) dan sudah
-   dibaca-tulis backend, tapi belum pernah ada isiannya di layar — jadi belum pernah teruji
-   benar-benar bolak-balik. */
+/* Catatan berlaku PER FITUR (kategori), bukan per target: satu catatan untuk seluruh
+   Latsol, seluruh Materi, dan seterusnya. Kolomnya tidak dibuat baru — PACKAGES sudah
+   lama punya satu kolom teks per kategori, yang selama ini hanya tampil di panel
+   terpisah jauh dari targetnya. */
 const CP = call('savePackage', '', { platform: 'JadiASN', marsel: { namaPaket: 'Paket Catatan' } }, 'Manager').paketId;
-const cit = function () { return call('getPackages').filter(p => p.id === CP)[0].items[0]; };
-eq('rancangan bercatatan tersimpan',
-  call('savePackage', CP, { items: [{ kategori: 'Latsol', nama: 'Uji Catatan', target: 3, satuan: 'Paket', catatan: 'sumber: bank soal 2024' }] }, 'Manager').success, true);
-eq('catatannya kembali utuh saat dibaca', cit().catatan, 'sumber: bank soal 2024');
-call('savePackage', CP, { items: [{ kategori: 'Latsol', nama: 'Uji Catatan', target: 3, satuan: 'Paket' }] }, 'Manager');
-eq('catatan boleh dikosongkan lagi', cit().catatan, '');
+const cpk = function () { return call('getPackages').filter(p => p.id === CP)[0]; };
+eq('catatan fitur tersimpan',
+  call('savePackage', CP, { produk: { latsol: 'bonus angkatan 40 masih dipakai' } }, 'Manager').success, true);
+eq('catatannya kembali utuh saat dibaca', cpk().latsol, 'bonus angkatan 40 masih dipakai');
+// Tiap fitur punya catatannya sendiri, tidak saling menimpa.
+call('savePackage', CP, { produk: { materi: 'video menyusul' } }, 'Manager');
+eq('catatan fitur lain tak tertimpa', cpk().latsol, 'bonus angkatan 40 masih dipakai');
+eq('dan catatan fitur kedua ikut tersimpan', cpk().materi, 'video menyusul');
+call('savePackage', CP, { produk: { latsol: '' } }, 'Manager');
+eq('catatan boleh dikosongkan lagi', cpk().latsol, '');
 call('deletePackage', CP, 'Manager');
-ok('layar ikut mengirim catatan', commHtml.indexOf("catatan:g('pkgi-catatan').trim(),") >= 0);
-ok('ada kolom catatan di kepala tabel', commHtml.indexOf('>catatan</span>') >= 0);
-ok('catatan ikut terbawa saat menyalin kategori', commHtml.indexOf("awal:x.awal, catatan:x.catatan||''") >= 0);
+
+// Isiannya digambar DI DALAM blok kategorinya, bukan di panel terpisah.
+ok('catatan digambar per kategori', commHtml.indexOf('Catatan ${escapeHtml(kat)}') >= 0);
+ok('menunjuk kolom paket lewat satu peta', commHtml.indexOf('const PKG_KAT_FIELD=') >= 0);
+ok('id-nya dari peta itu, bukan ditulis ulang', commHtml.indexOf('id="pkg-${PKG_KAT_FIELD[kat]}"') >= 0);
+ok('TIDAK ada lagi catatan per target', commHtml.indexOf('pkgi-catatan') < 0);
+// Kategori yang belum punya target tapi sudah bercatatan tetap harus tampil.
+ok('kategori bercatatan tak disembunyikan', commHtml.indexOf("String(p[PKG_KAT_FIELD[k]]||'').trim() || bisaRancang") >= 0);
+// Panel lama tinggal memuat catatan paket, dan tak menggambar ulang kolom kategori —
+// id yang kembar di dua tempat pernah jadi sumber bug tersendiri.
+ok('panel lama tak lagi menggambar kolom kategori', commHtml.indexOf('kunciKat.indexOf(fd.k)<0') >= 0);
+ok('judulnya jadi Catatan paket', commHtml.indexOf('Catatan paket <span') >= 0);
 
 /* Enter memindah ke kolom yang SAMA di baris berikutnya — mengisi rancangan itu pekerjaan
    per kolom, bukan per baris. */
@@ -2002,7 +2022,7 @@ ok('ada pemindah fokus Enter', commHtml.indexOf('function pkgEnterTurun(e)') >= 
 ok('hanya kolom rancangan, bukan kolom setoran', commHtml.indexOf("k.indexOf('pkgi-')===0") >= 0);
 ok('dibatasi pada kategori yang sama', commHtml.indexOf("blok.querySelectorAll('[data-pkgi]')") >= 0);
 ok('baris terakhir tak membuat baris baru sendiri', commHtml.indexOf('if(!tuju) return;') >= 0);
-eq('keenam kolom rancangan dipasangi', commHtml.split('onkeydown=' + String.fromCharCode(34) + 'pkgEnterTurun(event)' + String.fromCharCode(34)).length - 1, 6);
+eq('kelima kolom rancangan dipasangi', commHtml.split('onkeydown=' + String.fromCharCode(34) + 'pkgEnterTurun(event)' + String.fromCharCode(34)).length - 1, 5);
 
 // Sumber asli rancangan tinggal sekali klik dari tab-nya.
 ok('ada tautan ke sheet Master', commHtml.indexOf('id="paketMasterLink"') >= 0);
