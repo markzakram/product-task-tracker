@@ -852,7 +852,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.90.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.90.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1278,7 +1278,11 @@ function seesAll(){ return canSeeAllTasks(state.currentUser) || isViewOnly(); }
 function isExternalTask(t){ return !!(t && String(t.divisiTujuan||'').trim()); }
 // Mirror: task internal yang dipilih PM/Dev untuk tampil di view Lintas Divisi.
 function isMirrored(t){ const v=String((t&&t.mirror)||'').trim().toLowerCase(); return !!v && !['','tidak','no','false','0'].includes(v); }
-function canMirror(){ return !isViewOnly() && isManager(state.currentUser); } // PM/Dev saja
+function canMirror(){ return !isViewOnly() && isManager(state.currentUser); } // TASK biasa: PM/Dev saja
+/* Mirror PAKET sengaja lebih longgar daripada mirror TASK: Leader ikut boleh, karena
+   Leader yang menyusun rancangannya. Dipisah jadi fungsi sendiri supaya perbedaan itu
+   terbaca, bukan tersembunyi di dalam satu fungsi yang dipakai dua hal berbeda. */
+function canMirrorPaket(){ return !isViewOnly() && (isManager(state.currentUser)||isLeader(state.currentUser)); }
 function inLintasView(t){ return isExternalTask(t) || isMirrored(t); }
 function canCreateExternal(){ return !isViewOnly() && isManager(state.currentUser); }
 function canEditTask(t){ if(isViewOnly()) return false; if(isExternalTask(t)) return isManager(state.currentUser); return true; }
@@ -3610,7 +3614,7 @@ function renderPackagePanel(){
      orang di sana adalah Proses Beruntun. Di menu Rancangan Paket justru daftar itu isinya,
      jadi di sana tetap terbentang. */
   const lipat=!!c;
-  const bisaRancang=isManager(state.currentUser) && !isViewOnly();
+  const bisaRancang=(isManager(state.currentUser)||isLeader(state.currentUser)) && !isViewOnly();
   const bisaP=canEditPkgArea(p,'produk');
   const bos=isManager(state.currentUser)||isLeader(state.currentUser);
   const field=(fd,area,bisa)=>{
@@ -3684,7 +3688,7 @@ function renderPackagePanel(){
 
       ${(bisaP||bisaRancang||(c&&canManageCollab()))?`<div class="flex items-center justify-between gap-2 flex-wrap">
         <span class="text-[11px] text-gray-400">${p.updatedBy?`Terakhir diubah ${escapeHtml(p.updatedBy)}${p.updatedAt?' · '+escapeHtml(p.updatedAt):''}`:'Belum pernah disimpan.'}</span>
-        ${(!lipat&&canMirror())?`<button type="button" onclick="togglePaketMirror()" title="Tampilkan rancangan ini di layar Lintas Divisi" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border ${p.mirror?'border-emerald-300 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20':'border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400'} text-[11px] font-semibold"><span class="material-icons-round text-[13px]">${p.mirror?'visibility':'visibility_off'}</span>${p.mirror?'Tampil di Lintas Divisi':'Bagikan ke Lintas Divisi'}</button>`:''}
+        ${(!lipat&&canMirrorPaket())?`<button type="button" onclick="togglePaketMirror()" title="Tampilkan rancangan ini di layar Lintas Divisi" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border ${p.mirror?'border-emerald-300 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20':'border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400'} text-[11px] font-semibold"><span class="material-icons-round text-[13px]">${p.mirror?'visibility':'visibility_off'}</span>${p.mirror?'Tampil di Lintas Divisi':'Bagikan ke Lintas Divisi'}</button>`:''}
         <button type="button" onclick="savePackagePanel()" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan</button>
       </div>`:`<div class="text-[11px] text-gray-400">Paket ini sudah punya PIC dan bukan Anda, jadi isinya hanya bisa dilihat.</div>`}
     </div>`;
@@ -3763,7 +3767,7 @@ function savePackagePanel(){
   const p=currentPackage(); if(!p){ showToast('Tautkan ke sebuah paket dulu.', false); return; }
   const c=currentCollab();
   const bisaP=canEditPkgArea(p,'produk');
-  const bisaRancang=isManager(state.currentUser) && !isViewOnly();
+  const bisaRancang=(isManager(state.currentUser)||isLeader(state.currentUser)) && !isViewOnly();
   const bisaSetor=!!c && canManageCollab();
   if(!bisaP && !bisaRancang && !bisaSetor){ showToast('Anda tak berhak mengubah paket ini.', false); return; }
   const bos=isManager(state.currentUser)||isLeader(state.currentUser);
@@ -3988,7 +3992,7 @@ function salinCaraLama(teks, html, beres){
 function togglePaketMirror(id){
   // Dipanggil dari dua tempat: kartu di daftar (bawa id) dan modal paket (pakai yang terbuka).
   const p=id?packageById(id):currentPackage(); if(!p) return;
-  if(!canMirror()){ showToast('Hanya Manager yang bisa membagikan paket ke Lintas Divisi.', false); return; }
+  if(!canMirrorPaket()){ showToast('Hanya Leader atau Manager yang bisa membagikan paket ke Lintas Divisi.', false); return; }
   GAS.withSuccessHandler(res=>{
     if(!res||!res.success){ showToast((res&&res.message)||'Gagal mengubah', false); return; }
     state.packages=res.packages||state.packages; state.collabs=res.collabs||state.collabs;
@@ -4043,7 +4047,7 @@ function renderPaket(){
           <div class="flex items-center flex-wrap gap-1">
             <span class="text-[10px] font-mono text-gray-400">${escapeHtml(p.id)}</span>
             ${p.platform?`<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">${escapeHtml(p.platform)}</span>`:''}
-            ${canMirror()
+            ${canMirrorPaket()
               ? `<button type="button" onclick="event.stopPropagation(); togglePaketMirror('${escapeAttr(p.id)}')" title="${p.mirror?'Tampil di Lintas Divisi — klik untuk berhenti membagikan':'Belum dibagikan — klik untuk tampilkan ke Lintas Divisi'}" class="inline-flex items-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium ${p.mirror?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300':'text-gray-300 hover:text-gray-500 dark:text-slate-600'}"><span class="material-icons-round text-[12px]">cast</span>${p.mirror?'Lintas Divisi':''}</button>`
               : (p.mirror?`<span class="inline-flex items-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" title="Tampil di Lintas Divisi"><span class="material-icons-round text-[12px]">cast</span>Lintas Divisi</span>`:'')}
           </div>

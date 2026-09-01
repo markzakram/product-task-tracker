@@ -31,6 +31,46 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.90.1 — Leader punya wewenang penuh di Rancangan Paket
+
+Sebelumnya Leader sudah boleh membuat paket, menghapus paket, menautkan task, dan mengatur
+setoran — tapi **tidak boleh menyusun targetnya**. Padahal Leader-lah yang menyusun isi
+paket sehari-hari, jadi menutup bagian itu cuma memaksa mereka menitip ke Manager untuk
+pekerjaan yang memang sudah jadi tanggung jawabnya.
+
+Sekarang Leader bisa menambah, mengubah, dan menghapus target, serta **membagikan
+rancangan ke Lintas Divisi**.
+
+### Yang tetap terpisah, dan kenapa
+
+Mirror **task biasa** tetap **PM/Dev saja**. Yang dilonggarkan hanya mirror **paket**.
+Karena keduanya konsep yang mirip, penjaganya sengaja dipisah jadi dua fungsi:
+
+| | Penjaga | Siapa |
+|---|---|---|
+| Mirror task | `canMirror()` | Manager / Dev |
+| Mirror paket | `canMirrorPaket()` | Manager / Dev / **Leader** |
+
+Kalau keduanya dibiarkan memakai satu fungsi, melonggarkan yang satu akan diam-diam
+melonggarkan yang lain — dan itu jenis perubahan izin yang tak akan ketahuan sampai ada
+yang salah melihat data divisi lain. Ada assertion yang mengunci pemisahan itu.
+
+### Batas yang tidak berubah
+
+Staff tetap hanya melihat: ditolak mengubah rancangan, ditolak membagikan, dan penolakannya
+diuji **tidak diam-diam mengubah apa pun**. Mode Lihat Saja juga tetap tertutup untuk
+keduanya.
+
+| | Manager | Leader | Staff |
+|---|---|---|---|
+| Susun & ubah target | ✅ | ✅ *(baru)* | — |
+| Bagikan paket ke Lintas Divisi | ✅ | ✅ *(baru)* | — |
+| Buat & hapus paket | ✅ | ✅ | — |
+| Tautkan task, atur setoran | ✅ | ✅ | — |
+| Bagikan **task** ke Lintas Divisi | ✅ | — | — |
+
+---
+
 ## 1.90.0 — Salin isi antar kategori, penanda Lintas Divisi, dan importer masuk repo
 
 ### Isi rancangan bisa disalin antar kategori

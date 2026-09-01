@@ -1617,7 +1617,10 @@ async function savePackage(paketId, payload, actor) {
     baru.platform = String(payload.platform || '').trim(); sentuh++;
   }
   if (payload.mirror !== undefined) {
-    if (!isManagerActor(actor)) return { success: false, message: 'Hanya Manager yang bisa membagikan paket ke Lintas Divisi.' };
+    /* Sengaja BEDA dari mirror task biasa yang tetap PM/Dev saja: paket boleh Leader,
+       karena Leader yang menyusun rancangannya. Kalau aturan task ikut diubah, ubah juga
+       canMirror() di public/index.html supaya keduanya tak diam-diam berbeda. */
+    if (!bos) return { success: false, message: 'Hanya Leader atau Manager yang bisa membagikan paket ke Lintas Divisi.' };
     baru.mirror = !!payload.mirror; sentuh++;
   }
   if (payload.marsel) {
@@ -1636,9 +1639,10 @@ async function savePackage(paketId, payload, actor) {
     if (!bolehMarsel) return { success: false, message: 'Varian & harga hanya bisa diubah PIC Area Marsel, Leader, atau Manager.' };
     sentuh++;
   }
-  // RANCANGAN (daftar target) = wewenang Manager. Yang lain hanya melihat.
+  /* RANCANGAN (daftar target) = wewenang Leader & Manager. Leader-lah yang menyusun isi
+     paket sehari-hari, jadi menutupnya cuma memaksa mereka menitip ke Manager. */
   if (payload.items !== undefined) {
-    if (!isManagerActor(actor)) return { success: false, message: 'Rancangan paket (daftar target) hanya bisa diubah Manager.' };
+    if (!bos) return { success: false, message: 'Rancangan paket (daftar target) hanya bisa diubah Leader atau Manager.' };
     sentuh++;
   }
   if (!sentuh) return { success: false, message: 'Tak ada yang diubah.' };

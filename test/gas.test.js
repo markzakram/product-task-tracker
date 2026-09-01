@@ -1686,11 +1686,17 @@ eq('sepadan dengan getCollabs',
   (call('getBootstrapData', {}).collabs || []).filter(function (c) { return c.paketId; }).length,
   call('getCollabs').filter(function (c) { return c.paketId; }).length);
 
-// --- RANCANGAN: daftar target, wewenang Manager ---
-eq('Leader DITOLAK mengubah rancangan',
-  call('savePackage', PID, { items: [{ nama: 'X', target: 1 }] }, 'Leader Konten').success, false);
+// --- RANCANGAN: daftar target, wewenang Leader & Manager ---
+// Leader-lah yang menyusun isi paket sehari-hari; menutupnya cuma memaksa menitip ke Manager.
+eq('Leader BOLEH mengubah rancangan',
+  call('savePackage', PID, { items: [{ kategori: 'Latsol', nama: 'Uji Leader', target: 1 }] }, 'Leader Konten').success, true);
+eq('dan hasilnya memang tersimpan',
+  call('getPackages').filter(p => p.id === PID)[0].items.filter(x => x.nama === 'Uji Leader').length, 1);
+// Batas yang TETAP ada: staff hanya melihat.
 eq('staff DITOLAK mengubah rancangan',
   call('savePackage', PID, { items: [{ nama: 'X', target: 1 }] }, 'Staff Data').success, false);
+eq('penolakan staff tak mengubah apa pun',
+  call('getPackages').filter(p => p.id === PID)[0].items.filter(x => x.nama === 'X').length, 0);
 const rancang = call('savePackage', PID, { items: [
   { kategori: 'Latsol', grup: 'Tahap 1', nama: 'Latsol Verbal', target: 10, satuan: 'Paket' },
   { kategori: 'Latsol', grup: 'Tahap 1', nama: 'Latsol Numerik', target: 20, satuan: 'Paket' },
@@ -1852,8 +1858,12 @@ eq('dicentang lagi -> naik lagi (bolak-balik aman)', uit().terpenuhi, 4);
 // --- (4) Bagikan rancangan ke Lintas Divisi: wewenang Manager, seperti task biasa ---
 eq('rancangan baru TIDAK otomatis dibagikan', upk().mirror, false);
 eq('staff DITOLAK membagikan rancangan', call('savePackage', UP, { mirror: true }, 'Staff Data').success, false);
-eq('leader DITOLAK membagikan rancangan', call('savePackage', UP, { mirror: true }, 'Leader Konten').success, false);
 eq('penolakan itu tak diam-diam mengubah', upk().mirror, false);
+/* Mirror PAKET sengaja lebih longgar daripada mirror TASK (yang tetap PM/Dev saja):
+   Leader ikut boleh, karena Leader yang menyusun rancangannya. */
+eq('Leader BOLEH membagikan rancangan', call('savePackage', UP, { mirror: true }, 'Leader Konten').success, true);
+eq('dan tercatat dibagikan', upk().mirror, true);
+eq('Leader boleh menarik kembali', (call('savePackage', UP, { mirror: false }, 'Leader Konten'), upk().mirror), false);
 eq('manager boleh membagikan', call('savePackage', UP, { mirror: true }, 'Manager').success, true);
 eq('rancangan tercatat dibagikan', upk().mirror, true);
 eq('membagikan tak merusak target', upk().items.length, 1);
@@ -1894,8 +1904,9 @@ ok('tombol duplikat disembunyikan saat task baru', commHtml.indexOf("dup.classLi
 
 // Lintas Divisi hanya melihat rancangan yang memang dibagikan.
 ok('daftar rancangan disaring untuk Lihat Saja', commHtml.indexOf('if(isViewOnly()) arr=arr.filter(p=>p.mirror);') >= 0);
-ok('tombol bagikan memakai penjaga yang sama dengan task biasa', commHtml.indexOf('(!lipat&&canMirror())') >= 0);
-ok('togglePaketMirror pun dijaga canMirror', commHtml.indexOf('if(!canMirror()){ showToast(') >= 0);
+// Sejak 1.90.1 penjaganya SENGAJA berbeda dari task biasa: paket boleh Leader.
+ok('tombol bagikan memakai penjaga khusus paket', commHtml.indexOf('(!lipat&&canMirrorPaket())') >= 0);
+ok('togglePaketMirror pun dijaga penjaga paket', commHtml.indexOf('if(!canMirrorPaket()){ showToast(') >= 0);
 ok('Lihat Saja tak ditawari salin utk Marsel', commHtml.indexOf("salinBtn.classList.toggle('hide', isViewOnly()") >= 0);
 
 console.log('\n=== 19. Satu task boleh menyetor BERKALI-KALI ke target yang sama ===');
@@ -1963,6 +1974,13 @@ ok('judul halaman ikut dibersihkan', commHtml.indexOf("document.title.split('[ST
 /* Nama target sering berulang antar kategori ("Verbal" ada di Latsol, Materi, dan Tryout).
    Mengetiknya berkali-kali rawan salah ketik, dan salah ketik bikin dua target yang
    sebenarnya sama terlihat berbeda. */
+/* Wewenang Leader di Rancangan Paket disamakan dengan Manager. Yang HARUS tetap terpisah:
+   mirror TASK biasa tetap PM/Dev saja — kalau keduanya dijadikan satu fungsi, melonggarkan
+   yang satu diam-diam melonggarkan yang lain. */
+ok('menyusun target boleh Leader di layar', commHtml.indexOf('const bisaRancang=(isManager(state.currentUser)||isLeader(state.currentUser)) && !isViewOnly();') >= 0);
+ok('mirror TASK tetap PM/Dev saja', commHtml.indexOf('function canMirror(){ return !isViewOnly() && isManager(state.currentUser); }') >= 0);
+ok('mirror PAKET punya penjaga sendiri', commHtml.indexOf('function canMirrorPaket(){ return !isViewOnly() && (isManager(state.currentUser)||isLeader(state.currentUser)); }') >= 0);
+eq('penjaga paket dipakai di modal, penjaga togglenya, dan kartu', (commHtml.match(/canMirrorPaket()/g)||[]).length, 4);
 ok('isi kategori bisa disalin ke kategori lain', commHtml.indexOf('function pkgSalinKategori(dari, ke)') >= 0);
 ok('ada kontrol Salin ke di kepala kategori', commHtml.indexOf('Salin ke…') >= 0);
 ok('tujuannya tak boleh kategori itu sendiri', commHtml.indexOf('PKG_KATEGORI.filter(k=>k!==kat)') >= 0);

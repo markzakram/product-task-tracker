@@ -1706,7 +1706,7 @@ function savePackage(paketId, payload, actor) {
     baru.platform = String(payload.platform || '').trim(); sentuh++;
   }
   if (payload.mirror !== undefined) {
-    if (!isManagerActor_(actor)) return { success: false, message: 'Hanya Manager yang bisa membagikan paket ke Lintas Divisi.' };
+    if (!bos) return { success: false, message: 'Hanya Leader atau Manager yang bisa membagikan paket ke Lintas Divisi.' };
     baru.mirror = !!payload.mirror; sentuh++;
   }
   if (payload.marsel) {
@@ -1726,7 +1726,7 @@ function savePackage(paketId, payload, actor) {
     sentuh++;
   }
   if (payload.items !== undefined) {
-    if (!isManagerActor_(actor)) return { success: false, message: 'Rancangan paket (daftar target) hanya bisa diubah Manager.' };
+    if (!bos) return { success: false, message: 'Rancangan paket (daftar target) hanya bisa diubah Leader atau Manager.' };
     sentuh++;
   }
   if (!sentuh) return { success: false, message: 'Tak ada yang diubah.' };
