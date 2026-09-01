@@ -2234,4 +2234,8 @@ ok('tanpa label chip memakai nama host', commHtml.indexOf('function pkgNamaTauta
 ok('nama host diambil lewat pola, bukan new URL()', commHtml.indexOf('.exec(pkgRapiUrl((t&&t.url)') >= 0);
 ok('klik chip tak ikut membuka kartunya', commHtml.indexOf("event.stopPropagation(); window.open(") >= 0);
 ok('nama panjang dipotong, tata letak tak terdorong', commHtml.indexOf('max-w-[10rem]') >= 0);
+// Dari DAFTAR pun ketahuan paket mana yang punya tautan, tanpa membukanya dulu.
+ok('kartu daftar diberi penanda tautan', commHtml.indexOf('function pkgPenandaTautan(p)') >= 0);
+ok('penandanya dipakai di kartu', commHtml.indexOf('${pkgPenandaTautan(p)}') >= 0);
+ok('paket tanpa tautan tak diberi penanda', commHtml.indexOf("if(!l.length) return '';") >= 0);
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

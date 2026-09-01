@@ -853,7 +853,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.92.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.92.2'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3534,6 +3534,16 @@ function pkgNamaTautan(t){
 /* Chip di kepala panel: menunjukkan BAHWA ada tautan, sekaligus jadi jalan pintas ke sana.
    Yang ditampilkan tautan yang SUDAH TERSIMPAN — baris yang baru diketik belum punya
    tempat di sini sampai ditekan Simpan. */
+/* Penanda "paket ini punya tautan" di kartu daftar. Sengaja TIDAK bisa diklik: kartunya
+   sendiri sudah membuka paketnya, dan di sana tiap tautan punya chipnya masing-masing.
+   Membuat penanda ini membuka salah satu tautan akan sewenang-wenang saat tautannya
+   lebih dari satu. Daftar lengkapnya tetap terbaca lewat tooltip. */
+function pkgPenandaTautan(p){
+  const l=(p&&p.links)||[];
+  if(!l.length) return '';
+  const judul=l.map(t=>pkgNamaTautan(t)+' — '+pkgRapiUrl(t.url)).join(String.fromCharCode(10));
+  return `<span class="inline-flex items-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" title="${escapeAttr(judul)}"><span class="material-icons-round text-[12px]">link</span>${l.length}</span>`;
+}
 function pkgChipTautan(t){
   const u=pkgRapiUrl((t&&t.url)||'');
   if(!u) return '';
@@ -4186,6 +4196,7 @@ function renderPaket(){
             ${canMirrorPaket()
               ? `<button type="button" onclick="event.stopPropagation(); togglePaketMirror('${escapeAttr(p.id)}')" title="${p.mirror?'Tampil di Lintas Divisi — klik untuk berhenti membagikan':'Belum dibagikan — klik untuk tampilkan ke Lintas Divisi'}" class="inline-flex items-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium ${p.mirror?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300':'text-gray-300 hover:text-gray-500 dark:text-slate-600'}"><span class="material-icons-round text-[12px]">cast</span>${p.mirror?'Lintas Divisi':''}</button>`
               : (p.mirror?`<span class="inline-flex items-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" title="Tampil di Lintas Divisi"><span class="material-icons-round text-[12px]">cast</span>Lintas Divisi</span>`:'')}
+            ${pkgPenandaTautan(p)}
           </div>
           <div class="font-semibold text-sm text-gray-900 dark:text-white mt-0.5 line-clamp-2">${escapeHtml(p.namaPaket||p.program||'(tanpa nama)')}</div>
         </div>

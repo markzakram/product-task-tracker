@@ -31,6 +31,21 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.92.2 — Penanda tautan di daftar Rancangan Paket
+
+Sekarang ketahuan paket mana yang punya tautan **tanpa membukanya dulu**: kartu di daftar
+Rancangan Paket diberi penanda kecil bericon rantai beserta **jumlah** tautannya. Daftar
+lengkapnya — label dan alamatnya — terbaca lewat tooltip.
+
+Penandanya **sengaja tidak bisa diklik**. Kartunya sendiri sudah membuka paketnya, dan di
+sana tiap tautan punya chipnya masing-masing; membuat penanda ini membuka salah satu tautan
+akan sewenang-wenang begitu tautannya lebih dari satu.
+
+Paket tanpa tautan tidak diberi apa-apa — penanda yang muncul di semua kartu tidak
+memberi tahu apa pun.
+
+---
+
 ## 1.92.1 — Tautan terlihat dan langsung bisa dibuka dari kepala panel
 
 Tautan yang sudah disematkan kini muncul sebagai **chip di kepala Rancangan Paket**, di
