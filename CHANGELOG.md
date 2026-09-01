@@ -31,6 +31,39 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.92.0 — Tautan pendukung paket: opsional, boleh lebih dari satu
+
+Rancangan paket kini bisa menyematkan tautan — folder akademik, dokumen kisi-kisi, hasil
+QC, apa pun yang perlu dijangkau dari situ. **Opsional**, dan **jumlahnya tak dibatasi**.
+Tiap tautan punya labelnya sendiri; yang wajib cuma URL-nya, karena itu yang bisa dibuka.
+
+Disimpan di sheet anak baru **`PACKAGE_LINKS`** (Paket ID, Order, Label, URL), mengikuti
+pola `PACKAGE_VARIANTS` dan `PACKAGE_ITEMS`. Sheet sendiri, bukan satu kolom berisi banyak
+URL — menumpuknya di satu sel akan mengulang persis kesulitan yang membuat kolom Area
+Produk sheet Master sulit dibaca mesin. Sheet-nya dibuat otomatis saat pertama dipakai;
+tak ada langkah manual.
+
+**URL tanpa skema dirapikan.** Orang menempel `docs.google.com/document/d/...` apa adanya;
+tanpa dibereskan, alamat itu dibaca sebagai alamat **relatif** dan tombol Buka justru
+memuat ulang aplikasi ini — terlihat seperti tautannya rusak padahal cuma kurang
+`https://`. Yang sudah berskema dibiarkan apa adanya, termasuk `http://` untuk alamat
+internal.
+
+Wewenangnya sama dengan rancangan: **Leader & Manager** boleh mengubah, yang lain hanya
+melihat — tapi tombol **Buka tetap ada untuk semua**, karena melihat tak sama dengan
+mengubah.
+
+Empat hal yang dijaga:
+
+- **Menyimpan ulang mengganti seluruh daftar**, bukan menumpuk.
+- **Menyimpan target tidak menghapus tautan, dan sebaliknya.** Keduanya hidup di sheet
+  berbeda; pola inilah yang dulu membuat setoran jadi yatim.
+- **Baris tanpa URL tidak disimpan** — tak ada yang bisa dibuka dari baris kosong.
+- **Ikut terhapus bersama paketnya**, jadi tak ada baris menggantung tanpa induk. Ada
+  assertion yang memeriksa sheet-nya langsung sesudah paket dihapus.
+
+---
+
 ## 1.91.1 — Catatan berlaku per FITUR, bukan per target
 
 Koreksi atas 1.91.0. Catatan di sana dipasang **per baris target** — satu kotak kecil di

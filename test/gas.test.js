@@ -2164,4 +2164,63 @@ ok('vercel punya lapisan yang sama', kodeV.indexOf('async function ulangi(jalank
 ok('vercel: tulis hanya diulang saat kuota', kodeV.indexOf('const bolehUlangTulis = err => kenaKuota(err);') >= 0);
 ok('vercel: append memakai aturan tulis', kodeV.indexOf('insertDataOption:') >= 0 && kodeV.indexOf('}), bolehUlangTulis);') >= 0);
 ok('vercel: batas percobaan sama', kodeV.indexOf('const ULANG_JEDA = [400, 1100];') >= 0);
+
+console.log('\n=== 23. Tautan pendukung paket (opsional, boleh lebih dari satu) ===');
+
+/* Disimpan di sheet anak PACKAGE_LINKS, bukan ditumpuk di satu sel: jumlahnya tak
+   dibatasi dan tiap tautan punya labelnya sendiri. */
+const TP = call('savePackage', '', { platform: 'JadiASN', marsel: { namaPaket: 'Paket Tautan' } }, 'Manager').paketId;
+const tpk = function () { return call('getPackages').filter(p => p.id === TP)[0]; };
+eq('paket baru belum punya tautan', tpk().links.length, 0);
+
+eq('tautan tersimpan', call('savePackage', TP, { links: [
+  { label: 'Folder Akademik', url: 'https://drive.google.com/folders/a' },
+  { label: 'Kisi-kisi', url: 'https://docs.google.com/document/b' },
+  { label: '', url: 'https://example.com/tanpa-label' } ] }, 'Manager').success, true);
+eq('tiga tautan terbaca', tpk().links.length, 3);
+eq('urutannya dipertahankan', tpk().links.map(function (x) { return x.label; }).join('|'), 'Folder Akademik|Kisi-kisi|');
+eq('URL-nya utuh', tpk().links[0].url, 'https://drive.google.com/folders/a');
+// Label boleh kosong — yang wajib cuma URL-nya, karena itu yang bisa dibuka.
+eq('label boleh kosong', tpk().links[2].label, '');
+call('savePackage', TP, { links: [{ label: 'x', url: '   ' }] }, 'Manager');
+eq('tautan tanpa URL tidak disimpan', tpk().links.length, 0);
+
+// Menyimpan ulang MENGGANTI seluruh daftar, bukan menumpuk.
+call('savePackage', TP, { links: [{ label: 'A', url: 'https://a.b' }, { label: 'B', url: 'https://c.d' }] }, 'Manager');
+call('savePackage', TP, { links: [{ label: 'Cuma satu', url: 'https://e.f' }] }, 'Manager');
+eq('menyimpan ulang mengganti seluruh daftar', tpk().links.length, 1);
+eq('dan isinya yang terbaru', tpk().links[0].label, 'Cuma satu');
+
+// Wewenangnya sama dengan rancangan: Leader & Manager boleh, staff hanya melihat.
+eq('staff DITOLAK mengubah tautan', call('savePackage', TP, { links: [] }, 'Staff Data').success, false);
+eq('penolakan tak menghapus apa pun', tpk().links.length, 1);
+eq('Leader BOLEH mengubah tautan',
+  call('savePackage', TP, { links: [{ label: 'dari leader', url: 'https://l.co' }] }, 'Leader Konten').success, true);
+
+/* Tautan dan daftar target hidup di sheet berbeda; menyimpan salah satunya tak boleh
+   menyentuh yang lain. Dulu pola inilah yang membuat setoran jadi yatim. */
+call('savePackage', TP, { items: [{ kategori: 'Latsol', nama: 'Uji', target: 1 }] }, 'Manager');
+eq('menyimpan target TIDAK menghapus tautan', tpk().links.length, 1);
+call('savePackage', TP, { links: [{ label: 'tetap', url: 'https://g.h' }] }, 'Manager');
+eq('menyimpan tautan TIDAK menghapus target', tpk().items.length, 1);
+
+// Ikut terhapus bersama paketnya — kalau tidak, barisnya menggantung tanpa induk.
+call('deletePackage', TP, 'Manager');
+eq('paket terhapus', call('getPackages').filter(p => p.id === TP).length, 0);
+const shTautan = SS.getSheetByName('PACKAGE_LINKS');
+const sisaTautan = (shTautan.getLastRow() > 1)
+  ? shTautan.getRange(2, 1, shTautan.getLastRow() - 1, 4).getValues().filter(function (r) { return String(r[0] || '').trim() === TP; })
+  : [];
+eq('tautannya ikut terhapus, tak menggantung', sisaTautan.length, 0);
+
+// --- tampilan ---
+ok('ada blok tautan di panel paket', commHtml.indexOf('id="pkgTautanBox"') >= 0);
+ok('bisa ditambah lebih dari satu', commHtml.indexOf('function pkgTambahTautan(btn)') >= 0);
+ok('tiap baris bisa dihapus', commHtml.indexOf('function pkgHapusTautan(btn)') >= 0);
+ok('ditandai opsional', commHtml.indexOf('opsional, boleh lebih dari satu') >= 0);
+/* URL tanpa skema jadi alamat RELATIF: tombol Buka akan memuat ulang aplikasi ini dan
+   terlihat seperti tautannya rusak, padahal cuma kurang "https://". */
+ok('URL tanpa skema dirapikan', commHtml.indexOf('function pkgRapiUrl(u)') >= 0);
+ok('dibuka di tab baru', commHtml.indexOf("window.open(u, '_blank', 'noopener')") >= 0);
+ok('tautan ikut dikirim saat menyimpan', commHtml.indexOf('payload.links=pkgReadTautan();') >= 0);
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

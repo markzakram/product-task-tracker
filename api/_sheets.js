@@ -43,6 +43,7 @@ const CONFIG = {
   PACKAGE_VARIANT_SHEET: 'PACKAGE_VARIANTS',
   PACKAGE_ITEM_SHEET: 'PACKAGE_ITEMS',
   PACKAGE_CONTRIB_SHEET: 'PACKAGE_CONTRIB',
+  PACKAGE_LINK_SHEET: 'PACKAGE_LINKS',
   NOTIF_SHEET: 'NOTIFICATIONS',
   USERS_SHEET: 'USERS',
   HEADER_ROW: 3,
@@ -1360,6 +1361,9 @@ const PKG_HEADERS = ['Paket ID', 'Platform', 'Marsel PIC', 'Program', 'Nama Pake
   'Tanggal', 'Tujuan', 'Produk PIC', 'Dibimbing', 'Latsol', 'Materi', 'Tryout', 'Drilling',
   'Live Class', 'Catatan', 'Updated By', 'Updated At', 'Mirror'];
 const PKGV_HEADERS = ['Paket ID', 'Order', 'Masa Aktif', 'Harga Awal', 'Harga Diskon', 'Status'];
+/* Tautan pendukung paket — mis. folder akademik, dokumen kisi-kisi, hasil QC.
+   Sengaja sheet sendiri: jumlahnya tak dibatasi dan tiap tautan punya labelnya. */
+const PKGL_HEADERS = ['Paket ID', 'Order', 'Label', 'URL'];
 /* Target rancangan. "Awal" = yang sudah tersedia sebelum task apa pun (mis. warisan
    angkatan lalu) — dihitung sebagai terpenuhi tanpa perlu kontribusi palsu. */
 const PKGI_HEADERS = ['Item ID', 'Paket ID', 'Order', 'Kategori', 'Grup', 'Nama', 'Target', 'Satuan', 'Awal', 'Catatan'];
@@ -1383,6 +1387,9 @@ async function ensurePackageSheets() {
   await ensureSheetExists(CONFIG.PACKAGE_ITEM_SHEET);
   head = await valuesGet(`${CONFIG.PACKAGE_ITEM_SHEET}!A1:J1`);
   if (!((head[0] || [])[0])) await valuesUpdate(`${CONFIG.PACKAGE_ITEM_SHEET}!A1:J1`, [PKGI_HEADERS]);
+  await ensureSheetExists(CONFIG.PACKAGE_LINK_SHEET);
+  head = await valuesGet(`${CONFIG.PACKAGE_LINK_SHEET}!A1:D1`);
+  if (!((head[0] || [])[0])) await valuesUpdate(`${CONFIG.PACKAGE_LINK_SHEET}!A1:D1`, [PKGL_HEADERS]);
   await ensureSheetExists(CONFIG.PACKAGE_CONTRIB_SHEET);
   head = await valuesGet(`${CONFIG.PACKAGE_CONTRIB_SHEET}!A1:F1`);
   if (!((head[0] || [])[0])) await valuesUpdate(`${CONFIG.PACKAGE_CONTRIB_SHEET}!A1:F1`, [PKGC_HEADERS]);
@@ -1390,7 +1397,7 @@ async function ensurePackageSheets() {
 }
 
 function emptyPackage(paketId) {
-  const o = { id: String(paketId || ''), row: 0, platform: '', marselPic: '', produkPic: '', updatedBy: '', updatedAt: '', mirror: false, variants: [], items: [] };
+  const o = { id: String(paketId || ''), row: 0, platform: '', marselPic: '', produkPic: '', updatedBy: '', updatedAt: '', mirror: false, variants: [], items: [], links: [] };
   PKG_MARSEL.concat(PKG_PRODUK).forEach(k => { o[k] = ''; });
   return o;
 }
@@ -1411,7 +1418,7 @@ function rowToPackage(r, rowNum) {
     // Kolom T: paket ini ikut ditampilkan ke Lintas Divisi atau tidak. Pola & kata
     // penyangkalnya disamakan dengan kolom Mirror pada task biasa.
     mirror: !['', 'tidak', 'no', 'false', '0'].includes(g(19).toLowerCase()),
-    variants: [], items: [],
+    variants: [], items: [], links: [],
   };
 }
 
@@ -1499,14 +1506,16 @@ function buildStepIndex(collabs) {
 }
 
 async function readPackages(stepIndex) {
-  let prows = [], vrows = [], irows = [], crows = [];
+  let prows = [], vrows = [], irows = [], crows = [], lrows = [];
   try {
     const b = await valuesBatchGet([`${CONFIG.PACKAGE_SHEET}!A2:T`, `${CONFIG.PACKAGE_VARIANT_SHEET}!A2:F`,
-      `${CONFIG.PACKAGE_ITEM_SHEET}!A2:J`, `${CONFIG.PACKAGE_CONTRIB_SHEET}!A2:F`]);
+      `${CONFIG.PACKAGE_ITEM_SHEET}!A2:J`, `${CONFIG.PACKAGE_CONTRIB_SHEET}!A2:F`,
+      `${CONFIG.PACKAGE_LINK_SHEET}!A2:D`]);
     prows = b[`${CONFIG.PACKAGE_SHEET}!A2:T`] || [];
     vrows = b[`${CONFIG.PACKAGE_VARIANT_SHEET}!A2:F`] || [];
     irows = b[`${CONFIG.PACKAGE_ITEM_SHEET}!A2:J`] || [];
     crows = b[`${CONFIG.PACKAGE_CONTRIB_SHEET}!A2:F`] || [];
+    lrows = b[`${CONFIG.PACKAGE_LINK_SHEET}!A2:D`] || [];
   } catch (e) {
     /* JANGAN dijadikan "kosong". Sheet-nya sudah dipastikan ada oleh ensurePackageSheets,
        jadi gagal di sini berarti gangguan baca sesaat (kuota Sheets, jaringan) — dan daftar
@@ -1528,6 +1537,13 @@ async function readPackages(stepIndex) {
       status: String((r && r[5]) || '').trim() || 'aktif',
     });
   });
+  lrows.forEach(r => {
+    const pid = String((r && r[0]) || '').trim();
+    const url = String((r && r[3]) || '').trim();
+    if (!pid || !url || !out[pid]) return;
+    out[pid].links.push({ order: Number((r && r[1]) || 0), label: String((r && r[2]) || '').trim(), url });
+  });
+  Object.keys(out).forEach(k => out[k].links.sort((a, b) => (a.order || 0) - (b.order || 0)));
   const itemById = {};
   irows.forEach((r, i) => {
     const iid = String((r && r[0]) || '').trim();
@@ -1641,6 +1657,10 @@ async function savePackage(paketId, payload, actor) {
   }
   /* RANCANGAN (daftar target) = wewenang Leader & Manager. Leader-lah yang menyusun isi
      paket sehari-hari, jadi menutupnya cuma memaksa mereka menitip ke Manager. */
+  if (payload.links !== undefined) {
+    if (!bos) return { success: false, message: 'Tautan paket hanya bisa diubah Leader atau Manager.' };
+    sentuh++;
+  }
   if (payload.items !== undefined) {
     if (!bos) return { success: false, message: 'Rancangan paket (daftar target) hanya bisa diubah Leader atau Manager.' };
     sentuh++;
@@ -1651,6 +1671,15 @@ async function savePackage(paketId, payload, actor) {
   const rowData = packageToRow(baru);
   if (lama.row) await valuesUpdate(`${CONFIG.PACKAGE_SHEET}!A${lama.row}:T${lama.row}`, [rowData]);
   else await valuesAppend(`${CONFIG.PACKAGE_SHEET}!A:T`, [rowData]);
+  if (payload.links !== undefined) {
+    await purgeRowsForRef(CONFIG.PACKAGE_LINK_SHEET, 'D', 0, paketId);
+    // Tanpa URL tak ada yang bisa dibuka, jadi barisnya memang tak perlu disimpan.
+    const tl = (payload.links || []).filter(v => v && String(v.url || '').trim());
+    if (tl.length) {
+      await valuesAppend(`${CONFIG.PACKAGE_LINK_SHEET}!A:D`, tl.map((v, i) => [
+        paketId, i + 1, String(v.label || '').trim(), String(v.url || '').trim()]));
+    }
+  }
   if (payload.variants !== undefined) {
     await purgeRowsForRef(CONFIG.PACKAGE_VARIANT_SHEET, 'F', 0, paketId);
     const list = (payload.variants || []).filter(v => v && String(v.masaAktif || '').trim());
@@ -1759,6 +1788,7 @@ async function deletePackages(ids, actor) {
     ikut += await purgeRowsForRef(CONFIG.PACKAGE_VARIANT_SHEET, 'F', 0, paketId);
     ikut += await purgeRowsForRef(CONFIG.PACKAGE_ITEM_SHEET, 'J', 1, paketId);
     ikut += await purgeRowsForRef(CONFIG.PACKAGE_CONTRIB_SHEET, 'F', 0, paketId);
+    ikut += await purgeRowsForRef(CONFIG.PACKAGE_LINK_SHEET, 'D', 0, paketId);
     await purgeRowsForRef(CONFIG.PACKAGE_SHEET, 'T', 0, paketId);
   }
   // Tautan di COLLAB dibereskan sekali jalan untuk seluruh daftar.
@@ -1781,6 +1811,7 @@ async function deletePackage(paketId, actor) {
   ikut += await purgeRowsForRef(CONFIG.PACKAGE_VARIANT_SHEET, 'F', 0, paketId);
   ikut += await purgeRowsForRef(CONFIG.PACKAGE_ITEM_SHEET, 'J', 1, paketId);
   ikut += await purgeRowsForRef(CONFIG.PACKAGE_CONTRIB_SHEET, 'F', 0, paketId);
+    ikut += await purgeRowsForRef(CONFIG.PACKAGE_LINK_SHEET, 'D', 0, paketId);
   // Nomor paket dipakai ulang (max+1) — baris menggantung akan diwarisi paket berikutnya.
   await purgeRowsForRef(CONFIG.PACKAGE_SHEET, 'T', 0, paketId);
   const crows = await valuesGet(`${CONFIG.COLLAB_SHEET}!A2:J`);

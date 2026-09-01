@@ -853,7 +853,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.91.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.92.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3509,6 +3509,59 @@ function pkgEnterTurun(e){
   // menurunkan angka yang sama berulang kali.
   try{ if(isian.select) isian.select(); }catch(err){}
 }
+/* ---------- Tautan pendukung paket ----------
+   Opsional dan boleh lebih dari satu: folder akademik, dokumen kisi-kisi, hasil QC.
+   Disimpan di sheet anak PACKAGE_LINKS, bukan ditumpuk di satu sel — tiap tautan punya
+   labelnya sendiri dan jumlahnya tak dibatasi. */
+function pkgRapiUrl(u){
+  const s=String(u||'').trim();
+  if(!s) return '';
+  /* Orang menempel "docs.google.com/..." tanpa skema. Tanpa dibereskan, href-nya jadi
+     alamat RELATIF dan tombol Buka justru memuat ulang aplikasi ini — terlihat seperti
+     tautannya rusak padahal cuma kurang "https://". */
+  return /^[a-z][a-z0-9+.-]*:/i.test(s) ? s : ('https://'+s);
+}
+function pkgTautanBaris(t, bisa){
+  const dis=bisa?'':'disabled';
+  return `<div class="pkgl-row flex items-center gap-1">
+    <input class="pkgl-label ${PKG_F} w-[8rem] shrink-0" ${dis} value="${escapeAttr((t&&t.label)||'')}" placeholder="label (ops.)" title="Nama tautan — mis. Folder Akademik">
+    <input class="pkgl-url ${PKG_F} flex-1 min-w-0" ${dis} value="${escapeAttr((t&&t.url)||'')}" placeholder="tempel URL di sini">
+    <button type="button" onclick="pkgBukaTautan(this)" title="Buka di tab baru" class="shrink-0 text-gray-300 hover:text-indigo-600"><span class="material-icons-round text-[15px]">open_in_new</span></button>
+    ${bisa?`<button type="button" onclick="pkgHapusTautan(this)" title="Hapus tautan ini" class="shrink-0 text-gray-300 hover:text-rose-500"><span class="material-icons-round text-[15px]">close</span></button>`:''}
+  </div>`;
+}
+function pkgBukaTautan(btn){
+  const baris=btn.closest('.pkgl-row'); if(!baris) return;
+  const u=pkgRapiUrl((baris.querySelector('.pkgl-url')||{}).value);
+  if(!u){ showToast('Tautannya masih kosong.', false); return; }
+  window.open(u, '_blank', 'noopener');
+}
+function pkgTambahTautan(btn){
+  const kotak=btn.parentElement&&btn.parentElement.querySelector('.pkgl-box'); if(!kotak) return;
+  kotak.insertAdjacentHTML('beforeend', pkgTautanBaris(null, true));
+}
+function pkgHapusTautan(btn){
+  const baris=btn.closest('.pkgl-row'); if(!baris) return;
+  const kotak=baris.parentElement;
+  // Baris terakhir dikosongkan, bukan dihilangkan — kalau tidak, tak ada lagi tempat
+  // menempel tautan tanpa menekan "+" dulu.
+  if(kotak && kotak.children.length<=1){
+    ['pkgl-label','pkgl-url'].forEach(k=>{ const el=baris.querySelector('.'+k); if(el) el.value=''; });
+    return;
+  }
+  baris.remove();
+}
+// Hanya baris yang ada URL-nya yang dikirim; label boleh kosong.
+function pkgReadTautan(){
+  const kotak=document.getElementById('pkgTautanBox'); if(!kotak) return [];
+  const out=[];
+  [...kotak.querySelectorAll('.pkgl-row')].forEach(b=>{
+    const url=pkgRapiUrl(((b.querySelector('.pkgl-url')||{}).value)||'');
+    if(!url) return;
+    out.push({ label:(((b.querySelector('.pkgl-label')||{}).value)||'').trim(), url });
+  });
+  return out;
+}
 function pkgReadItems(){
   const box=document.getElementById('pkgItemBox'); if(!box) return [];
   const out=[];
@@ -3725,6 +3778,14 @@ function renderPackagePanel(){
         </div>
       </${lipat?'details':'div'}>
 
+      ${(bisaRancang||(p.links||[]).length)?`<div class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div class="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Tautan <span class="font-normal normal-case tracking-normal text-gray-400">— opsional, boleh lebih dari satu</span></div>
+        <div class="p-2">
+          <div class="pkgl-box space-y-1" id="pkgTautanBox">${((p.links||[]).length?p.links:(bisaRancang?[null]:[])).map(t=>pkgTautanBaris(t,bisaRancang)).join('')}</div>
+          ${bisaRancang?`<button type="button" onclick="pkgTambahTautan(this)" title="Tambah tautan lain" class="mt-1 text-[10px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5"><span class="material-icons-round text-[12px]">add</span>Tautan</button>`:''}
+        </div>
+      </div>`:''}
+
       ${(function(){
         /* Catatan per kategori sudah pindah ke dalam blok kategorinya. Yang tersisa di
            sini hanya catatan paket secara keseluruhan — digambar SEKALI saja, karena id
@@ -3835,6 +3896,7 @@ function savePackagePanel(){
     if(bos){ const el=document.getElementById('pkg-produkPic'); if(el) payload.produk.produkPic=el.value; }
   }
   if(bisaRancang) payload.items=pkgReadItems().filter(it=>it.nama);
+  if(bisaRancang) payload.links=pkgReadTautan();
   const setoran=bisaSetor?pkgReadSetor():null;
   /* Dua setoran ke target DAN proses yang sama akan terhitung dua kali begitu proses itu
      dicentang — hampir pasti salah pilih proses, bukan maksud sebenarnya. Dihentikan di
