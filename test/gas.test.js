@@ -2276,6 +2276,18 @@ call('deletePackage', CMP, 'Manager');
 call('deleteCollab', CM, 'Manager');
 
 // --- tampilan ---
+/* Tombol "Task Aktif": menyaring ke yang belum Selesai, supaya bisa fokus. Berdiri
+   sendiri dari "Task Saya" — keduanya boleh menyala bersamaan. */
+ok('ada tombol Task Aktif', commHtml.indexOf('id="collabFilterAktif"') >= 0);
+ok('saklarnya terpisah dari Task Saya', commHtml.indexOf("else if(k==='aktif') f.aktif=!f.aktif;") >= 0);
+ok('menyaring yang belum Selesai', commHtml.indexOf("if(f.aktif) arr=arr.filter(c=>c.status!=='Selesai');") >= 0);
+ok('Reset ikut mematikannya', commHtml.indexOf("mine:false,aktif:false}") >= 0);
+ok('tombol Reset muncul saat menyala', commHtml.indexOf('f.status||f.mine||f.aktif') >= 0);
+
+/* Tolakan KARENA LEVEL tak boleh melempar orang ke layar PIN — itu yang dulu membuat
+   tamu berputar mengetik PIN yang sudah benar. */
+ok('FORBIDDEN tak memunculkan layar PIN', commHtml.indexOf("if(data && data.code === 'FORBIDDEN')") >= 0);
+ok('AUTH tetap memunculkan layar PIN', commHtml.indexOf("if(r.status === 401 || (data && data.code === 'AUTH')){ showLoginGate();") >= 0);
 ok('ada aksi membagikan task', commHtml.indexOf('function toggleCollabMirror(id, ev)') >= 0);
 /* Penjaganya sengaja fungsi sendiri: aturannya kebetulan sama dengan mirror paket hari ini,
    tapi menyatukannya berarti melonggarkan yang satu diam-diam melonggarkan yang lain. */

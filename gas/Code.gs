@@ -2550,6 +2550,8 @@ function getBootstrapData(opts) {
       links: [],
       dashboards: dashboards || [],
       notes: [],
+      // Task kolaborasi yang SENGAJA dibagikan ikut dikirim; yang belum dibagikan tidak.
+      collabs: (collabs || []).filter(function (c) { return c && c.mirror; }),
       viewOnly: true,
       meta: meta
     };

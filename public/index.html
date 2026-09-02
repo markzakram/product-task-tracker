@@ -476,6 +476,7 @@
             <select id="collabFilterPic" onchange="setCollabFilter('pic',this.value)" class="px-2.5 py-2 rounded-lg text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 outline-none"><option value="">Semua PIC</option></select>
             <select id="collabFilterStatus" onchange="setCollabFilter('status',this.value)" class="px-2.5 py-2 rounded-lg text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 outline-none"><option value="">Semua Status</option><option value="Aktif">Aktif</option><option value="Selesai">Selesai</option></select>
             <button id="collabFilterMine" onclick="setCollabFilter('mine',null)" title="Tampilkan hanya kolaborasi yang ada proses milik Anda" class="px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">assignment_ind</span>Task Saya</button>
+            <button id="collabFilterAktif" onclick="setCollabFilter('aktif',null)" title="Tampilkan hanya task yang belum Selesai" class="px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">bolt</span>Task Aktif</button>
             <button id="collabFilterReset" onclick="resetCollabFilter()" class="hide px-2 py-2 rounded-lg text-xs text-gray-400 hover:text-rose-500">Reset</button>
             <span id="collabFilterCount" class="text-[11px] text-gray-400 ml-auto"></span>
           </div>
@@ -854,7 +855,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.93.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.94.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -891,6 +892,10 @@ function callApi(action, args){
     return r.text().then(function(txt){
       var data = null;
       try { data = txt ? JSON.parse(txt) : null; } catch(e){ data = null; }
+      /* HANYA kode AUTH yang berarti "PIN belum/salah" dan pantas memunculkan layar PIN.
+         FORBIDDEN berarti PIN-nya benar tapi aksinya memang tak boleh di level ini —
+         melemparnya ke layar PIN membuat tamu berputar-putar mengetik PIN yang sudah benar. */
+      if(data && data.code === 'FORBIDDEN'){ throw new Error(data.message || 'Aksi ini tidak tersedia untuk level akses Anda.'); }
       if(r.status === 401 || (data && data.code === 'AUTH')){ showLoginGate(); throw new Error('Perlu login.'); }
       if(!r.ok){ throw new Error((data && data.message) || ('HTTP ' + r.status)); }
       if(data && data.__error){ throw new Error(data.message || 'API error'); }
@@ -3116,10 +3121,10 @@ function renderCollabColorPicker(){
 }
 function setCollabViz(v){ state._collabViz=v; renderCollab(); }
 /* ---- Filter tab Task Kolaborasi ---- */
-function collabFilter(){ return state._collabFilter||(state._collabFilter={q:'',type:'',platform:'',pic:'',status:'',mine:false}); }
-function setCollabFilter(k,v){ const f=collabFilter(); if(k==='mine') f.mine=!f.mine; else f[k]=v; renderCollab(); }
-function resetCollabFilter(){ state._collabFilter={q:'',type:'',platform:'',pic:'',status:'',mine:false}; const s=document.getElementById('collabSearch'); if(s) s.value=''; ['collabFilterType','collabFilterPlatform','collabFilterPic','collabFilterStatus'].forEach(id=>{const e=document.getElementById(id); if(e) e.value='';}); renderCollab(); }
-function collabFilterActive(){ const f=collabFilter(); return !!(f.q||f.type||f.platform||f.pic||f.status||f.mine); }
+function collabFilter(){ return state._collabFilter||(state._collabFilter={q:'',type:'',platform:'',pic:'',status:'',mine:false,aktif:false}); }
+function setCollabFilter(k,v){ const f=collabFilter(); if(k==='mine') f.mine=!f.mine; else if(k==='aktif') f.aktif=!f.aktif; else f[k]=v; renderCollab(); }
+function resetCollabFilter(){ state._collabFilter={q:'',type:'',platform:'',pic:'',status:'',mine:false,aktif:false}; const s=document.getElementById('collabSearch'); if(s) s.value=''; ['collabFilterType','collabFilterPlatform','collabFilterPic','collabFilterStatus'].forEach(id=>{const e=document.getElementById(id); if(e) e.value='';}); renderCollab(); }
+function collabFilterActive(){ const f=collabFilter(); return !!(f.q||f.type||f.platform||f.pic||f.status||f.mine||f.aktif); }
 function filteredCollabs(){
   const f=collabFilter(); let arr=(state.collabs||[]).slice();
   // Lintas Divisi: hanya yang memang dibagikan. Disaring di sini, satu tempat yang dipakai
@@ -3134,6 +3139,10 @@ function filteredCollabs(){
   // "Task Saya": semua kolaborasi yang punya proses ber-PIC saya — bukan cuma yang sudah tiba
   // gilirannya. stepIsMine() ikut mengenali PIC berbentuk peran (mis. @Magang).
   if(f.mine) arr=arr.filter(c=>(c.steps||[]).some(s=>stepIsMine(s)));
+  /* "Task Aktif": yang belum Selesai. Dipakai saat ingin fokus — daftar yang sudah
+     rampung tak perlu ikut memenuhi layar. Berdiri sendiri dari "Task Saya", jadi
+     keduanya bisa dinyalakan bersamaan. */
+  if(f.aktif) arr=arr.filter(c=>c.status!=='Selesai');
   // Yang jadi giliran Anda naik ke atas, lalu yang masih jalan, baru yang sudah Selesai.
   // Tanpa ini kartu bergiliran bisa terkubur di bawah kartu Selesai dan tak pernah terlihat.
   // sort() stabil di JS modern, jadi urutan asli di dalam tiap kelompok tetap terjaga.
@@ -3162,6 +3171,7 @@ function renderCollab(){
   // status tombol "Task Saya" + reset + hitungan
   const f=collabFilter();
   const mb=document.getElementById('collabFilterMine'); if(mb){ mb.classList.toggle('bg-indigo-50', f.mine); mb.classList.toggle('border-indigo-300', f.mine); mb.classList.toggle('text-indigo-600', f.mine); }
+  const ab=document.getElementById('collabFilterAktif'); if(ab){ ab.classList.toggle('bg-indigo-50', !!f.aktif); ab.classList.toggle('border-indigo-300', !!f.aktif); ab.classList.toggle('text-indigo-600', !!f.aktif); }
   const rb=document.getElementById('collabFilterReset'); if(rb) rb.classList.toggle('hide', !collabFilterActive());
   const shown=filteredCollabs().length, total=(state.collabs||[]).length;
   const cnt=document.getElementById('collabFilterCount'); if(cnt) cnt.textContent=collabFilterActive()?`${shown} dari ${total}`:'';

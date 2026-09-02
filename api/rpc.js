@@ -121,6 +121,16 @@ async function readJsonBody(req) {
   });
 }
 
+/* Pemangkas hasil untuk level 'view'. Rancangan yang belum dibagikan tak boleh ikut
+   terkirim — menyaringnya di browser saja berarti datanya tetap sampai ke perangkat
+   tamu dan bisa dibaca lewat DevTools. */
+function pruneUntukTamu(action, result, level) {
+  if (result === undefined) return null;
+  if (level !== 'view') return result;
+  if (action === 'getPackages' && Array.isArray(result)) return result.filter(p => p && p.mirror);
+  return result;
+}
+
 module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
@@ -198,7 +208,10 @@ module.exports = async (req, res) => {
   else level = 'none';
 
   // Action yang boleh diakses di level "view" (lihat-saja): baca terbatas + chat.
-  const GUEST_ACTIONS = { getBootstrapData: 1, getComments: 1, addComment: 1 };
+  /* getPackages ikut diizinkan sejak Lintas Divisi punya menu Rancangan Paket. Hasilnya
+     DIPANGKAS di server (lihat pruneUntukTamu) supaya rancangan yang belum dibagikan tak
+     pernah sampai ke perangkat mereka — bukan sekadar disembunyikan di browser. */
+  const GUEST_ACTIONS = { getBootstrapData: 1, getComments: 1, addComment: 1, getPackages: 1 };
   // Level "magang" boleh bekerja seperti biasa, TAPI tidak boleh menyentuh hal administratif.
   const MAGANG_DENY = {
     saveUser: 1, deleteUser: 1, renameUser: 1, setUserPin: 1, deleteUserPin: 1, listPinUsers: 1,
@@ -218,11 +231,16 @@ module.exports = async (req, res) => {
   if (level === 'none') {
     return res.status(401).end(JSON.stringify({ __error: true, code: 'AUTH', message: 'Perlu PIN.' }));
   }
+  /* Ditolak KARENA LEVEL, bukan karena PIN-nya salah. Bedanya menentukan: dulu keduanya
+     memakai kode AUTH, dan layar depan memperlakukan AUTH sebagai "sesi habis" lalu
+     menampilkan layar PIN lagi. Akibatnya tamu yang PIN-nya SUDAH BENAR terlempar balik
+     ke layar PIN begitu ada satu panggilan latar yang tak boleh di levelnya — terlihat
+     seperti PIN-nya ditolak terus. */
   if (level === 'view' && !GUEST_ACTIONS[action]) {
-    return res.status(401).end(JSON.stringify({ __error: true, code: 'AUTH', message: 'Perlu PIN akses penuh.' }));
+    return res.status(403).end(JSON.stringify({ __error: true, code: 'FORBIDDEN', message: 'Aksi ini perlu PIN akses penuh.' }));
   }
   if (level === 'magang' && MAGANG_DENY[action]) {
-    return res.status(401).end(JSON.stringify({ __error: true, code: 'AUTH', message: 'Aksi ini hanya untuk karyawan.' }));
+    return res.status(403).end(JSON.stringify({ __error: true, code: 'FORBIDDEN', message: 'Aksi ini hanya untuk karyawan.' }));
   }
 
   const handler = HANDLERS[action];
@@ -241,7 +259,7 @@ module.exports = async (req, res) => {
       ? await backend.getBootstrapData({ viewOnly: level === 'view', magangOnly: level === 'magang', asUser: claimedUser })
       : await handler(...args);
     // Hasil bisa berupa objek {success,...}, array, atau primitif.
-    return res.status(200).end(JSON.stringify(result === undefined ? null : result));
+    return res.status(200).end(JSON.stringify(pruneUntukTamu(action, result, level)));
   } catch (err) {
     // Error tak terduga -> 500, frontend akan memanggil withFailureHandler.
     console.error(`[rpc] action=${action} error:`, err && err.stack ? err.stack : err);

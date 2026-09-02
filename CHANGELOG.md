@@ -31,6 +31,52 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.94.0 — Tombol "Task Aktif", dan perbaikan mode tamu yang berputar minta PIN
+
+### Tombol "Task Aktif"
+
+Di samping "Task Saya" kini ada **"Task Aktif"** — menyaring ke task kolaborasi yang
+**belum Selesai**, supaya daftar yang sudah rampung tak ikut memenuhi layar saat sedang
+ingin fokus.
+
+Saklarnya **berdiri sendiri** dari "Task Saya", jadi keduanya bisa menyala bersamaan:
+menekan dua-duanya berarti "task saya yang masih jalan". Tombol Reset ikut mengenalinya.
+
+### Mode tamu tak lagi berputar meminta PIN
+
+PIN tamu **tidak pernah salah** — `login` memang mengembalikan `level: view` dan berhasil.
+Yang membuatnya terlihat ditolak terus adalah apa yang terjadi **sesudahnya**: begitu
+halaman dimuat, muat-awal memanggil `getPackages`, aksi itu tak ada di jatah level tamu,
+server menolaknya dengan kode **`AUTH`** — dan layar depan memperlakukan `AUTH` sebagai
+"sesi habis" lalu memunculkan layar PIN lagi. Tamu mengetik PIN yang sudah benar, masuk,
+lalu terlempar balik. Berulang.
+
+Diperbaiki di dua lapis:
+
+- **Ditolak karena LEVEL sekarang memakai `403 FORBIDDEN`**, bukan `401 AUTH`. Layar PIN
+  hanya muncul kalau PIN-nya memang belum atau salah. Ini menutup seluruh kelas masalahnya,
+  bukan hanya satu aksi — aksi baru yang tak masuk jatah tamu tak akan mengulanginya.
+- **`getPackages` masuk jatah tamu**, karena Lintas Divisi memang punya menu Rancangan
+  Paket. Hasilnya **dipangkas di server** ke yang dibagikan saja: rancangan yang belum
+  dibagikan tak pernah sampai ke perangkat mereka, bukan sekadar disembunyikan di browser.
+
+### Tab Kolaborasi untuk Lintas Divisi akhirnya berisi
+
+Ditemukan saat menelusuri yang di atas. Muat-awal untuk tamu **tidak pernah mengirim kunci
+`collabs` sama sekali**, jadi tab Kolaborasi yang dibuka di 1.93.0 selalu kosong walau ada
+task yang sudah ditandai dibagikan. Sekarang task yang dibagikan ikut dikirim — dan hanya
+yang dibagikan.
+
+### api/rpc.js akhirnya punya uji
+
+Gerbang akses adalah berkas paling menentukan soal siapa boleh apa, tapi selama ini
+**belum punya satu uji pun** — dan bug ini lahir persis di sana. `test/rpc.test.js` baru
+berisi **30 assertion**: pengenalan tiap PIN, jatah tamu, pemangkasan di server, beda
+`FORBIDDEN` dan `AUTH`, batasan magang, dan perilaku anti-terkunci saat tak ada PIN
+dikonfigurasi sama sekali. Ikut `npm test`.
+
+---
+
 ## 1.93.0 — Task kolaborasi bisa dibagikan ke Lintas Divisi
 
 Melengkapi yang sudah berlaku untuk task biasa dan rancangan paket: task kolaborasi kini

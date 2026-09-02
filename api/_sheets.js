@@ -2708,6 +2708,11 @@ async function getBootstrapData(opts) {
       links: [],
       dashboards: dashboards || [],
       notes: [],
+      /* Task kolaborasi yang SENGAJA dibagikan ikut dikirim. Sebelumnya kuncinya tak ada
+         sama sekali, jadi tab Kolaborasi untuk Lintas Divisi selalu kosong walau ada task
+         yang sudah ditandai. Disaring di sini, bukan di browser: yang belum dibagikan tak
+         boleh sampai ke perangkat mereka. */
+      collabs: (collabs || []).filter(c => c && c.mirror),
       viewOnly: true,
       meta: {
         sheetName: CONFIG.TASK_SHEET,
