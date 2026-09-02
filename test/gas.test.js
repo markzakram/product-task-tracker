@@ -1108,7 +1108,12 @@ ok('tak ada lagi cakupan Komunikasi terpisah', !/function commScopedTasks\(\)/.t
 // Mode magang: identitas terkunci di cookie, switcher hilang, dan ada tab khusus untuk karyawan.
 ok('ada pembungkus cookie identitas magang', /function magangIdentity\(\)\{ return getCookie\('tt_magang_user'\)/.test(commHtml));
 ok('pilih identitas magang mengunci ke cookie', /function chooseIdentity\(name\)\{[\s\S]{0,400}?state\.magangMode[\s\S]{0,300}?setCookie\('tt_magang_user'/.test(commHtml));
-ok('identitas magang tak bisa dipindah otomatis', /function populateUserSelect\(\)\{[\s\S]{0,600}?state\.magangMode\)\{[\s\S]{0,300}?select\.disabled=true/.test(commHtml));
+// Diperiksa dengan memotong fungsinya, bukan regex berbatas panjang: batas seperti itu
+// jebol tiap ada komentar baru, dan ujinya gagal padahal kodenya benar.
+const potUserSelect = commHtml.slice(commHtml.indexOf('function populateUserSelect()'),
+  commHtml.indexOf('const pics = state.options.pic', commHtml.indexOf('function populateUserSelect()')));
+ok('identitas magang tak bisa dipindah otomatis',
+  potUserSelect.indexOf('state.magangMode') >= 0 && potUserSelect.indexOf('select.disabled=true') >= 0);
 ok('ganti user ditolak di mode magang', /function requestUserSwitch\(value\)\{[\s\S]{0,300}?state\.magangMode\)\{[\s\S]{0,150}?terkunci/.test(commHtml));
 // Kotak Mode User TETAP tampil utk magang (biar tahu masuk sebagai siapa); yang dimatikan
 // hanya cara menggantinya — dropdown terkunci + tombol "Ganti identitas" disembunyikan.
@@ -2286,6 +2291,20 @@ ok('tombol Reset muncul saat menyala', commHtml.indexOf('f.status||f.mine||f.akt
 
 /* Tolakan KARENA LEVEL tak boleh melempar orang ke layar PIN — itu yang dulu membuat
    tamu berputar mengetik PIN yang sudah benar. */
+/* Lintas Divisi = jendela BACA saja. Menu Komunikasi dicabut, dan kotak komentar di modal
+   task ikut ditutup — percakapan internal tim bukan bagian dari yang dibagikan. */
+/* PIN Lintas Divisi langsung mendudukkan orangnya sebagai user Lintas Divisi — link cukup
+   dibagikan apa adanya, tak ada pemilihan identitas dan identitasnya tak bisa diganti. */
+ok('PIN tamu langsung jadi user Lintas Divisi', commHtml.indexOf('if (state.guestMode) state.currentUser = VIEWONLY_USER;') >= 0);
+ok('pemilih user dikunci untuk PIN tamu, bukan hanya link berbagi', commHtml.indexOf('if(state.lockView || state.guestMode){') >= 0);
+ok('dan switcher identitasnya disembunyikan', commHtml.indexOf("const box=document.getElementById('modeUserBox'); if(box) box.classList.add('hide');") >= 0);
+ok('tak ditanyai memilih identitas', commHtml.indexOf('if(isViewOnly() || state.lockView) return false;') >= 0);
+ok('menu Komunikasi disembunyikan dari Lihat Saja', commHtml.indexOf("navComm.classList.toggle('hide', vo)") >= 0);
+ok('yang sedang di layar itu dipindahkan', commHtml.indexOf("if(vo && state.activeView==='communication') switchView('dashboard');") >= 0);
+ok('kotak komentar modal ditutup untuk Lihat Saja', commHtml.indexOf('const bolehKomentar=!!existing && !isViewOnly();') >= 0);
+ok('dan komentarnya pun tak diminta ke server', commHtml.indexOf('if(bolehKomentar){loadModalComments(existing.id);}') >= 0);
+// Magang TIDAK ikut kehilangan Komunikasi — yang dicabut hanya untuk Lihat Saja.
+eq('Komunikasi hanya digating oleh vo, jadi magang tetap punya', commHtml.split("navComm.classList.toggle('hide', ").length - 1, 1);
 ok('FORBIDDEN tak memunculkan layar PIN', commHtml.indexOf("if(data && data.code === 'FORBIDDEN')") >= 0);
 ok('AUTH tetap memunculkan layar PIN', commHtml.indexOf("if(r.status === 401 || (data && data.code === 'AUTH')){ showLoginGate();") >= 0);
 ok('ada aksi membagikan task', commHtml.indexOf('function toggleCollabMirror(id, ev)') >= 0);

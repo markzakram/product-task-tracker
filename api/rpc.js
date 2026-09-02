@@ -211,7 +211,9 @@ module.exports = async (req, res) => {
   /* getPackages ikut diizinkan sejak Lintas Divisi punya menu Rancangan Paket. Hasilnya
      DIPANGKAS di server (lihat pruneUntukTamu) supaya rancangan yang belum dibagikan tak
      pernah sampai ke perangkat mereka — bukan sekadar disembunyikan di browser. */
-  const GUEST_ACTIONS = { getBootstrapData: 1, getComments: 1, addComment: 1, getPackages: 1 };
+  /* Lintas Divisi: BACA saja. Komentar tak lagi termasuk — mereka melihat task dan
+     rancangan yang dibagikan, tidak ikut percakapan internal tim. */
+  const GUEST_ACTIONS = { getBootstrapData: 1, getPackages: 1 };
   // Level "magang" boleh bekerja seperti biasa, TAPI tidak boleh menyentuh hal administratif.
   const MAGANG_DENY = {
     saveUser: 1, deleteUser: 1, renameUser: 1, setUserPin: 1, deleteUserPin: 1, listPinUsers: 1,

@@ -855,7 +855,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.94.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.94.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1407,7 +1407,11 @@ function applyRoleUI(){
      tombol ubah tetap tertutup lewat canManageCollab(). */
   ['nav-extdash','nav-mylinks','nav-hariini','nav-mynotes'].forEach(id=>{const e=document.getElementById(id); if(e) e.classList.toggle('hide',vo);});
   const navCollab=document.getElementById('nav-collab'); if(navCollab) navCollab.classList.remove('hide');
-  const navComm=document.getElementById('nav-communication'); if(navComm) navComm.classList.remove('hide');
+  /* Komunikasi disembunyikan dari Lintas Divisi: mereka melihat yang dibagikan, tidak ikut
+     mengobrol. Kalau kebetulan sedang berada di layar itu saat mode berubah, dipindahkan
+     supaya tak tertinggal di halaman yang tombolnya sudah hilang. */
+  const navComm=document.getElementById('nav-communication'); if(navComm) navComm.classList.toggle('hide', vo);
+  if(vo && state.activeView==='communication') switchView('dashboard');
   const addBtn=document.getElementById('btnAddTask'); if(addBtn) addBtn.classList.toggle('hide',vo);
   // Kunci switcher mode bila diakses lewat link berbagi (?view=lintas) ATAU tamu tanpa PIN.
   const guest=!!state.guestMode;
@@ -1505,7 +1509,11 @@ function injectUtilityClasses(){
 function loginEmail(){ try{ return localStorage.getItem('tt_user_email'); }catch(_){ return null; } }
 function populateUserSelect(){
   const select = document.getElementById('currentUser');
-  if(state.lockView){   // diakses lewat link berbagi: kunci ke Lintas Divisi, sembunyikan switcher
+  /* Dikunci ke Lintas Divisi untuk DUA jalan masuk: link berbagi (?view=lintas) dan PIN
+     Lintas Divisi. Dulu hanya link berbagi, sehingga tamu ber-PIN masih menerima daftar
+     PIC lengkap dan bisa berpindah identitas — padahal PIN itu memang ditujukan untuk
+     satu akun saja, dan linknya dibagikan apa adanya ke divisi lain. */
+  if(state.lockView || state.guestMode){
     state.currentUser=VIEWONLY_USER;
     if(select){ select.innerHTML=`<option value="${escapeHtml(VIEWONLY_USER)}">${escapeHtml(VIEWONLY_USER)}</option>`; select.value=VIEWONLY_USER; select.disabled=true; }
     const box=document.getElementById('modeUserBox'); if(box) box.classList.add('hide');
@@ -2827,10 +2835,12 @@ function openTaskModal(id='', dupSrc=null){
   [...document.getElementById('fieldSupport').options].forEach(o=>o.selected=selectedSupport.includes(o.value));
   toggleExternalFields();
   updateNamePreview();
-  // Komentar tampil untuk task yang sudah ada (termasuk mode Lihat Saja yang boleh kirim chat).
-  // Task duplikat belum punya chat sendiri -> kotak komentar disembunyikan sampai tersimpan.
-  document.getElementById('modalCommentsBox').classList.toggle('hide',!existing);
-  if(existing){loadModalComments(existing.id);}
+  /* Komentar tampil untuk task yang sudah ada, TAPI tidak untuk Lintas Divisi: percakapan
+     internal tim bukan bagian dari yang dibagikan ke divisi lain. Task duplikat belum punya
+     chat sendiri -> kotak komentar disembunyikan sampai tersimpan. */
+  const bolehKomentar=!!existing && !isViewOnly();
+  document.getElementById('modalCommentsBox').classList.toggle('hide',!bolehKomentar);
+  if(bolehKomentar){loadModalComments(existing.id);}
   // Ceklis: task lama -> muat dari server; duplikat -> salin dari task asal (tanpa centang);
   // task baru -> mulai dari buffer kosong.
   const ci=document.getElementById('checklistInput'); if(ci) ci.value='';

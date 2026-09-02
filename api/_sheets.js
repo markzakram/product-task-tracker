@@ -2703,7 +2703,9 @@ async function getBootstrapData(opts) {
       tasks: shown,
       options,
       activity: [],
-      commentsSummary: (commentsSummary || []).filter(c => shownIds.has(c.taskId)),
+      // Ringkasan chat tak dikirim ke Lintas Divisi: mereka tak punya menu Komunikasi, dan
+      // mengirimnya berarti percakapan internal tetap sampai ke perangkat divisi lain.
+      commentsSummary: [],
       pinUsers: [],
       links: [],
       dashboards: dashboards || [],

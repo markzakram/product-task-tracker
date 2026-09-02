@@ -31,6 +31,35 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.94.1 — Lintas Divisi jadi jendela baca saja, tanpa Komunikasi
+
+Tiga PIN sekarang punya peran yang jelas terpisah:
+
+| PIN | Level | Siapa |
+|---|---|---|
+| `ACCESS_PIN` | penuh | Divisi Produk |
+| `MAGANG_PIN` | magang | anak magang |
+| `VIEW_PIN` | lihat saja | **Lintas Divisi** |
+
+Memasukkan PIN Lintas Divisi langsung mendudukkan orangnya sebagai user **Lintas Divisi** —
+tak ada pemilihan identitas, dan pemilih user dikunci ke nama itu. Jadi link cukup dibagikan
+apa adanya ke divisi lain.
+
+**Menu Komunikasi dicabut untuk mereka.** Sebelumnya sengaja dibiarkan tampil ("boleh kirim
+chat"); sekarang divisi lain cukup melihat yang dibagikan, tidak ikut mengobrol. Dicabut
+sampai ke jalur datanya, bukan sekadar disembunyikan:
+
+- menu Komunikasi hilang, dan kalau kebetulan sedang di layar itu, dipindahkan;
+- kotak komentar di modal task ikut ditutup, jadi komentarnya tak diminta ke server;
+- `getComments` dan `addComment` keluar dari jatah tamu;
+- **ringkasan chat tak lagi dikirim** dalam muat-awal mereka — kalau hanya disembunyikan di
+  layar, percakapan tim tetap sampai ke perangkat divisi lain dan terbaca lewat DevTools.
+
+Magang **tidak** ikut kehilangan Komunikasi: yang dicabut hanya untuk level lihat-saja.
+
+
+---
+
 ## 1.94.0 — Tombol "Task Aktif", dan perbaikan mode tamu yang berputar minta PIN
 
 ### Tombol "Task Aktif"

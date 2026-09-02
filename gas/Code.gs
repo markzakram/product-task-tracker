@@ -2545,7 +2545,8 @@ function getBootstrapData(opts) {
       tasks: shown,
       options: options,
       activity: [],
-      commentsSummary: commentsSummary.filter(function (c) { return shownIds[c.taskId]; }),
+      // Ringkasan chat tak dikirim ke Lintas Divisi (tak punya menu Komunikasi).
+      commentsSummary: [],
       pinUsers: [],
       links: [],
       dashboards: dashboards || [],

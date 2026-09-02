@@ -27,7 +27,7 @@ const backendTiruan = {
   getBootstrapData(opts) {
     dipanggil.push('getBootstrapData:' + JSON.stringify(opts || {}));
     if (opts && opts.viewOnly) {
-      return Promise.resolve({ tasks: [], options: {}, viewOnly: true,
+      return Promise.resolve({ tasks: [], options: {}, viewOnly: true, commentsSummary: [],
         collabs: COLLAB.filter(c => c.mirror), meta: {} });
     }
     return Promise.resolve({ tasks: [{ id: 'TSK-001' }], options: {}, collabs: COLLAB, meta: {} });
@@ -91,7 +91,12 @@ function tembak(action, pin, args) {
 
   console.log('\n=== 2. Tamu: yang boleh dibuka ===');
   eq('muat-awal boleh', (await tembak('getBootstrapData', '222222', [{}])).kode, 200);
-  eq('komentar boleh dibaca', (await tembak('getComments', '222222')).kode, 200);
+  /* Komentar TIDAK termasuk jatah tamu: Lintas Divisi melihat yang dibagikan, tidak ikut
+     percakapan internal tim. */
+  const kom = await tembak('getComments', '222222');
+  eq('komentar TIDAK boleh dibaca tamu', kom.kode, 403);
+  eq('dan bukan kode yang memunculkan layar PIN', kom.data.code, 'FORBIDDEN');
+  eq('tamu juga tak boleh mengirim komentar', (await tembak('addComment', '222222')).kode, 403);
   /* getPackages ikut diizinkan sejak Lintas Divisi punya menu Rancangan Paket. Tanpa ini,
      muat-awal tamu memanggilnya, ditolak, lalu terlempar balik ke layar PIN. */
   eq('rancangan paket boleh dibaca', (await tembak('getPackages', '222222')).kode, 200);
@@ -107,6 +112,9 @@ function tembak(action, pin, args) {
   ok('muat-awal tamu membawa kunci collabs', Object.prototype.hasOwnProperty.call(bootTamu, 'collabs'));
   eq('dan isinya hanya yang dibagikan', (bootTamu.collabs || []).length, 1);
   ok('backend diberi tahu ini sesi tamu', dipanggil.some(x => x.indexOf('"viewOnly":true') >= 0));
+  /* Ringkasan chat pun tak ikut terkirim — kalau hanya disembunyikan di layar, percakapan
+     tim tetap sampai ke perangkat divisi lain dan terbaca lewat DevTools. */
+  ok('ringkasan chat tak ikut dikirim ke tamu', (bootTamu.commentsSummary || []).length === 0);
 
   console.log('\n=== 4. Ditolak karena LEVEL, bukan karena PIN salah ===');
   /* Inti perbaikannya. Dulu keduanya memakai 401/AUTH, dan layar depan memperlakukan AUTH
