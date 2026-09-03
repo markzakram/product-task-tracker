@@ -31,6 +31,64 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.97.0 — Dashboard untuk peran selain Manager, dan grafik tren beban
+
+Sejak 1.95.1 panel **Beban Kerja per PIC** disembunyikan dari semua non-Manager, karena
+isinya dipecah per Kesulitan dan Kesulitan memang bukan hak mereka. Yang terjadi bukan
+"panelnya diganti" tapi "panelnya dihapus": Komposisi Status tertinggal sendirian melebar
+tiga kolom, dengan ruang kosong lebar di kiri-kanannya. Itu kena empat dari enam peran —
+Staff, Leader, Magang, dan Lihat Saja.
+
+Sekarang panelnya kembali untuk semua yang punya identitas, dengan sumbu yang bukan
+Kesulitan: **Beban Saya**, sumbu X-nya Status, tetap dipisah warna *Sebagai PIC* (indigo)
+vs *Sebagai Support* (amber). Pertanyaan yang dijawabnya beda dari donat di sebelahnya:
+bukan "divisi ini isinya apa" tapi "pekerjaan saya menumpuk di tahap mana". Tamu Lihat
+Saja tak punya identitas, jadi ia tetap mendapat donat penuh tiga kolom.
+
+Ikut diperbaiki: **kolom KPI ketujuh yang menganggur**. Gridnya tujuh kolom sementara
+kartunya tinggal enam setelah "Sulit" dicabut, jadi deretan kartu berhenti sebelum tepi
+kanan sementara bilah saringan di atasnya sampai mentok. Jumlah kolomnya sekarang
+mengikuti jumlah kartunya.
+
+### Tren Beban Saya
+
+Satu grafik garis baru, selebar layar: sumbu X waktu, sumbu Y **berapa banyak pekerjaan
+yang masih terbuka pada hari itu**. Naik saat pekerjaan masuk, turun saat ditandai selesai.
+Dua garis — **Personal** (task biasa milik sendiri) dan **Kolaborasi**, yang dihitung
+**per proses beruntun**, bukan per kartu: satu kartu kolaborasi bisa memuat belasan proses,
+dan yang jadi beban seseorang adalah prosesnya sendiri.
+
+Jendelanya 30 hari. Angka hari ini selalu tepat — yang belum selesai tak butuh jejak apa
+pun untuk dihitung. Yang bergantung pada catatan hanya riwayatnya: tanggal selesai task
+dibaca dari kolom **Status By**, proses kolaborasi dari **Done At**. Keduanya per baris,
+jadi tak ada batas jangkauan. Yang sudah Done tapi tak punya tanggal sama sekali (baris
+lama, ditulis sebelum kolom itu ada) dihitung tertutup di hari ia dibuat, jadi ia tak
+pernah menaikkan garis: lebih baik kurang daripada menggambar beban yang sudah lama kelar.
+
+### Riwayat status tak pernah sampai ke layar
+
+Bootstrap membaca ACTIVITY hanya sampai kolom E, padahal `statusFrom` dan `statusTo` ada
+di F dan G — dan sisi Apps Script bahkan tak pernah memetakan keduanya sama sekali. Tanpa
+itu, "kapan task ini selesai" cuma bisa ditebak dari kalimat detail, dan `saveTask` menulis
+"Status: Done" pada **setiap** penyuntingan task yang memang sudah Done — jadi tebakannya
+menghitung penyuntingan biasa sebagai penyelesaian. Keduanya kini terbaca sampai ke layar.
+
+### Seluruh tanggal "Done At" kolaborasi tak terbaca
+
+Ketemu saat mencoba grafiknya ke sheet sungguhan, dan ternyata jauh lebih luas dari yang
+dicari. Sebagian stempel waktu lama tersimpan sebagai bilangan **bulat**: digit serial-nya
+utuh, tapi titik desimalnya hilang — `46225.5674884259` jadi `4622556748842590`. Di staging
+itu mengenai **145 dari 145** baris kolom "Done At" kolaborasi: satu pun tak terbaca sebagai
+tanggal. Akibatnya bukan cuma grafik baru ini yang datar di nol — hitungan "kolaborasi
+selesai minggu ini" di Laporan juga selalu nol, tanpa satu pun tanda bahwa ada yang salah.
+
+Serial tanggal yang sah tak pernah mencapai 100000 (tahun 2100 pun baru sekitar 73000),
+jadi angka yang lebih besar pasti korban hal yang sama dan titiknya bisa ditaruh kembali
+sesudah lima digit pertama. Pemulihannya dilakukan **saat membaca**, jadi isi sheet tak
+disentuh dan tak ada yang perlu dimigrasi. Jalur tulis yang sekarang sudah benar — ini
+murni pertolongan untuk baris yang terlanjur rusak.
+
+---
 ## 1.96.0 — Urutan pilihan di Dropdown Master bisa digeser
 
 Setelah Priority diganti jadi **Sulit / Normal / Mudah**, urutannya di dropdown mengikuti

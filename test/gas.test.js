@@ -2365,14 +2365,22 @@ ok('kolom daftar hanya untuk Manager', commHtml.indexOf("bisaLihatKesulitan()?`<
 /* Kartu KPI dan grafik Beban Kerja dibangun DI ATAS kesulitan. Kalau keduanya tetap
    tampil untuk staff, angkanya membocorkan lagi apa yang baru ditutup di tabel. */
 ok('kartu KPI Sulit khusus Manager', commHtml.indexOf("bisaLihatKesulitan()?[['Sulit'") >= 0);
-ok('grafik Beban Kerja ikut disembunyikan', commHtml.indexOf("getElementById('panelBebanKerja')") >= 0);
+ok('kartu KPI-nya juga', commHtml.indexOf("getElementById('panelBebanKerja')") >= 0);
 /* Saringannya ikut hilang: menyisakan saringan untuk kolom yang tak tampak membuat orang
    menyaring sesuatu yang tak bisa mereka baca. */
 ok('saringan Kesulitan di daftar task ikut disaring', commHtml.indexOf("FILTER_FIELDS.filter(([f])=>f!=='priority'||bisaLihatKesulitan())") >= 0);
 ok('saringan Kesulitan di dashboard ikut disembunyikan', commHtml.indexOf('bisaLihatKesulitan()?msDropdown({key:') >= 0);
-/* Beban Kerja mengambil 2 dari 3 kolom grid. Begitu ia hilang, Komposisi Status harus
-   melebar penuh — kalau tidak, ia tertinggal di sepertiga layar dengan ruang kosong lebar. */
-ok('Komposisi Status melebar saat Beban Kerja hilang', commHtml.indexOf("panelKomp.classList.toggle('xl:col-span-3', !bisaKes)") >= 0);
+/* Panel Beban kini hilang HANYA untuk tamu; peran lain mendapatkannya dengan sumbu Status.
+   Donat melebar penuh cuma di kasus tamu itu — dulu ia melebar untuk semua non-Manager dan
+   tertinggal sendirian dengan ruang kosong di kiri-kanannya. */
+ok('panel Beban hilang hanya untuk tamu', commHtml.indexOf("panelBeban.classList.toggle('hide', vo)") >= 0);
+ok('judulnya berganti jadi Beban Saya', commHtml.indexOf("bisaKes ? 'Beban Kerja per PIC' : 'Beban Saya'") >= 0);
+ok('sumbunya Status, bukan Kesulitan', commHtml.indexOf('const stList=(state.options.status||[]).slice();') >= 0);
+ok('tetap dipisah PIC vs Support', commHtml.indexOf("label:'Sebagai PIC'") >= 0 && commHtml.indexOf("label:'Sebagai Support'") >= 0);
+ok('Komposisi melebar penuh hanya untuk tamu', commHtml.indexOf("panelKomp.classList.toggle('xl:col-span-3', vo)") >= 0);
+/* Kartunya 7 untuk Manager, 6 untuk yang lain. Kalau kolomnya tetap 7, kolom terakhir
+   menganggur dan deretan kartu berhenti sebelum tepi kanan. */
+ok('kolom KPI ikut jumlah kartunya', commHtml.indexOf("kpi.classList.toggle('xl:grid-cols-6', !bisaKes)") >= 0);
 
 /* Data lama sengaja dibiarkan apa adanya. Supaya "dibiarkan" tidak berubah jadi "terhapus":
    <select> tak bisa menampilkan nilai yang bukan salah satu opsinya — ia jadi KOSONG, dan
@@ -2454,6 +2462,59 @@ console.log('=== 16c. Urutan pilihan dropdown (GAS) ===');
   eq('boleh menyebut sebagian saja', call('reorderOptions', 'platform', ['ZUji A'], 'Manager').success, true);
   eq('sisanya menyusul, tak ada yang hilang', urutan(), 'ZUji A, ZUji C, ZUji B');
   eq('jenis tanpa nama ditolak', call('reorderOptions', '', ['ZUji A'], 'Manager').success, false);
+}
+
+console.log('=== 16d. Tren beban (dua garis) ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+  ok('panelnya ada', idx.indexOf('id="panelTren"') >= 0 && idx.indexOf('id="chartTren"') >= 0);
+  ok('tamu tak dapat panel tren', idx.indexOf("panelTren.classList.toggle('hide', vo)") >= 0);
+  const fn = idx.slice(idx.indexOf('function trenSeri()'), idx.indexOf('function renderTrenChart()'));
+  ok('garis personal dari task sendiri', fn.indexOf('state.tasks.filter(t=>!t._collab&&ownsTask(t,me))') >= 0);
+  /* Kolaborasi dihitung PER PROSES beruntun, bukan per kartu: satu kartu bisa memuat
+     banyak proses, dan yang jadi beban seseorang adalah prosesnya sendiri. */
+  ok('garis kolaborasi dihitung per proses', fn.indexOf('allCollabStepRows()') >= 0);
+  ok('proses yang dihitung hanya miliknya', fn.indexOf('same(r._stepOwner,me)') >= 0);
+  /* Naik saat masuk, turun saat selesai: satu pekerjaan dihitung pada hari H bila sudah
+     dibuat pada/ sebelum H dan belum ditutup sampai sesudah H. */
+  ok('yang dihitung yang masih terbuka', fn.indexOf('x.mulai<=h&&(!x.tutup||x.tutup>h)') >= 0);
+  /* Tanggal selesai task dibaca dari kolom statusBy, bukan dari log: bootstrap hanya
+     membawa 200 baris log terakhir, dan di staging itu cuma menjangkau EMPAT hari ke
+     belakang — jendela 30 hari mustahil dibangun dari sana. */
+  const sel = idx.slice(idx.indexOf('function tanggalSelesai(t, cadangan)'), idx.indexOf('function trenSeri()'));
+  ok('tanggal selesai dari statusBy', sel.indexOf('String((t&&t.statusBy)') >= 0);
+  ok('log jadi cadangan, bukan sumber utama', sel.indexOf('cadangan[t.id]') >= 0);
+  ok('sumbu waktunya penuh 30 hari', fn.indexOf('for(let i=TREN_HARI-1;i>=0;i--)') >= 0 && fn.indexOf('batasLog') < 0);
+  const peta = idx.slice(idx.indexOf('function eventKeDone(a)'), idx.indexOf('function trenSeri()'));
+  ok('kolom statusTo dipercaya lebih dulu', peta.indexOf('if(ke) return /^done$/i.test(ke);') >= 0);
+  /* Menyunting task yang sudah Done menulis baris log baru lagi; itu bukan penyelesaian
+     kedua. Yang diambil karena itu tanggal Done PERTAMA. */
+  ok('tanggal selesai yang pertama, bukan yang terakhir', peta.indexOf('if(hari && !peta[a.taskId]) peta[a.taskId]=hari;') >= 0);
+  /* Tanpa kolom F & G di bootstrap, penyelesaian cuma bisa ditebak dari kalimat — dan
+     saveTask menulis "Status: Done" pada SETIAP penyuntingan task yang sudah Done. */
+  const vercel = fs.readFileSync(path.join(__dirname, '..', 'api', '_sheets.js'), 'utf8');
+  ok('bootstrap Vercel membawa kolom status', vercel.indexOf('activity: `${CONFIG.ACTIVITY_SHEET}!A2:G`') >= 0);
+  const gas = fs.readFileSync(path.join(GAS_DIR, 'Code.gs'), 'utf8');
+  ok('GAS membacanya juga', gas.indexOf("CONFIG.ACTIVITY_SHEET + '!A2:G'") >= 0);
+  ok('dan memetakannya', gas.indexOf('statusTo: String(r[6]') >= 0);
+}
+
+console.log('=== 16e. Stempel waktu yang titik desimalnya hilang ===');
+{
+  /* Serial 46225.5674884259 terlanjur tersimpan sebagai 4622556748842590 di banyak baris:
+     digitnya utuh, titiknya hilang. Di staging SELURUH kolom "Done At" kolaborasi kena,
+     145 dari 145 baris — dan karena tanggalnya jadi tak terbaca, hitungan kolaborasi
+     selesai selalu nol tanpa satu pun tanda bahwa ada yang salah. */
+  eq('serial rusak dipulihkan', String(call('stampStr_', 4622556748842590)).slice(0, 10), '2026-07-22');
+  eq('yang lain juga', String(call('stampStr_', 46226343136574000)).slice(0, 10), '2026-07-23');
+  /* Batasnya 100000: serial tanggal yang sah tak pernah sebesar itu (tahun 2100 pun baru
+     sekitar 73000), jadi nilai yang benar tak boleh ikut diutak-atik. */
+  eq('serial sah dibiarkan', String(call('stampStr_', 46268.44195601852)).slice(0, 10), '2026-09-03');
+  eq('teks lewat apa adanya', call('stampStr_', '2026-01-02 03:04:05'), '2026-01-02 03:04:05');
+  eq('kosong tetap kosong', call('stampStr_', ''), '');
+  const vercel = fs.readFileSync(path.join(__dirname, '..', 'api', '_sheets.js'), 'utf8');
+  ok('padanan Vercel-nya ada', vercel.indexOf('function serialWaras(n)') >= 0
+    && vercel.indexOf('formatDate(serialWaras(v), true)') >= 0);
 }
 
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

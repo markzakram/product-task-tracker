@@ -768,12 +768,28 @@ function isChecked_(v) {
 // Kolom "stempel waktu" (Created At / Done At / Checked At / UpdatedAt) dibaca apa adanya
 // sebagai teks. Kalau Sheets terlanjur mengubahnya jadi nilai tanggal, String() akan
 // menghasilkan teks kacau ("Mon Jul 28 2026 ..." / "46231.375") — jadi rapikan di sini.
+/* Sebagian stempel waktu lama tersimpan sebagai bilangan BULAT: digit serial-nya utuh,
+   tapi titik desimalnya hilang (46225.5674884259 tersimpan jadi 4622556748842590).
+   Akibatnya tanggalnya tak terbaca sama sekali dan kolomnya diam-diam jadi kosong — di
+   staging SELURUH kolom "Done At" kolaborasi kena, 145 dari 145 baris, sehingga hitungan
+   kolaborasi selesai selalu nol tanpa ada yang terlihat salah.
+
+   Serial tanggal yang sah selalu di bawah 100000 (tahun 2100 pun baru sekitar 73000), jadi
+   angka yang lebih besar pasti korban hal yang sama dan titiknya bisa ditaruh kembali
+   sesudah lima digit pertama. Jalur tulisnya sendiri sudah benar — ini pertolongan saat
+   membaca baris yang terlanjur rusak, dan tidak menyentuh isi sheet. */
+function serialWaras_(n) {
+  if (!(n > 100000)) return n;
+  var d = String(Math.floor(n));
+  return Number(d.slice(0, 5) + '.' + d.slice(5));
+}
+
 function stampStr_(v) {
   if (v === null || v === undefined || v === '') return '';
   if (Object.prototype.toString.call(v) === '[object Date]') {
     return isNaN(v.getTime()) ? '' : fmtLocal_(v, true);
   }
-  if (typeof v === 'number') return fmtUtc_(serialToDate_(v), true);
+  if (typeof v === 'number') return fmtUtc_(serialToDate_(serialWaras_(v)), true);
   return String(v).trim();
 }
 
@@ -2517,7 +2533,7 @@ function logActivity_(user, action, taskId, detail) {
 function getActivityLog(limit, pre) {
   var rows = [];
   if (pre !== undefined) rows = pre;
-  else { try { rows = valuesGet_(CONFIG.ACTIVITY_SHEET + '!A2:E'); } catch (e) { return []; } }
+  else { try { rows = valuesGet_(CONFIG.ACTIVITY_SHEET + '!A2:G'); } catch (e) { return []; } }
   var out = rows
     .map(function (r) {
       return {
@@ -2525,7 +2541,11 @@ function getActivityLog(limit, pre) {
         user: String(r[1] || ''),
         action: String(r[2] || ''),
         taskId: String(r[3] || ''),
-        detail: String(r[4] || '')
+        detail: String(r[4] || ''),
+        // Kosong pada baris yang ditulis sebelum kolom ini ada. Pembaca harus
+        // memperlakukan kosong sebagai "tak tercatat", bukan "tidak berubah".
+        statusFrom: String(r[5] || ''),
+        statusTo: String(r[6] || '')
       };
     })
     .filter(function (r) { return r.timestamp || r.user; });

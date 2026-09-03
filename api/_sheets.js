@@ -518,9 +518,25 @@ function toSheetDate(value) {
 // valueInputOption USER_ENTERED, jadi dikenali sebagai nilai tanggal — dan saat dibaca lagi
 // (UNFORMATTED_VALUE + SERIAL_NUMBER) yang kembali adalah ANGKA SERIAL, bukan teks tadi.
 // Dibaca mentah, "2026-08-07 10:00" berubah jadi "46241.4166…". Padanan stampStr_() di gas/Code.gs.
+/* Sebagian stempel waktu lama tersimpan sebagai bilangan BULAT: digit serial-nya utuh,
+   tapi titik desimalnya hilang (46225.5674884259 tersimpan jadi 4622556748842590).
+   Akibatnya tanggalnya tak terbaca sama sekali dan kolomnya diam-diam jadi kosong — di
+   staging SELURUH kolom "Done At" kolaborasi kena, 145 dari 145 baris, sehingga hitungan
+   kolaborasi selesai selalu nol tanpa ada yang terlihat salah.
+
+   Serial tanggal yang sah selalu di bawah 100000 (tahun 2100 pun baru sekitar 73000), jadi
+   angka yang lebih besar pasti korban hal yang sama dan titiknya bisa ditaruh kembali
+   sesudah lima digit pertama. Jalur tulisnya sendiri sudah benar — ini pertolongan saat
+   membaca baris yang terlanjur rusak, dan tidak menyentuh isi sheet. */
+function serialWaras(n) {
+  if (!(n > 100000)) return n;
+  const d = String(Math.trunc(n));
+  return Number(d.slice(0, 5) + '.' + d.slice(5));
+}
+
 function stampStr(v) {
   if (v === null || v === undefined || v === '') return '';
-  if (typeof v === 'number') return formatDate(v, true);
+  if (typeof v === 'number') return formatDate(serialWaras(v), true);
   return String(v).trim();
 }
 
@@ -2694,7 +2710,7 @@ async function getBootstrapData(opts) {
     collab: CONFIG.COLLAB_SHEET, collabSteps: CONFIG.COLLAB_STEP_SHEET, users: CONFIG.USERS_SHEET,
   };
   const R = {
-    tasks: MAIN_DATA_RANGE(), options: `${CONFIG.OPTIONS_SHEET}!A2:E`, activity: `${CONFIG.ACTIVITY_SHEET}!A2:E`,
+    tasks: MAIN_DATA_RANGE(), options: `${CONFIG.OPTIONS_SHEET}!A2:E`, activity: `${CONFIG.ACTIVITY_SHEET}!A2:G`,
     comments: `${CONFIG.COMMENTS_SHEET}!A2:D`, auth: `${CONFIG.AUTH_SHEET}!A2:B`, links: `${CONFIG.LINKS_SHEET}!A2:D`,
     dashboards: `${CONFIG.DASHBOARDS_SHEET}!A2:D`, notes: `${CONFIG.NOTES_SHEET}!A2:E`, checklist: `${CONFIG.CHECKLIST_SHEET}!A2:C`,
     // A2:J, bukan A2:I — kolom J menyimpan Paket ID. Kalau berhenti di I, tiap muat

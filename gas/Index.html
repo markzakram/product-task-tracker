@@ -326,8 +326,8 @@
           <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
             <div id="panelBebanKerja" class="xl:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-5">
               <div class="flex items-center justify-between mb-4">
-                <h2 class="font-semibold text-gray-900 dark:text-white">Beban Kerja per PIC</h2>
-                <span class="text-xs text-gray-400 font-medium">Aktif + selesai</span>
+                <h2 id="panelBebanJudul" class="font-semibold text-gray-900 dark:text-white">Beban Kerja per PIC</h2>
+                <span id="panelBebanKet" class="text-xs text-gray-400 font-medium">Aktif + selesai</span>
               </div>
               <div class="h-[320px]"><canvas id="chartPic"></canvas></div>
             </div>
@@ -335,6 +335,15 @@
               <h2 class="font-semibold text-gray-900 dark:text-white mb-4">Komposisi Status</h2>
               <div class="h-[320px]"><canvas id="chartStatus"></canvas></div>
             </div>
+          </div>
+          <!-- Tren beban: berapa yang masih terbuka tiap hari. Naik saat masuk, turun saat
+               selesai. Disembunyikan untuk tamu — ia tak punya identitas, jadi tak punya beban. -->
+          <div id="panelTren" class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-5">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="font-semibold text-gray-900 dark:text-white">Tren Beban Saya</h2>
+              <span id="trenKet" class="text-xs text-gray-400 font-medium"></span>
+            </div>
+            <div class="h-[260px]"><canvas id="chartTren"></canvas></div>
           </div>
           <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
             <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-5 h-[380px] flex flex-col">
@@ -855,7 +864,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.96.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.97.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1420,12 +1429,22 @@ function applyRoleUI(){
   const bisaKes=bisaLihatKesulitan();
   const thKes=document.getElementById('thPriority'); if(thKes) thKes.classList.toggle('hide', !bisaKes);
   const boxKes=document.getElementById('fieldPriorityBox'); if(boxKes) boxKes.classList.toggle('hide', !bisaKes);
-  const panelBeban=document.getElementById('panelBebanKerja'); if(panelBeban) panelBeban.classList.toggle('hide', !bisaKes);
-  /* Grid dashboard 3 kolom: Beban Kerja mengambil 2, Komposisi Status 1. Begitu Beban
-     Kerja hilang, Komposisi ikut melebar penuh — kalau tidak, ia tertinggal sendirian di
-     sepertiga layar dengan dua pertiga ruang kosong di sebelahnya. */
+  /* Panel kiri hilang HANYA untuk tamu. Peran lain tetap mendapatkannya, cuma isinya
+     bukan Kesulitan melainkan Status — lihat cabangnya di renderCharts(). Sempat
+     disembunyikan untuk semua non-Manager, dan itu meninggalkan donat sendirian
+     melebar tiga kolom dengan ruang kosong di kiri-kanannya. */
+  const panelBeban=document.getElementById('panelBebanKerja'); if(panelBeban) panelBeban.classList.toggle('hide', vo);
+  const bebanJudul=document.getElementById('panelBebanJudul');
+  if(bebanJudul) bebanJudul.textContent = bisaKes ? 'Beban Kerja per PIC' : 'Beban Saya';
+  const bebanKet=document.getElementById('panelBebanKet');
+  if(bebanKet) bebanKet.textContent = bisaKes ? 'Aktif + selesai' : 'Per status • aktif + selesai';
   const panelKomp=document.getElementById('panelKomposisi');
-  if(panelKomp) panelKomp.classList.toggle('xl:col-span-3', !bisaKes);
+  if(panelKomp) panelKomp.classList.toggle('xl:col-span-3', vo);
+  const panelTren=document.getElementById('panelTren'); if(panelTren) panelTren.classList.toggle('hide', vo);
+  /* Kartu KPI-nya 7 untuk Manager dan 6 untuk yang lain (kartu "Sulit" dicabut). Kalau
+     kolomnya tetap 7, kolom terakhir menganggur dan deretan kartu berhenti sebelum tepi. */
+  const kpi=document.getElementById('kpiGrid');
+  if(kpi){ kpi.classList.toggle('xl:grid-cols-7', bisaKes); kpi.classList.toggle('xl:grid-cols-6', !bisaKes); }
   const navComm=document.getElementById('nav-communication'); if(navComm) navComm.classList.toggle('hide', vo);
   if(vo && state.activeView==='communication') switchView('dashboard');
   const addBtn=document.getElementById('btnAddTask'); if(addBtn) addBtn.classList.toggle('hide',vo);
@@ -2322,11 +2341,92 @@ function renderStageSummary(tasks){
   const max=Math.max(...entries.map(e=>e[1]),1);
   document.getElementById('stageSummary').innerHTML=entries.length?entries.map(([name,val])=>`<div><div class="flex justify-between text-sm font-medium mb-1"><span class="text-gray-700 dark:text-slate-300">${escapeHtml(name||'Tanpa Stage')}</span><span class="text-gray-500">${val}</span></div><div class="h-2 rounded-full bg-gray-100 dark:bg-slate-800 overflow-hidden"><div class="h-full bg-indigo-600 rounded-full" style="width:${(val/max)*100}%"></div></div></div>`).join(''):emptyState('Belum ada data stage.');
 }
+/* ---------- Tren beban: berapa banyak yang MASIH terbuka pada tiap hari ----------
+
+   Naik saat pekerjaan masuk, turun saat ditandai selesai. Dua garis: task biasa milik
+   sendiri, dan proses beruntun kolaborasi yang jadi bagiannya.
+
+   Angka hari ini selalu tepat: yang belum selesai tak butuh jejak apa pun untuk dihitung.
+   Yang bergantung pada catatan cuma riwayatnya. Tanggal selesai task dibaca dari kolom
+   statusBy, proses kolaborasi dari kolom Done At — keduanya per baris, jadi tak ada batas
+   jangkauan. Yang sudah Done tapi tak punya tanggal sama sekali (baris lama, ditulis
+   sebelum kolom itu ada) ditutup di hari ia dibuat, jadi ia tak pernah menaikkan garis:
+   lebih baik kurang daripada menggambar beban yang sebenarnya sudah lama kelar. */
+const TREN_HARI = 30;
+function hariKunci(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+/* Kolom statusTo dipercaya apa adanya. Hanya baris lama, yang ditulis sebelum kolom itu
+   ada, yang jatuh ke pembacaan teks — dan itu memang jalur cadangan, bukan jalur utama. */
+function eventKeDone(a){
+  const ke=String((a&&a.statusTo)||'').trim();
+  if(ke) return /^done$/i.test(ke);
+  const d=String((a&&a.detail)||'');
+  return /→\s*done\b/i.test(d) || /Status:\s*Done\b/i.test(d);
+}
+/* taskId -> tanggal PERTAMA kali tercatat pindah ke Done. Yang pertama, bukan yang
+   terakhir: menyunting task yang sudah Done menulis baris baru lagi, dan itu bukan
+   penyelesaian kedua. */
+function petaSelesai(){
+  const peta={}; const log=state.activity||[];
+  for(let i=log.length-1;i>=0;i--){   // getActivityLog mengirim terbaru di depan
+    const a=log[i]; if(!a||!a.taskId||!eventKeDone(a)) continue;
+    const hari=dateKey(a.timestamp);
+    if(hari && !peta[a.taskId]) peta[a.taskId]=hari;
+  }
+  return peta;
+}
+/* statusBy = "Nama • 2026-08-27 18:56:19": siapa & KAPAN status terakhir diubah. Untuk
+   task yang sekarang Done, perubahan terakhir itu ya penyelesaiannya — jadi tanggalnya
+   tepat, ada per task, dan tak terbatas seperti log. Log jadi cadangan untuk baris yang
+   statusBy-nya belum terisi (ditulis sebelum kolom itu ada). */
+function tanggalSelesai(t, cadangan){
+  const m=String((t&&t.statusBy)||'').match(/\d{4}-\d{2}-\d{2}/);
+  return m ? m[0] : (cadangan[t.id]||'');
+}
+function trenSeri(){
+  const me=state.currentUser;
+  const selesai=petaSelesai();
+  /* Task yang sudah Done tapi penyelesaiannya tak pernah tercatat ditutup di hari ia
+     dibuat — jadi ia tak pernah ikut menaikkan garis. Lebih baik kurang daripada
+     menggambar beban yang sebenarnya sudah lama kelar. */
+  const jadi=(mulai,tutup)=>({mulai:dateKey(mulai), tutup:dateKey(tutup)});
+  const personal=state.tasks.filter(t=>!t._collab&&ownsTask(t,me))
+    .map(t=>jadi(t.createdDate, isDone(t)?(tanggalSelesai(t,selesai)||t.createdDate):''));
+  // Kolaborasi dihitung per PROSES, bukan per kartu — satu proses beruntun = satu pekerjaan.
+  const kolab=allCollabStepRows().filter(r=>same(r._stepOwner,me))
+    .map(r=>jadi(r.createdDate, isDone(r)?(r._doneAt||r.createdDate):''));
+  const hariIni=new Date(); hariIni.setHours(0,0,0,0);
+  const hari=[];
+  for(let i=TREN_HARI-1;i>=0;i--){
+    const d=new Date(hariIni); d.setDate(d.getDate()-i);
+    hari.push(hariKunci(d));
+  }
+  const hitung=daftar=>hari.map(h=>daftar.filter(x=>x.mulai&&x.mulai<=h&&(!x.tutup||x.tutup>h)).length);
+  return { hari, personal:hitung(personal), kolab:hitung(kolab) };
+}
+function renderTrenChart(){
+  const ctx=document.getElementById('chartTren');
+  if(!ctx || typeof Chart==='undefined') return;
+  if(state.chartTren) state.chartTren.destroy();
+  const s=trenSeri();
+  const ket=document.getElementById('trenKet');
+  if(ket) ket.textContent=s.hari.length+' hari terakhir • yang masih terbuka tiap hari';
+  state.chartTren=new Chart(ctx,{type:'line',data:{
+    labels:s.hari.map(h=>h.slice(8,10)+'/'+h.slice(5,7)),
+    datasets:[
+      {label:'Personal',data:s.personal,borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,.12)',fill:true,tension:.3,pointRadius:0,borderWidth:2},
+      {label:'Kolaborasi',data:s.kolab,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.12)',fill:true,tension:.3,pointRadius:0,borderWidth:2}
+    ]},options:{responsive:true,maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{legend:{position:'top',labels:{boxWidth:10,boxHeight:10,padding:12}}},
+    scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{precision:0}}}}});
+}
 function renderCharts(){
   // Chart.js datang dari CDN. Kalau diblokir jaringan, jangan sampai melempar error —
   // cukup tampilkan pesan di kotak grafiknya, bagian dashboard lain tetap jalan.
   if(typeof Chart==='undefined'){
-    ['chartPic','chartStatus'].forEach(id=>{
+    ['chartPic','chartStatus','chartTren'].forEach(id=>{
       const c=document.getElementById(id); if(!c||!c.parentElement) return;
       c.parentElement.innerHTML='<div class="h-full flex items-center justify-center text-center text-xs text-gray-400 px-4">Grafik belum bisa ditampilkan — komponen Chart.js gagal dimuat dari internet.<br>Cek koneksi atau pemblokir jaringan, lalu muat ulang.</div>';
     });
@@ -2350,17 +2450,21 @@ function renderCharts(){
       const priDatasets=priList.map(pr=>({label:pr,data:picLabels.map(pic=>tasks.filter(t=>same(t.pic,pic)&&same(t.priority,pr)).length),backgroundColor:priColor(pr),borderRadius:6,stack:'beban'}));
       cfg={type:'bar',data:{labels:picLabels,datasets:priDatasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{boxWidth:10,boxHeight:10,padding:12}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,ticks:{precision:0}}}}};
     } else {
-      // User biasa: per Priority, dipisah warna — sebagai PIC (indigo) vs hanya Support (amber).
+      /* User biasa: sumbunya STATUS, bukan Kesulitan — kesulitan memang bukan haknya. Yang
+         dijawab panel ini: pekerjaan saya menumpuk di tahap mana. Tetap dipisah warna,
+         sebagai PIC (indigo) vs hanya membantu (amber). */
       const me=state.currentUser;
-      const picData=priList.map(pr=>tasks.filter(t=>same(t.priority,pr)&&isPicOf(t,me)).length);
-      const supData=priList.map(pr=>tasks.filter(t=>same(t.priority,pr)&&isSupportOnly(t,me)).length);
-      cfg={type:'bar',data:{labels:priList,datasets:[
+      const stList=(state.options.status||[]).slice();
+      const picData=stList.map(st=>tasks.filter(t=>same(t.status,st)&&isPicOf(t,me)).length);
+      const supData=stList.map(st=>tasks.filter(t=>same(t.status,st)&&isSupportOnly(t,me)).length);
+      cfg={type:'bar',data:{labels:stList,datasets:[
         {label:'Sebagai PIC',data:picData,backgroundColor:'#6366f1',borderRadius:6,stack:'beban'},
         {label:'Sebagai Support',data:supData,backgroundColor:'#f59e0b',borderRadius:6,stack:'beban'}
       ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{boxWidth:10,boxHeight:10,padding:12}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,ticks:{precision:0}}}}};
     }
     state.chartPic=new Chart(picCtx,cfg);
   }
+  renderTrenChart();
   const byStatus=countBy(tasks,'status'); const sLabels=Object.keys(byStatus); const sVals=Object.values(byStatus);
   const stCtx=document.getElementById('chartStatus'); if(stCtx){ if(state.chartStatus) state.chartStatus.destroy(); state.chartStatus=new Chart(stCtx,{type:'doughnut',data:{labels:sLabels,datasets:[{data:sVals,backgroundColor:sLabels.map(statusHex),borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,padding:14}}}}});}
 }
