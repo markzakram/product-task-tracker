@@ -62,6 +62,12 @@ function petakan(nilai) {
 
 async function utama() {
   if (!TUJUAN_ID) throw new Error('Set env TUJUAN_ID dulu (ID spreadsheet tujuan).');
+  // Placeholder yang ikut terketik apa adanya — mudah terjadi, dan galat Google untuk ini
+  // ("Requested entity was not found") tak menyebut sebabnya sama sekali.
+  if (/^<.*>$/.test(TUJUAN_ID) || /id-produksi|id-spreadsheet/i.test(TUJUAN_ID)) {
+    throw new Error('TUJUAN_ID masih berisi contoh, bukan ID sungguhan: ' + TUJUAN_ID
+      + '\n  Salin dari alamat spreadsheet, bagian di antara /d/ dan /edit — tanpa tanda < >.');
+  }
   const auth = new google.auth.GoogleAuth({ credentials: kredensial(), scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
   const sheets = google.sheets({ version: 'v4', auth: await auth.getClient() });
 
@@ -149,5 +155,18 @@ async function utama() {
 module.exports = { petakan, PETA, BARU };
 
 if (require.main === module) {
-  utama().catch(e => { console.error('GAGAL: ' + (e && e.message ? e.message : e)); process.exit(1); });
+  utama().catch(e => {
+    const pesan = (e && e.message) ? e.message : String(e);
+    console.error('GAGAL: ' + pesan);
+    // Terjemahkan dua galat Google yang paling sering muncul di sini.
+    if (/Requested entity was not found/i.test(pesan)) {
+      console.error('  Spreadsheet dengan ID itu tidak ada. Periksa TUJUAN_ID — salin dari alamat');
+      console.error('  spreadsheet, bagian di antara /d/ dan /edit.');
+    }
+    if (/permission|does not have access|caller does not have/i.test(pesan)) {
+      console.error('  Spreadsheet-nya ada, tapi service account belum diberi akses. Bagikan');
+      console.error('  spreadsheet itu sebagai Editor ke alamat client_email di credentials.json.');
+    }
+    process.exit(1);
+  });
 }
