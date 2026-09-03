@@ -1382,7 +1382,7 @@ ok('tak ada lagi izin hapus tunggal utk seluruh daftar', !/const editable=canEdi
 ok('penghapusan dikonfirmasi dulu', commHtml.indexOf("if(!confirm('Hapus item \"'+((it&&it.item)||'')+'\" dari ceklis?')) return;") >= 0);
 
 // Simpan catatan & link berupa TOMBOL di kanan, bukan tautan teks di kiri.
-ok('Simpan catatan jadi tombol kanan', commHtml.indexOf("${editNote?`<div class=\"mt-1.5 flex justify-end\"><button type=\"button\" onclick=\"saveCollabStepNote(") >= 0);
+ok('Simpan catatan jadi tombol kanan', commHtml.indexOf("mt-1.5 flex justify-end\"><button type=\"button\" onclick=\"saveCollabStepNote(") >= 0);
 ok('keduanya bergaya tombol', commHtml.indexOf("rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold shadow-sm") >= 0);
 ok('tak ada lagi tautan teks hover:underline utk simpan', !/onclick="saveCollabStep(Note|Link)(${s.order})" class="mt-1 text-[11px] font-semibold text-indigo-600 hover:underline"/.test(commHtml));
 ok('aksi setCollabStepLink terdaftar', commHtml.indexOf("'setCollabStepNote','setCollabStepLink'") >= 0);
@@ -2612,6 +2612,49 @@ console.log('=== 16h. Tombol selesai di kartu ringkas ===');
      boleh mengubah tulisannya, dan yang dikirim harus yang benar-benar ada di daftar. */
   ok('nilai Done diambil dari daftar', fn.indexOf('(state.options.status||[]).find(isDoneStatus)') >= 0);
   ok('terpasang di kartunya', idx.indexOf('${statusChip(t.status)}${tombolSelesai(t)}') >= 0);
+}
+
+console.log('=== 16i. Format ringan di catatan & komentar ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Yang tersimpan tetap teks biasa. Menyimpan HTML akan menukar sel spreadsheet yang
+     terbaca, ekspor CSV yang rapi, dan pencarian yang mencocokkan kata aslinya dengan
+     satu celah injeksi di tiap tempat yang menampilkannya. */
+  const fn = idx.slice(idx.indexOf('const POLA_FORMAT'), idx.indexOf('function formatKomentar'));
+  ok('perendernya ada', fn.indexOf('function formatTeks(src, lolos)') >= 0);
+  ok('teks yang bukan penanda selalu di-escape', fn.indexOf('const esc = lolos || escapeHtml;') >= 0);
+  /* Hanya http(s) yang jadi tautan — javascript: dan data: dibiarkan sebagai teks biasa. */
+  ok('skema tautan disaring', fn.indexOf('https?') >= 0 && fn.indexOf('i.test(m[5])') >= 0);
+  /* @sebutan dan format harus satu lintasan. Dua lintasan terpisah membuat sorotan sebutan
+     menyela di tengah, dan pasangan bintang "**@Ali cek**" tak pernah bertemu lagi. */
+  ok('komentar memakai penyorot sebutan sebagai escaper',
+    idx.indexOf('function formatKomentar(teks){ return formatTeks(teks, highlightMentions); }') >= 0);
+
+  // Keempat tempat yang memang punya tampilan baca.
+  ok('Catatan Saya dirender', idx.indexOf('break-words">' + '$' + '{formatTeks(n.body)}</p>') >= 0);
+  ok('Komunikasi dirender', idx.indexOf('break-words">' + '$' + '{formatTeks(c.message)}</div>') >= 0);
+  ok('komentar kolaborasi dirender', idx.indexOf('${formatKomentar(x.text)}') >= 0);
+  ok('catatan proses dirender', idx.indexOf('${s.note?formatTeks(s.note):') >= 0);
+  /* Kotak isian catatan proses baru muncul saat diklik: kalau ia yang selalu tampil,
+     penulisnya tak pernah melihat hasil formatnya sendiri. */
+  ok('kotaknya dibuka dengan klik', idx.indexOf('function bukaCatatanProses(order)') >= 0);
+  ok('kembali terformat sesudah disimpan', idx.indexOf('renderCollabSteps(currentCollab()); })') >= 0);
+
+  /* Pintasan hanya di kolom yang formatnya ditampilkan — menyisipkan penanda di kolom yang
+     tak pernah merendernya cuma menghasilkan bintang-bintang mentah. */
+  ok('pintasan terpasang', idx.indexOf("document.addEventListener('keydown', pintasFormat)") >= 0);
+  ok('dibatasi kolom ber-data-fmt', idx.indexOf("el.getAttribute('data-fmt') !== '1'") >= 0);
+  const kolom = (idx.match(/data-fmt="1"/g) || []).length;
+  eq('empat kolom mendapatkannya', kolom, 4);
+  ['newNoteBody', 'commInput', 'collabCommentInput'].forEach(id => {
+    ok(id + ' dapat pintasan', idx.indexOf('id="' + id + '" data-fmt="1"') >= 0);
+  });
+  /* Undo bawaan kotak isian ikut terjaga: menetapkan .value langsung membuang riwayatnya,
+     jadi Ctrl+Z sesudah menekan Ctrl+B tak bisa mengembalikan apa pun yang diketik. */
+  ok('penyisipan menjaga riwayat Undo', idx.indexOf("document.execCommand('insertText', false, teks)") >= 0);
+  // Menu @sebutan bergantung pada oninput; penyisipan lewat skrip harus tetap memicunya.
+  ok('oninput tetap dipicu', idx.indexOf("el.dispatchEvent(new Event('input', { bubbles: true }))") >= 0);
 }
 
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

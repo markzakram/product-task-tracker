@@ -31,6 +31,66 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.100.0 — Ctrl+B, Ctrl+I, dan kawan-kawan di catatan & komentar
+
+Empat kolom sekarang mengerti format ringan: **Catatan Saya**, **Komunikasi**, **komentar
+kolaborasi**, dan **catatan per proses**.
+
+| Pintasan | Hasil |
+| --- | --- |
+| Ctrl/Cmd + B | `**tebal**` |
+| Ctrl/Cmd + I | `_miring_` |
+| Ctrl/Cmd + Shift + X | `~~dicoret~~` |
+| Ctrl/Cmd + E | `` `kode` `` |
+| Ctrl/Cmd + K | `[teks](https://…)` |
+
+Ada teks yang diblok, penandanya membungkus blokan itu dan kursor pindah ke sesudahnya —
+katanya sudah ditulis, tinggal melanjutkan. Tak ada blokan, penandanya disisipkan beserta
+kata contoh yang langsung terpilih supaya tinggal ditimpa.
+
+Ctrl+U sengaja dilewati: garis bawah tak punya padanan di teks biasa, dan di web garis
+bawah sudah berarti tautan.
+
+### Yang disimpan tetap teks biasa
+
+Bukan rich text sungguhan — yang masuk ke sheet adalah penanda, bukan HTML. Sel spreadsheet
+tetap terbaca oleh manusia, ekspor CSV tetap rapi, pencarian global tetap mencocokkan kata
+aslinya, dan seluruh catatan lama tetap sah tanpa satu pun migrasi. Menyimpan HTML akan
+menukar semua itu dengan sel berisi `<b>…</b>` dan satu celah injeksi di tiap tempat yang
+menampilkannya.
+
+Teks yang bukan penanda selalu di-escape lebih dulu, jadi HTML yang diketik orang muncul
+sebagai teks, bukan dijalankan. Tautan hanya dibuat untuk `http` dan `https`; skema lain —
+`javascript:`, `data:` — dibiarkan apa adanya sebagai teks. Garis bawah di tengah kata
+(`nama_seperti_ini`) tidak dianggap penanda, dan isi `` `kode` `` dikunci apa adanya.
+
+### @sebutan dan format dalam satu lintasan
+
+Komentar kolaborasi sudah menyorot @sebutan. Kalau format dikerjakan sebagai lintasan kedua,
+sorotan sebutan menyela di tengah dan pasangan bintang pada `**@Ali tolong cek**` tak pernah
+bertemu lagi. Karena itu penyorot sebutan dipakai sebagai *escaper*-nya, bukan dijalankan
+terpisah: sebutannya tetap tersorot dan kalimatnya tetap bisa ditebalkan.
+
+### Catatan per proses jadi bisa dibaca
+
+Kotak isiannya dulu selalu tampil. Sekarang catatannya ditampilkan terformat, dan kotaknya —
+beserta tombol Simpan — baru muncul saat diklik, lalu kembali ke tampilan terformat sesudah
+disimpan. Tanpa ini penulisnya tak pernah melihat hasil formatnya sendiri, dan penanda
+`**begini**` cuma jadi sampah di layar.
+
+### Dua kolom yang belum dapat
+
+Catatan PIC/PM di modal task dan catatan per kategori di Rancangan Paket sengaja dilewati.
+Keduanya hanya pernah tampil sebagai kotak isian, jadi penandanya akan terlihat mentah;
+keduanya butuh tombol pratinjau tersendiri, dan itu menambah tombol di dua layar yang sudah
+padat. Ditunda sampai bentuk formatnya terbukti berguna di empat kolom pertama.
+
+Satu detail kecil yang mudah terlewat: penyisipannya lewat `execCommand('insertText')`, yang
+memang usang tapi satu-satunya cara menambah teks tanpa membuang riwayat **Undo** bawaan
+kotak isian. Menetapkan `.value` langsung membuat Ctrl+Z sesudah Ctrl+B tak bisa
+mengembalikan apa pun yang sudah diketik sebelumnya.
+
+---
 ## 1.99.0 — Manager bisa mencentang proses beruntun, bukan cuma membatalkan
 
 Sebelumnya Manager hanya boleh **membatalkan** centang satu proses; mencentangnya tetap hak

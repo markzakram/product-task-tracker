@@ -425,7 +425,7 @@
             <div id="commHeader" class="p-4 border-b border-gray-100 dark:border-slate-800"></div>
             <div id="commMessages" class="flex-1 overflow-y-auto p-4 space-y-2.5 bg-gray-50/60 dark:bg-slate-950/40 scrollbar-thin"></div>
             <div class="p-3 border-t border-gray-100 dark:border-slate-800 flex gap-2">
-              <textarea id="commInput" rows="2" onkeydown="commInputKey(event)" placeholder="Tulis komentar/update… (Enter kirim, Shift+Enter baris baru)" class="flex-1 resize-none rounded-lg bg-gray-100 dark:bg-slate-800 px-3 py-2 outline-none text-sm focus:ring-2 focus:ring-indigo-300"></textarea>
+              <textarea id="commInput" data-fmt="1" rows="2" onkeydown="commInputKey(event)" placeholder="Tulis komentar/update… (Enter kirim, Shift+Enter baris baru)" class="flex-1 resize-none rounded-lg bg-gray-100 dark:bg-slate-800 px-3 py-2 outline-none text-sm focus:ring-2 focus:ring-indigo-300"></textarea>
               <button onclick="sendCommunicationComment()" class="px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"><span class="material-icons-round text-[20px]">send</span></button>
             </div>
           </div>
@@ -530,7 +530,7 @@
               <input id="noteSearch" oninput="renderMyNotes()" placeholder="Cari catatan (judul, isi, atau folder)…" class="w-full rounded-lg bg-gray-100 dark:bg-slate-800 pl-10 pr-3 py-2 outline-none text-sm focus:ring-2 focus:ring-indigo-300">
             </div>
             <input id="newNoteTitle" placeholder="Judul catatan (opsional)" class="w-full rounded-lg bg-gray-100 dark:bg-slate-800 px-3 py-2 outline-none text-sm focus:ring-2 focus:ring-indigo-300">
-            <textarea id="newNoteBody" rows="3" placeholder="Tulis catatan…" class="w-full rounded-lg bg-gray-100 dark:bg-slate-800 px-3 py-2 outline-none text-sm focus:ring-2 focus:ring-indigo-300"></textarea>
+            <textarea id="newNoteBody" data-fmt="1" rows="3" placeholder="Tulis catatan…" class="w-full rounded-lg bg-gray-100 dark:bg-slate-800 px-3 py-2 outline-none text-sm focus:ring-2 focus:ring-indigo-300"></textarea>
             <div class="flex flex-col sm:flex-row gap-2">
               <input id="newNoteFolder" list="noteFolders" placeholder="Folder (mis. Ide)" class="sm:w-44 rounded-lg bg-gray-100 dark:bg-slate-800 px-3 py-2 outline-none text-sm focus:ring-2 focus:ring-indigo-300">
               <datalist id="noteFolders"></datalist>
@@ -842,7 +842,7 @@
             <div class="relative">
               <div id="collabMentionMenu" class="hide absolute bottom-full left-0 mb-1 w-full max-h-40 overflow-y-auto bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-10 scrollbar-thin"></div>
               <div class="flex gap-2">
-                <input id="collabCommentInput" autocomplete="off" oninput="onCollabCommentInput()" onkeydown="onCollabCommentKey(event)" class="flex-1 rounded-lg bg-gray-100 dark:bg-slate-800 px-3 py-2 outline-none text-sm focus:ring-2 focus:ring-indigo-300" placeholder="Tulis komentar… ketik @ untuk tag">
+                <input id="collabCommentInput" data-fmt="1" autocomplete="off" oninput="onCollabCommentInput()" onkeydown="onCollabCommentKey(event)" class="flex-1 rounded-lg bg-gray-100 dark:bg-slate-800 px-3 py-2 outline-none text-sm focus:ring-2 focus:ring-indigo-300" placeholder="Tulis komentar… ketik @ untuk tag">
                 <button type="button" onclick="sendCollabComment()" class="px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm">Kirim</button>
               </div>
             </div>
@@ -866,7 +866,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.99.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.100.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1201,7 +1201,7 @@ function renderStagingMark(){
   try {
     renderAppVersion(); applySidebar(); renderPreviewBar();
     populateUserSelect(); populateManagerFocus(); populateModalDropdowns(); applyRoleUI(); renderAll(); updateCommNavBadge(); renderDeadlineReminder(); notifyUnreadOnLoad(); loadNotifications(); loadPackages(()=>{ if(state.activeView==='paket') renderPaket(); if(state.activeView==='collab') renderCollab(); }); if(needIdentityPick()) showIdentityGate();
-    if(!state._msBound){state._msBound=true; document.addEventListener('click', msOutsideClose); document.addEventListener('click', notifOutsideClose); document.addEventListener('keydown', e=>{ if(e.key==='Escape' && tutupLapisanAtas()) e.preventDefault(); }); window.addEventListener('resize', ()=>{ if(window.innerWidth>=768) closeMobileSidebar(); }); document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.activeView==='communication' && state.selectedTaskId && document.getElementById('taskModal').classList.contains('hide')){ closeCommChat(); } });}
+    if(!state._msBound){state._msBound=true; document.addEventListener('click', msOutsideClose); document.addEventListener('click', notifOutsideClose); document.addEventListener('keydown', e=>{ if(e.key==='Escape' && tutupLapisanAtas()) e.preventDefault(); }); document.addEventListener('keydown', pintasFormat); window.addEventListener('resize', ()=>{ if(window.innerWidth>=768) closeMobileSidebar(); }); document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.activeView==='communication' && state.selectedTaskId && document.getElementById('taskModal').classList.contains('hide')){ closeCommChat(); } });}
   } catch(e) {
     try{ console.error('[ProductTrack] afterLoad gagal:', e); }catch(_){ }
     showToast('Sebagian tampilan gagal dimuat: ' + ((e && e.message) || e), false);
@@ -2031,6 +2031,102 @@ function resetFilters(){state.filters={status:[],priority:[],stage:[],platform:[
    ditutup lewat tombol X-nya, padahal menekan Esc itu refleks. Satu lapis per tekan, dari
    yang paling atas — menekan Esc saat menu notifikasi terbuka di atas modal semestinya
    menutup menunya saja, bukan sekalian membuang seluruh modalnya. */
+/* ---------- Format ringan untuk catatan & komentar ----------
+
+   Yang tersimpan tetap TEKS BIASA — penanda, bukan HTML. Sel spreadsheet tetap terbaca,
+   ekspor CSV tetap rapi, pencarian global tetap mencocokkan kata aslinya, dan catatan lama
+   tetap sah tanpa migrasi apa pun. Menyimpan HTML akan menukar semua itu dengan sel berisi
+   <b>…</b> dan satu celah injeksi di tiap tempat yang menampilkannya.
+
+   Satu lintasan, dan bagian yang BUKAN penanda dilewatkan ke `lolos`. Untuk komentar,
+   `lolos`-nya highlightMentions — jadi @sebutan tetap tersorot DAN "**@Ali tolong cek**"
+   tetap bisa ditebalkan. Kalau dikerjakan dua lintasan terpisah, sorotan sebutan menyela di
+   tengah dan pasangan bintangnya tak pernah bertemu lagi. */
+const POLA_FORMAT = /`([^`\n]+)`|\*\*([^*\n]+)\*\*|~~([^~\n]+)~~|\[([^\]\n]+)\]\(([^)\s]+)\)|(^|[^A-Za-z0-9])_([^_\n]+)_(?![A-Za-z0-9])/;
+const KELAS_KODE = 'px-1 py-0.5 rounded bg-gray-200/70 dark:bg-slate-700 font-mono text-[0.92em]';
+const KELAS_TAUT = 'text-indigo-600 dark:text-indigo-400 underline break-all';
+function formatTeks(src, lolos){
+  const teks = String(src == null ? '' : src);
+  const esc = lolos || escapeHtml;
+  // Pola baru tiap panggilan: yang di dalam ikut memakainya, dan /g menyimpan posisi.
+  const pola = new RegExp(POLA_FORMAT.source, 'g');
+  let out = '', akhir = 0, m;
+  while ((m = pola.exec(teks))) {
+    out += esc(teks.slice(akhir, m.index));
+    if (m[1] !== undefined) out += '<code class="' + KELAS_KODE + '">' + esc(m[1]) + '</code>';
+    else if (m[2] !== undefined) out += '<strong>' + formatTeks(m[2], esc) + '</strong>';
+    else if (m[3] !== undefined) out += '<s>' + formatTeks(m[3], esc) + '</s>';
+    else if (m[4] !== undefined) {
+      /* Hanya http(s) yang jadi tautan. Skema lain — javascript:, data: — dibiarkan apa
+         adanya sebagai teks, bukan ditolak diam-diam. */
+      out += /^https?:\/\//i.test(m[5])
+        ? '<a href="' + escapeAttr(m[5]) + '" target="_blank" rel="noopener" class="' + KELAS_TAUT + '">' + esc(m[4]) + '</a>'
+        : esc(m[0]);
+    }
+    else { out += esc(m[6]) + '<em>' + formatTeks(m[7], esc) + '</em>'; }
+    akhir = m.index + m[0].length;
+  }
+  return out + esc(teks.slice(akhir));
+}
+function formatKomentar(teks){ return formatTeks(teks, highlightMentions); }
+
+/* ---------- Pintasan papan ketik ----------
+
+   Ctrl/Cmd+B dan kawan-kawan membungkus teks yang sedang diblok; tanpa blokan, penandanya
+   disisipkan beserta kata contoh yang langsung terpilih supaya tinggal ditimpa.
+
+   Hanya di kolom ber-data-fmt, yaitu kolom yang formatnya memang ditampilkan. Menyisipkan
+   penanda di kolom yang tak pernah merendernya cuma menghasilkan bintang-bintang mentah. */
+const PINTAS_FORMAT = { b: ['**', '**', 'tebal'], i: ['_', '_', 'miring'], e: [``, ``, 'kode'] };
+function ganti(el, teks){
+  el.focus();
+  /* execCommand memang usang, tapi ia satu-satunya cara menyisipkan teks TANPA membuang
+     riwayat Undo bawaan kotak isian. Menetapkan .value langsung membuat Ctrl+Z tak bisa
+     mengembalikan apa pun yang diketik sebelumnya. */
+  let ok = false;
+  try { ok = document.execCommand('insertText', false, teks); } catch(_){ ok = false; }
+  if(!ok){
+    const a = el.selectionStart, b = el.selectionEnd, v = el.value;
+    el.value = v.slice(0, a) + teks + v.slice(b);
+    el.setSelectionRange(a + teks.length, a + teks.length);
+  }
+  // Kolom komentar kolaborasi memasang oninput untuk menu @sebutan — jangan sampai lewat.
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+function sisipFormat(el, kiri, kanan, contoh){
+  const a = el.selectionStart;
+  const pilih = el.value.slice(a, el.selectionEnd);
+  const isi = pilih || contoh;
+  ganti(el, kiri + isi + kanan);
+  /* Ada blokan: kursor ditaruh SESUDAH penanda penutup — katanya sudah ditulis, orangnya
+     tinggal melanjutkan. Tanpa blokan: kata contohnya dibiarkan terpilih supaya langsung
+     tertimpa begitu mengetik. Kalau keduanya disamakan, mengetik sesudah menebalkan satu
+     kata justru menghapus kata itu. */
+  const mulai = a + kiri.length;
+  if(pilih){ const akhir = mulai + isi.length + kanan.length; el.setSelectionRange(akhir, akhir); }
+  else el.setSelectionRange(mulai, mulai + isi.length);
+}
+function sisipTautan(el){
+  const a = el.selectionStart;
+  const isi = el.value.slice(a, el.selectionEnd) || 'teks';
+  const blok = '[' + isi + '](https://)';
+  ganti(el, blok);
+  // Kursor ditaruh tepat sebelum kurung tutup, jadi alamatnya tinggal ditempel.
+  const pos = a + blok.length - 1;
+  el.setSelectionRange(pos, pos);
+}
+function pintasFormat(e){
+  const el = e.target;
+  if(!el || !el.getAttribute || el.getAttribute('data-fmt') !== '1') return;
+  if(!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const k = String(e.key || '').toLowerCase();
+  if(e.shiftKey){ if(k !== 'x') return; e.preventDefault(); sisipFormat(el, '~~', '~~', 'coret'); return; }
+  if(k === 'k'){ e.preventDefault(); sisipTautan(el); return; }
+  const p = PINTAS_FORMAT[k];
+  if(!p) return;
+  e.preventDefault();
+  sisipFormat(el, p[0], p[1], p[2]);
+}
 function modalTerbuka(id){
   const m=document.getElementById(id);
   return (m && !m.classList.contains('hide')) ? m : null;
@@ -4633,8 +4729,14 @@ function renderCollabSteps(c){
       <div id="collab-step-body-${s.order}" class="${expanded?'':'hide'} px-2 pb-2 space-y-2 border-t border-gray-50 dark:border-slate-800/60 pt-2">
         <div>
           <div class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Catatan proses</div>
-          <textarea id="collab-note-${s.order}" ${editNote?'':'readonly'} rows="2" class="w-full rounded bg-gray-100 dark:bg-slate-800 px-2 py-1 text-xs outline-none ${editNote?'':'opacity-70'}" placeholder="${editNote?'mis. butuh tambahan deadline…':'(belum ada catatan)'}">${escapeHtml(s.note||'')}</textarea>
-          ${editNote?`<div class="mt-1.5 flex justify-end"><button type="button" onclick="saveCollabStepNote(${s.order})" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan catatan</button></div>`:''}
+          <!-- Catatan ditampilkan terformat; kotak isiannya baru muncul saat diklik. Kalau
+               kotaknya yang selalu tampil, penulisnya tak pernah melihat hasil formatnya
+               sendiri dan penanda **begini** cuma jadi sampah di layar. -->
+          <div id="collab-note-view-${s.order}" ${editNote?`onclick="bukaCatatanProses(${s.order})" title="Klik untuk mengubah"`:''} class="w-full rounded bg-gray-100 dark:bg-slate-800 px-2 py-1 text-xs min-h-[2.25rem] whitespace-pre-wrap break-words ${editNote?`cursor-text hover:bg-gray-200/70 dark:hover:bg-slate-700`:'opacity-70'}">${s.note?formatTeks(s.note):`<span class="text-gray-400">(belum ada catatan)</span>`}</div>
+          ${editNote?`<div id="collab-note-edit-${s.order}" class="hide">
+            <textarea id="collab-note-${s.order}" data-fmt="1" rows="3" class="w-full rounded bg-gray-100 dark:bg-slate-800 px-2 py-1 text-xs outline-none" placeholder="mis. butuh tambahan deadline… (Ctrl+B tebal, Ctrl+I miring)">${escapeHtml(s.note||'')}</textarea>
+          </div>`:''}
+          ${editNote?`<div id="collab-note-simpan-${s.order}" class="hide mt-1.5 flex justify-end"><button type="button" onclick="saveCollabStepNote(${s.order})" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan catatan</button></div>`:''}
           <!-- Link hasil per proses: izinnya sama dengan catatan, jadi PIC yang mengerjakan
                bisa menautkan hasilnya sendiri tanpa menunggu manager membuka mode Edit. -->
           <div class="mt-2">
@@ -4701,9 +4803,25 @@ function saveCollabStepLink(order){
   }).withFailureHandler(err=>showToast(err.message||err,false))
     .setCollabStepLink(id, order, el.value.trim(), state.currentUser);
 }
+/* Catatan proses tampil terformat; kotak isiannya baru muncul saat diklik, bersama tombol
+   Simpan-nya — memajang tombol simpan untuk kotak yang belum terbuka hanya memenuhi baris
+   prosesnya tanpa guna. */
+function bukaCatatanProses(order){
+  const lihat=document.getElementById('collab-note-view-'+order);
+  const ubah=document.getElementById('collab-note-edit-'+order);
+  const simpan=document.getElementById('collab-note-simpan-'+order);
+  if(!lihat || !ubah) return;
+  lihat.classList.add('hide'); ubah.classList.remove('hide');
+  if(simpan) simpan.classList.remove('hide');
+  const ta=document.getElementById('collab-note-'+order);
+  if(ta){ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+}
 function saveCollabStepNote(order){
   const id=state._collabId; const ta=document.getElementById('collab-note-'+order); if(!id||!ta) return;
-  GAS.withSuccessHandler(res=>{ if(!res||!res.success){ showToast((res&&res.message)||'Gagal simpan catatan', false); return; } state.collabs=res.collabs||state.collabs; showToast(res.message); })
+  GAS.withSuccessHandler(res=>{ if(!res||!res.success){ showToast((res&&res.message)||'Gagal simpan catatan', false); return; } state.collabs=res.collabs||state.collabs; showToast(res.message);
+    /* Digambar ulang supaya tampilan terformatnya kembali. Tanpa ini kotak isiannya tetap
+       terbuka dan penulisnya tak pernah melihat hasil tulisannya sendiri. */
+    renderCollabSteps(currentCollab()); })
      .withFailureHandler(err=>showToast(err.message||err,false)).setCollabStepNote(id, order, ta.value.trim(), state.currentUser);
 }
 // ---- Sub-ceklis per proses (reuse backend CHECKLIST via id "COL-xxx#N") ----
@@ -4898,7 +5016,7 @@ function renderCollabFeed(id, comments){
   const all=cms.concat(acts).sort((a,b)=>a.ts.localeCompare(b.ts));
   if(!all.length){ box.innerHTML=emptyState('Belum ada komentar atau aktivitas.'); return; }
   box.innerHTML=all.map(x=> x.kind==='comment'
-    ? `<div class="flex gap-2"><span class="w-7 h-7 rounded-full shrink-0 inline-flex items-center justify-center text-[10px] font-semibold" style="background:${avatarBg(x.who)};color:${avatarFg(x.who)}">${initials(x.who)}</span><div class="min-w-0"><div class="text-[11px] text-gray-400">${escapeHtml(x.who||'—')} • ${escapeHtml(x.ts)}</div><div class="text-sm text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-800 rounded-lg px-3 py-1.5 mt-0.5 inline-block max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${highlightMentions(x.text)}</div></div></div>`
+    ? `<div class="flex gap-2"><span class="w-7 h-7 rounded-full shrink-0 inline-flex items-center justify-center text-[10px] font-semibold" style="background:${avatarBg(x.who)};color:${avatarFg(x.who)}">${initials(x.who)}</span><div class="min-w-0"><div class="text-[11px] text-gray-400">${escapeHtml(x.who||'—')} • ${escapeHtml(x.ts)}</div><div class="text-sm text-gray-700 dark:text-slate-200 bg-white dark:bg-slate-800 rounded-lg px-3 py-1.5 mt-0.5 inline-block max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere]">${formatKomentar(x.text)}</div></div></div>`
     : `<div class="flex items-center gap-1.5 text-[11px] text-gray-400 pl-1"><span class="material-icons-round text-[14px]">bolt</span><span>${escapeHtml(x.text)} • ${escapeHtml(x.ts)}</span></div>`
   ).join('');
   box.scrollTop=box.scrollHeight;
@@ -5073,7 +5191,7 @@ function renderComments(targetId,comments){
       ? 'bg-indigo-600 text-white rounded-2xl rounded-br-sm'
       : 'bg-white dark:bg-slate-800 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700 rounded-2xl rounded-bl-sm';
     const meta=mine?'text-indigo-200':'text-gray-400';
-    return `<div class="flex ${mine?'justify-end':'justify-start'}"><div class="max-w-[80%] ${bubble} px-3 py-2 shadow-sm">${mine?'':`<div class="flex items-center gap-1.5 mb-0.5">${avatar(c.author)}<span class="font-semibold text-[12px] text-gray-900 dark:text-white">${escapeHtml(c.author||'-')}</span></div>`}<div class="text-sm leading-relaxed whitespace-pre-wrap break-words">${escapeHtml(c.message||'')}</div><div class="text-[10px] ${meta} mt-1 text-right">${escapeHtml(c.timestamp||'')}</div></div></div>`;
+    return `<div class="flex ${mine?'justify-end':'justify-start'}"><div class="max-w-[80%] ${bubble} px-3 py-2 shadow-sm">${mine?'':`<div class="flex items-center gap-1.5 mb-0.5">${avatar(c.author)}<span class="font-semibold text-[12px] text-gray-900 dark:text-white">${escapeHtml(c.author||'-')}</span></div>`}<div class="text-sm leading-relaxed whitespace-pre-wrap break-words">${formatTeks(c.message)}</div><div class="text-[10px] ${meta} mt-1 text-right">${escapeHtml(c.timestamp||'')}</div></div></div>`;
   }).join('');
 }
 
@@ -5154,7 +5272,7 @@ function renderHariIni(){
 /* ---------- Catatan Saya (per user, dengan folder — sama seperti Link Saya) ---------- */
 function findNoteByRow(row){ return (state.notes||[]).find(n=>String(n.row)===String(row)); }
 function noteCard(n){
-  return `<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-3 flex flex-col"><div class="flex items-start justify-between gap-2"><div class="font-semibold text-sm text-gray-900 dark:text-white break-words flex-1">${escapeHtml(n.title||'(tanpa judul)')}</div><div class="flex gap-1 shrink-0"><button title="Pindah folder" onclick="moveNote(${n.row})" class="text-gray-400 hover:text-indigo-600"><span class="material-icons-round text-[16px]">drive_file_move</span></button><button title="Edit" onclick="editNote(${n.row})" class="text-gray-400 hover:text-indigo-600"><span class="material-icons-round text-[16px]">edit</span></button><button title="Hapus" onclick="deleteNote(${n.row})" class="text-rose-500 hover:text-rose-600"><span class="material-icons-round text-[16px]">delete</span></button></div></div><p class="text-[13px] text-gray-600 dark:text-slate-300 mt-1 whitespace-pre-wrap break-words">${escapeHtml(n.body||'')}</p>${n.updatedAt?`<div class="text-[10px] text-gray-400 mt-2">${escapeHtml(n.updatedAt)}</div>`:''}</div>`;
+  return `<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-3 flex flex-col"><div class="flex items-start justify-between gap-2"><div class="font-semibold text-sm text-gray-900 dark:text-white break-words flex-1">${escapeHtml(n.title||'(tanpa judul)')}</div><div class="flex gap-1 shrink-0"><button title="Pindah folder" onclick="moveNote(${n.row})" class="text-gray-400 hover:text-indigo-600"><span class="material-icons-round text-[16px]">drive_file_move</span></button><button title="Edit" onclick="editNote(${n.row})" class="text-gray-400 hover:text-indigo-600"><span class="material-icons-round text-[16px]">edit</span></button><button title="Hapus" onclick="deleteNote(${n.row})" class="text-rose-500 hover:text-rose-600"><span class="material-icons-round text-[16px]">delete</span></button></div></div><p class="text-[13px] text-gray-600 dark:text-slate-300 mt-1 whitespace-pre-wrap break-words">${formatTeks(n.body)}</p>${n.updatedAt?`<div class="text-[10px] text-gray-400 mt-2">${escapeHtml(n.updatedAt)}</div>`:''}</div>`;
 }
 function renderMyNotes(){
   const list=document.getElementById('myNotesList'); if(!list) return;
