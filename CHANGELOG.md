@@ -31,6 +31,37 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.101.0 — Pintasan format di semua kolom teks, plus tombol Pratinjau
+
+Lanjutan 1.100.0. Pintasan yang sama kini berlaku di **sembilan** kolom teks panjang, bukan
+empat: catatan **PIC** dan **PM** di modal task, **deskripsi kolaborasi**, serta seluruh kolom
+teks di **Rancangan Paket** — termasuk catatan per kategori dan field panjang seperti Latsol,
+Materi, Tryout, Drilling, dan Live Class.
+
+### Tombol Pratinjau
+
+Lima kolom yang baru masuk itu tak punya tampilan baca sendiri: isinya hanya pernah muncul
+sebagai kotak isian. Tanpa cara melihat hasilnya, penanda `**begini**` cuma jadi bintang
+mentah di layar — itulah sebabnya kelimanya sengaja ditunda di rilis sebelumnya.
+
+Sekarang tiap kolom punya tombol **Pratinjau** kecil di bawah kanannya. Menekannya menukar
+kotak isian dengan hasil terformatnya; menekan **Tulis** mengembalikannya. Tinggi panelnya
+disamakan dengan kotaknya supaya isi di sekitarnya tak melompat tiap kali ditukar.
+
+Tombolnya ditaruh di bawah kotak, bukan di barisan label, supaya susunan label yang dipakai
+seluruh form tak perlu dibongkar hanya demi satu tombol kecil.
+
+### Dua pola, dan alasannya
+
+Catatan per proses **tidak** memakai tombol ini, dan itu disengaja. Ia lebih sering *dibaca*
+orang lain daripada ditulis, jadi tampilan terformatnya yang jadi bawaan dan kotak isiannya
+baru muncul saat diklik. Kolom yang lebih sering *ditulis* — form task, Rancangan Paket,
+deskripsi kolaborasi — tetap berupa kotak isian, dan pratinjaunya yang dipanggil sesaat.
+
+Yang tidak berubah: yang tersimpan tetap teks biasa, perendernya satu untuk semua, dan
+penyaringan skema tautan serta escaping HTML tetap berlaku di mana pun formatnya muncul.
+
+---
 ## 1.100.0 — Ctrl+B, Ctrl+I, dan kawan-kawan di catatan & komentar
 
 Empat kolom sekarang mengerti format ringan: **Catatan Saya**, **Komunikasi**, **komentar

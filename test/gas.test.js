@@ -2641,20 +2641,51 @@ console.log('=== 16i. Format ringan di catatan & komentar ===');
   ok('kotaknya dibuka dengan klik', idx.indexOf('function bukaCatatanProses(order)') >= 0);
   ok('kembali terformat sesudah disimpan', idx.indexOf('renderCollabSteps(currentCollab()); })') >= 0);
 
-  /* Pintasan hanya di kolom yang formatnya ditampilkan — menyisipkan penanda di kolom yang
-     tak pernah merendernya cuma menghasilkan bintang-bintang mentah. */
+  /* Pintasan di SEMUA kolom teks panjang. Syaratnya tetap sama seperti semula: tiap kolom
+     harus punya cara melihat hasilnya — entah tampilan bacanya sendiri, entah tombol
+     Pratinjau. Kolom yang tak pernah merender penandanya cuma menghasilkan bintang mentah. */
   ok('pintasan terpasang', idx.indexOf("document.addEventListener('keydown', pintasFormat)") >= 0);
   ok('dibatasi kolom ber-data-fmt', idx.indexOf("el.getAttribute('data-fmt') !== '1'") >= 0);
   const kolom = (idx.match(/data-fmt="1"/g) || []).length;
-  eq('empat kolom mendapatkannya', kolom, 4);
-  ['newNoteBody', 'commInput', 'collabCommentInput'].forEach(id => {
-    ok(id + ' dapat pintasan', idx.indexOf('id="' + id + '" data-fmt="1"') >= 0);
-  });
+  eq('sembilan kolom teks mendapatkannya', kolom, 9);
+  ['newNoteBody', 'commInput', 'collabCommentInput', 'fieldPicNotes', 'fieldPmNotes', 'collabDesc']
+    .forEach(id => {
+      ok(id + ' dapat pintasan', idx.indexOf('id="' + id + '" data-fmt="1"') >= 0);
+    });
+  // Rancangan Paket: catatan per kategori DAN field teks panjangnya.
+  ok('catatan kategori paket ikut', idx.indexOf('id="pkg-${PKG_KAT_FIELD[kat]}" data-fmt="1"') >= 0);
+  ok('field teks paket ikut', idx.indexOf('id="pkg-${fd.k}" data-fmt="1"') >= 0);
   /* Undo bawaan kotak isian ikut terjaga: menetapkan .value langsung membuang riwayatnya,
      jadi Ctrl+Z sesudah menekan Ctrl+B tak bisa mengembalikan apa pun yang diketik. */
   ok('penyisipan menjaga riwayat Undo', idx.indexOf("document.execCommand('insertText', false, teks)") >= 0);
   // Menu @sebutan bergantung pada oninput; penyisipan lewat skrip harus tetap memicunya.
   ok('oninput tetap dipicu', idx.indexOf("el.dispatchEvent(new Event('input', { bubbles: true }))") >= 0);
+}
+
+console.log('=== 16j. Pratinjau format ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+  /* Lima kolom terakhir tak punya tampilan baca sendiri — isinya hanya pernah tampil sebagai
+     kotak isian. Tombol Pratinjau-lah yang membuat penandanya ada gunanya di sana. */
+  ok('tombolnya ada', idx.indexOf('function barisPratinjau(id)') >= 0);
+  ok('penukarnya ada', idx.indexOf('function togglePratinjau(id)') >= 0);
+  const fn = idx.slice(idx.indexOf('function togglePratinjau(id)'), idx.indexOf('function modalTerbuka(id)'));
+  ok('panelnya dibuat sekali lalu dipakai ulang', fn.indexOf("document.getElementById('prev-' + id)") >= 0);
+  ok('isinya lewat perender yang sama', fn.indexOf('formatTeks(ta.value)') >= 0);
+  /* Tingginya disamakan supaya isi di sekitarnya tak melompat tiap kali ditukar. */
+  ok('tinggi panel mengikuti kotaknya', fn.indexOf("ta.offsetHeight + 'px'") >= 0);
+  ok('kosong pun ada keterangannya', fn.indexOf('(kosong)') >= 0);
+  ok('tombolnya berganti jadi Tulis', fn.indexOf("'Tulis' : 'Pratinjau'") >= 0);
+  // Lima kolom yang memakainya.
+  ['fieldPicNotes', 'fieldPmNotes', 'collabDesc'].forEach(id => {
+    ok(id + ' punya tombol pratinjau', idx.indexOf('id="prevBtn-' + id + '"') >= 0);
+  });
+  ok('catatan kategori paket punya', idx.indexOf("barisPratinjau('pkg-'+PKG_KAT_FIELD[kat])") >= 0);
+  ok('field teks paket punya', idx.indexOf("barisPratinjau('pkg-'+fd.k)") >= 0);
+  /* Catatan per proses sengaja TIDAK memakai tombol ini: ia lebih sering dibaca orang lain,
+     jadi tampilan terformatnya yang jadi bawaan dan kotaknya baru muncul saat diklik. */
+  ok('catatan proses tetap pakai klik-untuk-ubah', idx.indexOf('function bukaCatatanProses(order)') >= 0
+    && idx.indexOf("barisPratinjau('collab-note-") < 0);
 }
 
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

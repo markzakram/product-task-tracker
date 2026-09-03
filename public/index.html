@@ -719,8 +719,8 @@
             <input id="fieldDocument" oninput="renderDocPreview()" class="form-control" placeholder="Link Google Docs/Sheets/Canva atau nama dokumen acuan"><div id="fieldDocPreview" class="hide mt-1 text-[11px]"></div>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div><label class="form-label">PIC Notes</label><textarea id="fieldPicNotes" rows="3" class="form-control" placeholder="Catatan dari PIC…"></textarea></div>
-            <div><label class="form-label">PM Notes</label><textarea id="fieldPmNotes" rows="3" class="form-control" placeholder="Catatan PM/Manager…"></textarea></div>
+            <div><label class="form-label">PIC Notes</label><textarea id="fieldPicNotes" data-fmt="1" rows="3" class="form-control" placeholder="Catatan dari PIC…"></textarea><div class="mt-1 flex justify-end"><button type="button" id="prevBtn-fieldPicNotes" onclick="togglePratinjau(&#39;fieldPicNotes&#39;)" class="text-[11px] font-semibold text-gray-400 hover:text-indigo-600 inline-flex items-center gap-1"><span class="material-icons-round text-[13px]">visibility</span>Pratinjau</button></div></div>
+            <div><label class="form-label">PM Notes</label><textarea id="fieldPmNotes" data-fmt="1" rows="3" class="form-control" placeholder="Catatan PM/Manager…"></textarea><div class="mt-1 flex justify-end"><button type="button" id="prevBtn-fieldPmNotes" onclick="togglePratinjau(&#39;fieldPmNotes&#39;)" class="text-[11px] font-semibold text-gray-400 hover:text-indigo-600 inline-flex items-center gap-1"><span class="material-icons-round text-[13px]">visibility</span>Pratinjau</button></div></div>
           </div>
         </form>
 
@@ -809,7 +809,7 @@
             <div class="md:col-span-2"><label class="form-label">Judul Task</label><input id="collabTitle" class="form-control" placeholder="mis. 5 Paket TO dan Latsol"></div>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div class="md:col-span-2"><label class="form-label">Isi / Deskripsi (opsional)</label><textarea id="collabDesc" rows="2" class="form-control" placeholder="Ringkasan isi task…"></textarea></div>
+            <div class="md:col-span-2"><label class="form-label">Isi / Deskripsi (opsional)</label><textarea id="collabDesc" data-fmt="1" rows="2" class="form-control" placeholder="Ringkasan isi task…"></textarea><div class="mt-1 flex justify-end"><button type="button" id="prevBtn-collabDesc" onclick="togglePratinjau(&#39;collabDesc&#39;)" class="text-[11px] font-semibold text-gray-400 hover:text-indigo-600 inline-flex items-center gap-1"><span class="material-icons-round text-[13px]">visibility</span>Pratinjau</button></div></div>
             <div class="md:col-span-1"><label class="form-label">Tipe Task</label><select id="collabType" class="form-control"></select></div>
             <div class="md:col-span-1"><label class="form-label">Deadline Project</label><input type="date" id="collabDeadline" class="form-control"><div id="collabDeadlineView" class="hide text-xs mt-1"></div></div>
           </div>
@@ -866,7 +866,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.100.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.101.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -2126,6 +2126,41 @@ function pintasFormat(e){
   if(!p) return;
   e.preventDefault();
   sisipFormat(el, p[0], p[1], p[2]);
+}
+/* ---------- Pratinjau format ----------
+
+   Kolom yang isinya lebih sering DITULIS daripada dibaca — form task, Rancangan Paket,
+   deskripsi kolaborasi — tetap berupa kotak isian, dan tombol ini memperlihatkan hasil
+   formatnya sesaat. Bandingkan dengan catatan per proses, yang lebih sering dibaca orang
+   lain: di sana tampilan terformat yang jadi bawaan dan kotaknya baru muncul saat diklik.
+
+   Tombolnya ditaruh DI BAWAH kotak, bukan di barisan label, supaya susunan label yang
+   dipakai seluruh form tak perlu dibongkar hanya demi satu tombol kecil. */
+function barisPratinjau(id){
+  return '<div class="mt-1 flex justify-end"><button type="button" id="prevBtn-' + id + '"'
+    + ' onclick="togglePratinjau(&#39;' + id + '&#39;)" class="text-[11px] font-semibold text-gray-400 hover:text-indigo-600 inline-flex items-center gap-1">'
+    + '<span class="material-icons-round text-[13px]">visibility</span>Pratinjau</button></div>';
+}
+function togglePratinjau(id){
+  const ta = document.getElementById(id); if(!ta) return;
+  let kotak = document.getElementById('prev-' + id);
+  if(!kotak){
+    kotak = document.createElement('div');
+    kotak.id = 'prev-' + id;
+    kotak.className = 'w-full rounded-lg bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700 px-3 py-2 text-sm whitespace-pre-wrap break-words overflow-auto';
+    ta.parentNode.insertBefore(kotak, ta.nextSibling);
+  }
+  const keP = !ta.classList.contains('hide');   // sedang menulis -> tampilkan pratinjaunya
+  if(keP){
+    // Tingginya disamakan dengan kotaknya supaya isi di sekitarnya tak melompat saat ditukar.
+    kotak.style.minHeight = ta.offsetHeight + 'px';
+    kotak.innerHTML = ta.value.trim() ? formatTeks(ta.value) : '<span class="text-gray-400">(kosong)</span>';
+    ta.classList.add('hide'); kotak.classList.remove('hide');
+  } else {
+    ta.classList.remove('hide'); kotak.classList.add('hide'); ta.focus();
+  }
+  const btn = document.getElementById('prevBtn-' + id);
+  if(btn) btn.innerHTML = '<span class="material-icons-round text-[13px]">' + (keP ? 'edit' : 'visibility') + '</span>' + (keP ? 'Tulis' : 'Pratinjau');
 }
 function modalTerbuka(id){
   const m=document.getElementById(id);
@@ -3851,7 +3886,7 @@ function pkgKategoriBlok(p, bisaRancang, c, bisaP){
            satu catatan panjang tak mendorong sisa layar keluar. */''}
       <div class="px-1.5 py-1.5 border-t border-gray-100 dark:border-slate-800">
         <label class="block text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-slate-500 mb-0.5" for="pkg-${PKG_KAT_FIELD[kat]}">Catatan ${escapeHtml(kat)}</label>
-        <textarea id="pkg-${PKG_KAT_FIELD[kat]}" rows="${Math.min(20, Math.max(3, String(p[PKG_KAT_FIELD[kat]]||'').split(String.fromCharCode(10)).length+1))}" ${bisaP?'':'disabled'} class="${PKG_F} leading-relaxed resize-y ${bisaP?'':'opacity-70'}" placeholder="${escapeAttr(bisaP?('catatan untuk seluruh '+kat+' — mis. bonus angkatan lama, sumber, atau kesepakatan'):'(belum diisi)')}">${escapeHtml(p[PKG_KAT_FIELD[kat]]||'')}</textarea>
+        <textarea id="pkg-${PKG_KAT_FIELD[kat]}" data-fmt="1" rows="${Math.min(20, Math.max(3, String(p[PKG_KAT_FIELD[kat]]||'').split(String.fromCharCode(10)).length+1))}" ${bisaP?'':'disabled'} class="${PKG_F} leading-relaxed resize-y ${bisaP?'':'opacity-70'}" placeholder="${escapeAttr(bisaP?('catatan untuk seluruh '+kat+' — mis. bonus angkatan lama, sumber, atau kesepakatan'):'(belum diisi)')}">${escapeHtml(p[PKG_KAT_FIELD[kat]]||'')}</textarea>${barisPratinjau('pkg-'+PKG_KAT_FIELD[kat])}
       </div>
     </div>`;
   }).join('');
@@ -4123,7 +4158,7 @@ function renderPackagePanel(){
        keluar layar, dan resize-y dibiarkan hidup kalau mau ditarik lebih tinggi. */
     const baris=Math.min(20, Math.max(4, v.split('\n').length+1));
     const ctl=fd.area
-      ? `<textarea id="pkg-${fd.k}" rows="${baris}" ${dis} class="${PKG_F} leading-relaxed resize-y ${bisa?'':'opacity-70'}" placeholder="${escapeAttr(bisa?fd.ph:'(belum diisi)')}">${escapeHtml(v)}</textarea>`
+      ? `<textarea id="pkg-${fd.k}" data-fmt="1" rows="${baris}" ${dis} class="${PKG_F} leading-relaxed resize-y ${bisa?'':'opacity-70'}" placeholder="${escapeAttr(bisa?fd.ph:'(belum diisi)')}">${escapeHtml(v)}</textarea>${barisPratinjau('pkg-'+fd.k)}`
       : `<input id="pkg-${fd.k}" ${fd.tipe==='date'?'type="date"':''} value="${escapeAttr(v)}" ${dis} class="${PKG_F} ${bisa?'':'opacity-70'}" placeholder="${escapeAttr(bisa?fd.ph:'(belum diisi)')}">`;
     return `<div><label class="form-label flex items-center gap-1">${escapeHtml(fd.l)}${kosong?'<span class="text-[10px] font-normal text-rose-500">belum diisi</span>':''}</label>${ctl}</div>`;
   };
