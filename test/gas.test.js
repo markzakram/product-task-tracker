@@ -418,13 +418,18 @@ const tanpa2 = call('setChecklistDone', 'COL-002#4', barisBaru, true, 'Staff QC'
 ok('proses belum dicentang tidak ditanggali', !tanpa2.stepRestamped);
 ok('sub-ceklis biasa (task non-collab) aman', !call('setChecklistDone', 'TSK-001', 2, true, 'Manager').stepRestamped);
 
-// Manager boleh MEMBATALKAN centang, tapi tidak boleh mencentang milik orang lain.
+/* Manager boleh mencentang DAN membatalkan centang proses siapa pun. Dulu ia hanya boleh
+   membatalkan; yang menyandera adalah proses berikutnya, yang harus menunggu PIC-nya sempat
+   mencentang sendiri padahal pekerjaannya sudah dilaporkan selesai. */
 call('setCollabStepDone', 'COL-005', 2, true, 'Leader Sistem');
 const mgrUndo = call('setCollabStepDone', 'COL-005', 2, false, 'Manager');
-eq('Manager BOLEH membatalkan centang', mgrUndo.success, true);
+eq('Manager boleh membatalkan centang', mgrUndo.success, true);
 const mgrCheck = call('setCollabStepDone', 'COL-005', 2, true, 'Manager');
-eq('Manager TIDAK boleh mencentang milik orang lain', mgrCheck.success, false);
-ok('pesannya menyebut PIC yang berhak', /Leader Sistem/.test(mgrCheck.message));
+eq('Manager juga boleh mencentang milik orang lain', mgrCheck.success, true);
+// Jejaknya tetap: yang tercatat adalah yang menekan, bukan PIC prosesnya.
+const stepMgr = call('getCollabs').find(c => c.id === 'COL-005').steps.find(s => s.order === 2);
+eq('pencentangnya tercatat apa adanya', stepMgr.doneBy, 'Manager');
+ok('tanggalnya ikut tercatat', /^\d{4}-\d{2}-\d{2}/.test(stepMgr.doneAt));
 const staffUndo = call('setCollabStepDone', 'COL-001', 1, false, 'Staff Soal');
 eq('Staff tetap tak boleh membatalkan punya orang lain', staffUndo.success, false);
 ok('pesan batal menyebut Manager', /Manager/.test(staffUndo.message));
@@ -601,7 +606,9 @@ eq('Staff lain juga boleh', call('setCollabStepDone', KB, 2, false, 'Staff Data'
 // Manager tetap boleh MEMBATALKAN, tapi tidak mencentang milik peran lain.
 call('setCollabStepDone', KB, 1, true, 'Magang Konten');
 eq('Manager boleh batalkan centang', call('setCollabStepDone', KB, 1, false, 'Manager').success, true);
-eq('Manager tak boleh mencentangnya', call('setCollabStepDone', KB, 1, true, 'Manager').success, false);
+eq('Manager boleh mencentangnya juga', call('setCollabStepDone', KB, 1, true, 'Manager').success, true);
+// Perluasannya khusus Manager — bukan pintu terbuka untuk semua peran.
+eq('Staff di luar proses tetap ditolak', call('setCollabStepDone', KB, 1, false, 'Staff Soal').success, false);
 call('deleteCollab', KB, 'Manager');
 
 console.log("\n=== 7g. Lampiran link: proses & sub-ceklis ===");
@@ -1287,9 +1294,14 @@ ok('stage lama di luar dropdown tetap ditawarkan', /\(!v\|\|daftar\.includes\(v\
 ok('stage ikut dibaca dari baris proses', /stage:\(row\.querySelector\('\.cs-stage'\)\|\|\{\}\)\.value\|\|''/.test(commHtml));
 ok('draft proses baru menyertakan stage & link', /{name:'',pic:'',deadline:'',stage:'',link:'',srcOrder:0}/.test(commHtml));
 ok('stage tampil di baris proses', /s\.stage\?`<span[^`]*?Stage">\$\{escapeHtml\(s\.stage\)\}/.test(commHtml));
-// Manager boleh membatalkan centang.
-ok('Manager boleh batalkan centang di klien', /if\(s && s\.done && isManager\(state\.currentUser\)\) return true/.test(commHtml));
-ok('mencentang tetap khusus PIC', /return !!s && same\(s\.pic, state\.currentUser\)/.test(commHtml));
+// Manager boleh mencentang maupun membatalkan — layar tak boleh lebih ketat dari backend.
+ok('Manager tak dibatasi arah centangnya di klien', /if\(isManager\(state\.currentUser\)\) return true/.test(commHtml));
+ok('selain itu tetap khusus PIC proses', /return !!s && same\(s\.pic, state\.currentUser\)/.test(commHtml));
+/* Layar dan backend harus sepakat. Kalau layar lebih longgar, kotak centangnya tampil aktif
+   lalu ditolak server; kalau lebih ketat, kewenangan yang sudah diberikan tak pernah terpakai. */
+ok('backend memakai aturan yang sama',
+  /function canCheckStep\(stepPic, actor\)[\s\S]{0,900}?if \(isManagerActor\(actor\)\) return true;/
+    .test(fs.readFileSync(path.join(__dirname, '..', 'api', '_sheets.js'), 'utf8')));
 
 // Urutan status: "Revisi" SEBELUM "Review PM" (alur kerjanya memang begitu),
 // dan satu sumber dipakai bersama supaya kolom Kanban, tombol pindah, dan legenda

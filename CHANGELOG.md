@@ -31,6 +31,33 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.99.0 — Manager bisa mencentang proses beruntun, bukan cuma membatalkan
+
+Sebelumnya Manager hanya boleh **membatalkan** centang satu proses; mencentangnya tetap hak
+PIC proses itu sendiri (dan Dev). Alasannya masuk akal di atas kertas: mencentang berarti
+mengklaim pekerjaan selesai, dan itu klaim yang mengerjakan.
+
+Pada praktiknya justru Manager yang paling sering lebih dulu tahu satu proses sudah kelar —
+dilaporkan lewat jalur lain, atau orangnya memang sedang tak bisa membuka aplikasi. Selama
+itu proses berikutnya tersandera: handoff tak berpindah sampai PIC-nya sempat mencentang
+sendiri, padahal pekerjaannya sudah selesai berjam-jam sebelumnya.
+
+Sekarang Manager boleh keduanya. Yang **tidak** berubah:
+
+- **Jejaknya tetap.** Kolom *Done By* mencatat siapa yang menekan, bukan PIC prosesnya, dan
+  log aktivitas ikut mencatat. Jadi "dicentang Manager" tetap bisa dibedakan dari "dicentang
+  yang mengerjakan" kapan pun ditanyakan.
+- **Bukan pintu terbuka.** Yang bertambah hanya Manager dan Dev — persis yang sudah boleh
+  membatalkan centang. Leader dan Staff di luar proses tetap ditolak, dan pesan penolakannya
+  kini menyebut siapa yang berhak.
+- **Sub-ceklis tetap mengunci.** Proses yang punya sub-ceklis belum tuntas tetap tak bisa
+  dicentang siapa pun, Manager termasuk. Itu aturan keutuhan data, bukan aturan kewenangan.
+
+Layar dan backend memakai aturan yang sama, dan ada pemeriksaan otomatis yang memastikan
+keduanya tak berpisah: kalau layar lebih longgar, kotak centangnya tampil aktif lalu ditolak
+server; kalau lebih ketat, kewenangan yang baru diberikan ini tak pernah terpakai.
+
+---
 ## 1.98.0 — Task List bisa diurut, Esc menutup, dan satu klik untuk menandai selesai
 
 Tiga hal yang jaraknya paling jauh dari kebiasaan orang memakai aplikasi.

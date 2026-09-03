@@ -428,8 +428,10 @@ function resetAll() { ['TSK-001', 'TSK-002', 'TSK-003', 'TSK-004'].forEach(id =>
   eq('Manager boleh membatalkan centang', (await backend.setCollabStepDone(col.id, 2, false, 'Nynda')).success, true);
   fresh();
   const mgrCek = await backend.setCollabStepDone(col.id, 2, true, 'Nynda');
-  eq('Manager tak boleh mencentang milik orang lain', mgrCek.success, false);
-  ok('pesannya menyebut PIC', /Ali/.test(mgrCek.message));
+  eq('Manager boleh mencentang milik orang lain', mgrCek.success, true);
+  // Jejaknya tetap: yang tercatat adalah yang menekan, bukan PIC prosesnya.
+  eq('pencentangnya tercatat apa adanya',
+    ((await backend.getCollabs()).find(c => c.id === col.id).steps.find(s => s.order === 2) || {}).doneBy, 'Nynda');
   fresh();
   const staffBatal = await backend.setCollabStepDone(col.id, 2, false, 'Uma');
   eq('Staff lain tak boleh membatalkan', staffBatal.success, false);

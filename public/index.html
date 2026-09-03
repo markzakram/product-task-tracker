@@ -866,7 +866,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.98.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.99.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3286,13 +3286,18 @@ function canManageCollab(){
   const u=baseName(state.currentUser);
   return (state.collabManagers||[]).some(a=>baseName(a)===u);
 }
-/* Mencentang = mengklaim pekerjaan selesai → tetap khusus PIC proses (+ Dev).
-   Membatalkan centang = koreksi → Manager juga boleh, supaya salah centang tidak
-   menyandera proses berikutnya sampai orangnya sempat membetulkan sendiri. */
+/* Centang proses beruntun: PIC proses itu, Manager, dan Dev. Padanan canCheckStep() di
+   backend — gerbangnya ada di sana, ini cuma supaya kotak centang yang memang tak bisa
+   dipakai tidak ditampilkan aktif.
+
+   Manager dulu hanya boleh MEMBATALKAN centang, dengan alasan mencentang berarti mengklaim
+   pekerjaan selesai dan itu hak yang mengerjakan. Pada praktiknya justru Manager yang paling
+   sering tahu satu proses sudah kelar sementara proses berikutnya tersandera menunggu PIC-nya
+   sempat mencentang sendiri. Siapa yang mencentang tetap tercatat di Done By dan log. */
 function canCheckStepClient(s){
   if(isViewOnly()) return false;
   if(isDev()) return true;
-  if(s && s.done && isManager(state.currentUser)) return true;   // batalkan centang
+  if(isManager(state.currentUser)) return true;
   // PIC proses berupa peran -> proses milik bersama satu peran.
   const rp=rolePicOf(s&&s.pic);
   if(rp) return hasRole(state.currentUser, String(rp).toLowerCase());

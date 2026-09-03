@@ -1344,10 +1344,20 @@ function genCollabId(ids) {
 // Mencentang = mengklaim pekerjaan itu selesai, jadi tetap khusus PIC proses (+ Dev).
 // MEMBATALKAN centang adalah tindakan koreksi, bukan klaim — Manager boleh, supaya salah
 // centang tak perlu menunggu orangnya. Argumen `undo` true = permintaan membatalkan.
-function canCheckStep(stepPic, actor, undo) {
+/* Siapa yang boleh mengubah centang satu proses: PIC proses itu, Manager, dan Dev.
+
+   Dulu Manager hanya boleh MEMBATALKAN centang, tidak mencentang — dengan alasan mencentang
+   berarti mengklaim pekerjaan selesai, dan itu hak yang mengerjakan. Pada praktiknya justru
+   Manager yang paling sering tahu satu proses sudah kelar (dilaporkan di luar aplikasi, atau
+   orangnya sedang tak bisa membuka aplikasi), sementara proses berikutnya tersandera sampai
+   PIC-nya sempat mencentang sendiri. Siapa yang mencentang tetap tercatat di kolom Done By
+   dan di log aktivitas, jadi keterlacakannya tak berkurang.
+
+   PIC berupa peran ("@Magang") berarti prosesnya milik bersama: siapa pun yang berperan itu
+   boleh mencentang. */
+function canCheckStep(stepPic, actor) {
   if (baseName(actor) === 'dev') return true;
-  if (undo && isManagerActor(actor)) return true;
-  // PIC proses berupa peran -> proses milik bersama, siapa pun berperan itu boleh mencentang.
+  if (isManagerActor(actor)) return true;
   const rp = rolePicOf(stepPic);
   if (rp) return hasRole(actor, rp.toLowerCase());
   const p = baseName(stepPic);
@@ -1712,7 +1722,7 @@ async function savePackage(paketId, payload, actor) {
   const baru = Object.assign({}, lama);
   const terlibat = (lama.collabIds || []).some(cid => {
     const c = collabs.find(x => x.id === cid);
-    return c && (c.steps || []).some(s => canCheckStep(s.pic, actor, false));
+    return c && (c.steps || []).some(s => canCheckStep(s.pic, actor));
   });
   const bolehMarsel = canEditPackageArea(lama, 'marsel', actor, terlibat || baruSekali);
   const bolehProduk = canEditPackageArea(lama, 'produk', actor, terlibat || baruSekali);
@@ -2192,9 +2202,9 @@ async function setCollabStepDone(collabId, order, done, actor) {
   if (idx < 0) return { success: false, message: 'Proses tidak ditemukan. Muat ulang.' };
   const r = srows[idx];
   const pic = String((r && r[3]) || '').trim();
-  if (!canCheckStep(pic, actor, !val)) {
+  if (!canCheckStep(pic, actor)) {
     return { success: false, message: val
-      ? `Hanya ${pic || 'PIC proses ini'} yang bisa mencentang proses ini.`
+      ? `Hanya ${pic || 'PIC proses ini'} atau Manager yang bisa mencentang proses ini.`
       : `Hanya ${pic || 'PIC proses ini'} atau Manager yang bisa membatalkan centang ini.` };
   }
   // Main-ceklis proses tak boleh dicentang selama sub-ceklisnya belum tuntas (membatalkan centang selalu boleh).
