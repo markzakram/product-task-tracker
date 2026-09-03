@@ -370,11 +370,13 @@
         <!-- LIST -->
         <div id="listView" class="view hide space-y-4 max-w-[1600px] mx-auto">
           <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden">
-            <div class="overflow-x-auto">
+            <div class="overflow-auto max-h-[calc(100vh-215px)] scrollbar-thin">
               <table class="w-full text-left text-sm">
-                <thead class="bg-gray-50 dark:bg-slate-800 text-xs uppercase tracking-wider text-gray-500 font-semibold border-b border-gray-200 dark:border-slate-700">
+                <!-- sticky: kepala kolom ikut turun saat digulir. Latarnya wajib pekat,
+                     kalau tembus, baris di bawahnya terlihat menembus judul. -->
+                <thead class="sticky top-0 z-10 bg-gray-50 dark:bg-slate-800 text-xs uppercase tracking-wider text-gray-500 font-semibold border-b border-gray-200 dark:border-slate-700">
                   <tr>
-                    <th class="px-4 py-3">Task</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Stage</th><th class="px-4 py-3">PIC</th><th class="px-4 py-3">Platform</th><th class="px-4 py-3" id="thPriority">Kesulitan</th><th class="px-4 py-3">Due</th><th class="px-4 py-3 text-right">Aksi</th>
+                    <th class="px-4 py-3 cursor-pointer select-none whitespace-nowrap hover:text-gray-700 dark:hover:text-slate-200" onclick="urutTabel('taskName')">Task<span class="sort-ik" data-f="taskName"></span></th><th class="px-4 py-3 cursor-pointer select-none whitespace-nowrap hover:text-gray-700 dark:hover:text-slate-200" onclick="urutTabel('status')">Status<span class="sort-ik" data-f="status"></span></th><th class="px-4 py-3 cursor-pointer select-none whitespace-nowrap hover:text-gray-700 dark:hover:text-slate-200" onclick="urutTabel('stage')">Stage<span class="sort-ik" data-f="stage"></span></th><th class="px-4 py-3 cursor-pointer select-none whitespace-nowrap hover:text-gray-700 dark:hover:text-slate-200" onclick="urutTabel('pic')">PIC<span class="sort-ik" data-f="pic"></span></th><th class="px-4 py-3 cursor-pointer select-none whitespace-nowrap hover:text-gray-700 dark:hover:text-slate-200" onclick="urutTabel('platform')">Platform<span class="sort-ik" data-f="platform"></span></th><th class="px-4 py-3 cursor-pointer select-none whitespace-nowrap hover:text-gray-700 dark:hover:text-slate-200" id="thPriority" onclick="urutTabel('priority')">Kesulitan<span class="sort-ik" data-f="priority"></span></th><th class="px-4 py-3 cursor-pointer select-none whitespace-nowrap hover:text-gray-700 dark:hover:text-slate-200" onclick="urutTabel('dueDate')">Due<span class="sort-ik" data-f="dueDate"></span></th><th class="px-4 py-3 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody id="taskTable" class="divide-y divide-gray-100 dark:divide-slate-800"></tbody>
@@ -864,7 +866,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.97.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.98.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1011,6 +1013,7 @@ const IS_GAS = true; // selalu ada backend sekarang (GAS native ATAU Vercel API)
 const TODAY = new Date(); TODAY.setHours(0,0,0,0);
 let state = {
   tasks: [], options: {}, activeView: 'dashboard', currentUser: LS.get('tt_current_user') || 'Nynda',
+  sort: {field:'', dir:1},   // urutan Task List; kosong = urutan alami dari sheet
   managers: ['Nynda'], doneApprovers: ['Nynda','Dhea','Alya'], collabManagers: ['Nynda','Dhea','Alya'], managerFocus: '', previewAs: '', _realUser: '', activity: [], quickFilter: 'all',
   users: [], roles: ['Dev','Manager','Leader','Staff','Magang','Lihat Saja'], usersSupported: false,
   magangMode: false, magangUsers: [],
@@ -1198,7 +1201,7 @@ function renderStagingMark(){
   try {
     renderAppVersion(); applySidebar(); renderPreviewBar();
     populateUserSelect(); populateManagerFocus(); populateModalDropdowns(); applyRoleUI(); renderAll(); updateCommNavBadge(); renderDeadlineReminder(); notifyUnreadOnLoad(); loadNotifications(); loadPackages(()=>{ if(state.activeView==='paket') renderPaket(); if(state.activeView==='collab') renderCollab(); }); if(needIdentityPick()) showIdentityGate();
-    if(!state._msBound){state._msBound=true; document.addEventListener('click', msOutsideClose); document.addEventListener('click', notifOutsideClose); window.addEventListener('resize', ()=>{ if(window.innerWidth>=768) closeMobileSidebar(); }); document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.activeView==='communication' && state.selectedTaskId && document.getElementById('taskModal').classList.contains('hide')){ closeCommChat(); } });}
+    if(!state._msBound){state._msBound=true; document.addEventListener('click', msOutsideClose); document.addEventListener('click', notifOutsideClose); document.addEventListener('keydown', e=>{ if(e.key==='Escape' && tutupLapisanAtas()) e.preventDefault(); }); window.addEventListener('resize', ()=>{ if(window.innerWidth>=768) closeMobileSidebar(); }); document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.activeView==='communication' && state.selectedTaskId && document.getElementById('taskModal').classList.contains('hide')){ closeCommChat(); } });}
   } catch(e) {
     try{ console.error('[ProductTrack] afterLoad gagal:', e); }catch(_){ }
     showToast('Sebagian tampilan gagal dimuat: ' + ((e && e.message) || e), false);
@@ -2022,6 +2025,28 @@ function toggleFieldFilter(field,value,checked){
 }
 function setDueFilter(key,val){state.filters[key]=val; renderFilterBar(); renderActiveView();}
 function resetFilters(){state.filters={status:[],priority:[],stage:[],platform:[],pic:[],dueStart:'',dueEnd:''}; state.openFilter=''; renderFilterBar(); renderActiveView();}
+/* ---------- Esc menutup satu lapis ----------
+
+   Dulu tak ada satu pun penangan tombol di tingkat dokumen: keempat modal hanya bisa
+   ditutup lewat tombol X-nya, padahal menekan Esc itu refleks. Satu lapis per tekan, dari
+   yang paling atas — menekan Esc saat menu notifikasi terbuka di atas modal semestinya
+   menutup menunya saja, bukan sekalian membuang seluruh modalnya. */
+function modalTerbuka(id){
+  const m=document.getElementById(id);
+  return (m && !m.classList.contains('hide')) ? m : null;
+}
+function tutupLapisanAtas(){
+  // Kedua penutup ini hanya butuh sasaran yang berada DI LUAR dirinya sendiri.
+  const diLuar={ target: document.body };
+  const notif=document.getElementById('notifMenu');
+  if(notif && !notif.classList.contains('hide')){ notifOutsideClose(diLuar); return true; }
+  if(state.openFilter || state.openDashFilter || state.openRepFilter){ msOutsideClose(diLuar); return true; }
+  if(modalTerbuka('dashModal')){ closeDashModal(); return true; }
+  if(modalTerbuka('paketModal')){ closePaketModal(); return true; }
+  if(modalTerbuka('collabModal')){ closeCollabModal(); return true; }
+  if(modalTerbuka('taskModal')){ closeTaskModal(); return true; }
+  return false;
+}
 function msOutsideClose(e){
   if(!state.openFilter && !state.openDashFilter && !state.openRepFilter) return;
   if(e.target && e.target.isConnected===false) return;
@@ -2712,8 +2737,60 @@ function toggleMirror(ev, id){
 }
 
 /* ---------- List ---------- */
+/* ---------- Urutan Task List ----------
+
+   Sebelumnya tak ada cara mengurutkan sama sekali: saringan lengkap, urutan nol. Untuk
+   kolom yang punya daftar pilihan, yang dipakai adalah URUTAN DROPDOWN-nya, bukan abjad —
+   "In progress" sebelum "Review PM" jauh lebih berguna daripada "Done" sebelum "Hold", dan
+   urutan itu memang sudah bisa diatur sendiri lewat Dropdown Master. */
+const URUT_PAKAI_OPSI={status:'status',pic:'pic',platform:'platform',stage:'stage',priority:'priority'};
+function nilaiUrut(t, f){
+  /* Baris kolaborasi mengisi beberapa kolom dengan hal lain: Stage dan Kesulitan memang
+     sengaja dikosongkan ("—"), dan kolom Due menampilkan deadline PROSES-nya, bukan
+     deadline yang dipakai perhitungan telat. Yang diurut adalah yang TERLIHAT — kolom yang
+     mengurut memakai nilai yang tak ditampilkannya membuat hasilnya tampak acak. */
+  if(t._collab){
+    if(f==='stage' || f==='priority') return '';
+    if(f==='dueDate') return dateKey(t._myStepDeadline);
+  }
+  if(f==='dueDate') return dateKey(t.dueDate);
+  const v=String(t[f]||'').trim();
+  const jenis=URUT_PAKAI_OPSI[f];
+  if(!jenis) return v.toLowerCase();
+  const i=(state.options[jenis]||[]).findIndex(o=>same(o,v));
+  // Nilai di luar daftar (mis. peninggalan lama) ditaruh sesudah yang masih terdaftar.
+  return i>=0 ? String(i).padStart(4,'0') : 'zzzz'+v.toLowerCase();
+}
+function urutkanTabel(list){
+  const s=state.sort;
+  if(!s || !s.field) return list;
+  return [...list].sort((a,b)=>{
+    const ka=nilaiUrut(a,s.field), kb=nilaiUrut(b,s.field);
+    /* Yang kosong selalu di bawah, arah apa pun. Task tanpa deadline bukan berarti
+       deadline-nya paling awal, dan membalik urutan tak semestinya melemparnya ke atas. */
+    if((ka==='')!==(kb==='')) return ka==='' ? 1 : -1;
+    if(ka===kb) return 0;
+    return (ka<kb?-1:1)*s.dir;
+  });
+}
+function urutTabel(field){
+  const s=state.sort||{field:'',dir:1};
+  state.sort = (s.field===field) ? {field, dir:-s.dir} : {field, dir:1};
+  renderTable();
+}
+function renderKepalaTabel(){
+  const s=state.sort||{};
+  document.querySelectorAll('#listView .sort-ik').forEach(el=>{
+    const aktif = el.getAttribute('data-f')===s.field;
+    el.innerHTML = aktif ? '<span class="material-icons-round text-[14px] align-middle ml-0.5">'
+      + (s.dir>0?'arrow_upward':'arrow_downward') + '</span>' : '';
+    const th=el.parentElement;
+    if(th) th.classList.toggle('text-indigo-600', aktif);
+  });
+}
 function renderTable(){
-  const tasks=viewTasksAll();
+  const tasks=urutkanTabel(viewTasksAll());
+  renderKepalaTabel();
   const rows=tasks.map(t=>{
     if(t._collab) return collabTableRow(t);
     const overdue=isLate(t); const today=!isDone(t)&&daysToDue(t)===0;
@@ -5796,7 +5873,17 @@ function shadeColor(hex,percent){
 }
 function statusChip(status){const hex=statusHex(status); return `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700"><span class="w-1.5 h-1.5 rounded-full" style="background:${hex}"></span>${escapeHtml(status||'No Status')}</span>`;}
 function priorityPill(text){if(!text)return''; const v=String(text).toLowerCase(); let cls='bg-gray-50 border-gray-200 text-gray-700 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200'; if(v==='sulit')cls='bg-red-50 border-red-200 text-red-700 dark:bg-red-900/25 dark:border-red-900 dark:text-red-300'; else if(v==='normal')cls='bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/25 dark:border-indigo-900 dark:text-indigo-300'; else if(v==='mudah')cls='bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/25 dark:border-emerald-900 dark:text-emerald-300'; return `<span class="inline-flex items-center h-5 px-1.5 rounded border text-[11px] font-semibold ${cls}">${escapeHtml(text)}</span>`;}
-function taskMiniCard(t,showDue){if(t._collab) return collabMiniCard(t); return `<div onclick="openTaskModal('${escapeAttr(t.id)}')" class="p-2.5 rounded-lg bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 cursor-pointer hover:bg-gray-100"><div class="flex justify-between gap-3 items-start"><div class="font-medium text-sm leading-snug line-clamp-2 text-gray-800 dark:text-slate-100">${escapeHtml(t.taskName||'-')}</div>${statusChip(t.status)}</div><div class="mt-1.5 text-[11px] text-gray-500 font-medium flex justify-between items-center"><span class="flex items-center gap-1.5 min-w-0 truncate">${avatar(t.pic)} ${escapeHtml(t.platform||'-')}${t.createdBy?' • dari '+escapeHtml(t.createdBy):''}</span><span class="shrink-0 ${isLate(t)?'text-rose-600':''}">${showDue?formatDateHuman(t.dueDate):escapeHtml(t.lastUpdate||'-')}</span></div></div>`;}
+/* Menandai satu task selesai dulu berarti: klik kartu, modal terbuka, ganti status,
+   simpan, tutup — lima langkah untuk tindakan yang paling sering dilakukan sehari-hari.
+   Lewat quickUpdate(), jadi gerbang "Done", pesan penolakan, dan pembatalan saat server
+   menolak semuanya tetap yang sudah ada; ini cuma jalan pintas menuju hal yang sama. */
+function tombolSelesai(t){
+  if(!t || t._collab || isDone(t)) return '';
+  if(!canEditTask(t) || !canSetDoneFor(t)) return '';
+  const done=(state.options.status||[]).find(isDoneStatus)||'Done';
+  return `<button onclick="quickUpdate(event,'${escapeAttr(t.id)}','status','${escapeAttr(done)}')" title="Tandai selesai" class="shrink-0 w-6 h-6 rounded-full border border-gray-300 dark:border-slate-600 text-gray-400 hover:bg-emerald-600 hover:border-emerald-600 hover:text-white flex items-center justify-center transition-colors"><span class="material-icons-round text-[14px]">check</span></button>`;
+}
+function taskMiniCard(t,showDue){if(t._collab) return collabMiniCard(t); return `<div onclick="openTaskModal('${escapeAttr(t.id)}')" class="p-2.5 rounded-lg bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 cursor-pointer hover:bg-gray-100"><div class="flex justify-between gap-3 items-start"><div class="font-medium text-sm leading-snug line-clamp-2 text-gray-800 dark:text-slate-100">${escapeHtml(t.taskName||'-')}</div><span class="flex items-center gap-1 shrink-0">${statusChip(t.status)}${tombolSelesai(t)}</span></div><div class="mt-1.5 text-[11px] text-gray-500 font-medium flex justify-between items-center"><span class="flex items-center gap-1.5 min-w-0 truncate">${avatar(t.pic)} ${escapeHtml(t.platform||'-')}${t.createdBy?' • dari '+escapeHtml(t.createdBy):''}</span><span class="shrink-0 ${isLate(t)?'text-rose-600':''}">${showDue?formatDateHuman(t.dueDate):escapeHtml(t.lastUpdate||'-')}</span></div></div>`;}
 function emptyState(text){return `<div class="h-full min-h-[120px] flex items-center justify-center text-center text-gray-400 font-medium text-sm p-6">${escapeHtml(text)}</div>`;}
 
 const AV_PALETTE=[['#e0e7ff','#4338ca'],['#fee2e2','#b91c1c'],['#ffedd5','#c2410c'],['#fef9c3','#a16207'],['#dcfce7','#15803d'],['#cffafe','#0e7490'],['#f3e8ff','#7e22ce'],['#fce7f3','#be185d']];

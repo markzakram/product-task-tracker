@@ -31,6 +31,56 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.98.0 — Task List bisa diurut, Esc menutup, dan satu klik untuk menandai selesai
+
+Tiga hal yang jaraknya paling jauh dari kebiasaan orang memakai aplikasi.
+
+### Task List: kepala tabel menempel, kolom bisa diurut
+
+Saringannya lengkap, urutannya nol — tak ada cara meminta "yang paling dekat deadline di
+atas". Sekarang tiap judul kolom bisa diklik; klik lagi membalik arahnya, dan kolom yang
+sedang mengurutkan ditandai panah.
+
+Untuk kolom yang punya daftar pilihan, yang dipakai adalah **urutan dropdown**-nya, bukan
+abjad: "In progress" sebelum "Review PM" jauh lebih berguna daripada "Done" sebelum "Hold" —
+dan urutan itu memang sudah bisa diatur sendiri sejak 1.96.0. Nilai yang sudah tak ada di
+daftar ditaruh sesudah yang masih terdaftar, bukan diselipkan menurut abjad. Baris tanpa isi
+selalu di bawah, arah apa pun: task tanpa deadline bukan berarti deadline-nya paling awal,
+dan membalik urutan tak semestinya melemparkannya ke atas.
+
+Kepala tabelnya juga ikut turun saat digulir. Ini perlu satu perubahan yang tak kelihatan:
+`position: sticky` mengacu ke leluhur yang **bisa** digulir, sementara wadah tabelnya cuma
+`overflow-x-auto` tanpa batas tinggi — ia tak pernah benar-benar menggulir, yang menggulir
+halaman di luarnya, jadi kepalanya takkan pernah menempel betapa pun banyak kelas ditambah.
+Tabelnya sekarang menggulir di dalam panelnya sendiri.
+
+Ikut ketahuan saat mengujinya: **baris kolaborasi mengurut memakai nilai yang tidak ia
+tampilkan.** Kolom Due-nya menampilkan deadline proses, sementara di baliknya tersimpan
+deadline project yang dipakai perhitungan telat; kolom Stage dan Kesulitan-nya sengaja
+dikosongkan tapi datanya tetap terisi. Hasilnya, mengurut per deadline menaruh baris ber-"–"
+di antara tanggal-tanggal dan terlihat acak. Sekarang yang diurut adalah yang terlihat.
+
+### Esc menutup satu lapis
+
+Tak ada satu pun penangan tombol di tingkat dokumen sebelumnya: keempat modal — task,
+kolaborasi, paket, dashboard — hanya bisa ditutup lewat tombol X-nya. Sekarang Esc menutup
+yang paling atas, **satu lapis per tekan**: menekan Esc saat menu notifikasi atau saringan
+melayang terbuka di atas modal menutup menunya saja, bukan sekalian membuang modalnya.
+
+### Satu klik untuk menandai selesai
+
+Di **Hari Ini**, **Deadline Kritis**, dan **Update Terakhir**, menandai satu task selesai
+dulu berarti: klik kartu, modal terbuka, ganti status, simpan, tutup. Lima langkah untuk
+tindakan yang paling sering dilakukan sehari-hari. Sekarang ada tombol centang di kartunya.
+
+Tombolnya lewat `quickUpdate()` yang sudah ada, jadi gerbang "Done" tetap berlaku apa adanya —
+yang tak berhak menutup task tidak mendapat tombolnya sama sekali, dan kalau server menolak,
+perubahannya dibatalkan seperti biasa. Kartu yang sudah Done dan kartu kolaborasi tak
+mendapat tombol: yang pertama tak ada gunanya, yang kedua diselesaikan per proses lewat
+panelnya sendiri. Nilai "Done"-nya diambil dari daftar dropdown, bukan ditulis mati, supaya
+tetap benar bila tulisannya diubah lewat Dropdown Master.
+
+---
 ## 1.97.0 — Dashboard untuk peran selain Manager, dan grafik tren beban
 
 Sejak 1.95.1 panel **Beban Kerja per PIC** disembunyikan dari semua non-Manager, karena

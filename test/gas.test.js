@@ -2358,7 +2358,7 @@ call('deleteTask', ksId, 'Manager');
 ok('judul kolom sheet jadi Kesulitan', code.indexOf("'Status', 'Kesulitan',") >= 0);
 ok('validasi dropdown ikut nama baru', code.indexOf("Kesulitan: 'priority'") >= 0);
 ok('label form jadi Tingkat Kesulitan', commHtml.indexOf('>Tingkat Kesulitan</label>') >= 0);
-ok('judul kolom daftar task jadi Kesulitan', commHtml.indexOf('id="thPriority">Kesulitan</th>') >= 0);
+ok('judul kolom daftar task jadi Kesulitan', commHtml.indexOf('id="thPriority" onclick="urutTabel(\'priority\')">Kesulitan') >= 0);
 ok('penjaga tampilannya ada', commHtml.indexOf('function bisaLihatKesulitan()') >= 0);
 ok('pil hanya digambar untuk Manager', commHtml.indexOf('bisaLihatKesulitan()?priorityPill(t.priority)') >= 0);
 ok('kolom daftar hanya untuk Manager', commHtml.indexOf("bisaLihatKesulitan()?`<td class=\"px-4 py-3\">${inlineSelect('priority', t)}") >= 0);
@@ -2515,6 +2515,91 @@ console.log('=== 16e. Stempel waktu yang titik desimalnya hilang ===');
   const vercel = fs.readFileSync(path.join(__dirname, '..', 'api', '_sheets.js'), 'utf8');
   ok('padanan Vercel-nya ada', vercel.indexOf('function serialWaras(n)') >= 0
     && vercel.indexOf('formatDate(serialWaras(v), true)') >= 0);
+}
+
+console.log('=== 16f. Task List: kepala menempel & kolom bisa diurut ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+  const list = idx.slice(idx.indexOf('id="listView"'), idx.indexOf('<!-- TIMELINE -->'));
+  /* sticky mengacu ke leluhur yang BISA digulir. Wadah lama cuma overflow-x-auto tanpa
+     batas tinggi, jadi ia tak pernah menggulir dan kepala tabel takkan pernah menempel. */
+  ok('wadah tabel menggulir sendiri', list.indexOf('overflow-auto max-h-[calc(100vh-215px)]') >= 0);
+  ok('kepala tabel menempel', list.indexOf('<thead class="sticky top-0 z-10 bg-gray-50') >= 0);
+  ok('latar kepala pekat, tak tembus baris di bawahnya', list.indexOf('sticky top-0 z-10 bg-gray-50 dark:bg-slate-800') >= 0);
+  ok('kolom bisa diklik untuk mengurutkan', list.indexOf('onclick="urutTabel(\'status\')"') >= 0
+    && list.indexOf('onclick="urutTabel(\'dueDate\')"') >= 0);
+  ok('kolom Aksi tidak ikut bisa diurut', list.indexOf('urutTabel(\'aksi') < 0);
+  /* Untuk kolom berdaftar, yang dipakai urutan DROPDOWN-nya, bukan abjad: "In progress"
+     sebelum "Review PM" lebih berguna daripada "Done" sebelum "Hold". */
+  const fn = idx.slice(idx.indexOf('const URUT_PAKAI_OPSI'), idx.indexOf('function renderTable()'));
+  ok('urutannya mengikuti daftar dropdown', fn.indexOf('(state.options[jenis]||[]).findIndex') >= 0);
+  /* Baris kolaborasi menampilkan isi lain di beberapa kolom: Due-nya deadline PROSES, dan
+     Stage/Kesulitan sengaja dikosongkan walau datanya terisi. Mengurut memakai nilai yang
+     tak ditampilkan membuat hasilnya terlihat acak — deretan "–" terselip di antara tanggal. */
+  ok('baris kolaborasi diurut menurut yang terlihat',
+    fn.indexOf("return dateKey(t._myStepDeadline);") >= 0
+    && fn.indexOf("if(f===" + String.fromCharCode(39) + "stage" + String.fromCharCode(39) + " || f===" + String.fromCharCode(39) + "priority" + String.fromCharCode(39) + ") return " + String.fromCharCode(39) + String.fromCharCode(39) + ";") >= 0);
+  ok('klik lagi membalik arah', fn.indexOf('(s.field===field) ? {field, dir:-s.dir} : {field, dir:1}') >= 0);
+  ok('arah aktif ditandai di kepalanya', fn.indexOf('arrow_upward') >= 0 && fn.indexOf('arrow_downward') >= 0);
+
+  /* Uji perilakunya sungguhan, bukan cuma keberadaan teksnya. */
+  const potong = nama => { const i = idx.indexOf('function ' + nama); let d = 0;
+    for (let k = idx.indexOf('{', i); k < idx.length; k++) {
+      if (idx[k] === '{') d++; else if (idx[k] === '}' && !--d) return idx.slice(i, k + 1); } };
+  const ctx = { state: { sort: null, options: { status: ['Todo', 'In progress', 'Review PM', 'Done'] } },
+    same: (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase(),
+    dateKey: v => String(v || '').slice(0, 10) };
+  const jalan = new Function('ctx', 'with(ctx){' + idx.slice(idx.indexOf('const URUT_PAKAI_OPSI'), idx.indexOf('function urutTabel('))
+    + '; return {urutkanTabel:urutkanTabel};}')(ctx);
+  const baris = [
+    { id: 'a', status: 'Done',        dueDate: '2026-09-10' },
+    { id: 'b', status: 'Todo',        dueDate: '' },
+    { id: 'c', status: 'Review PM',   dueDate: '2026-09-01' },
+    { id: 'd', status: 'Entah',       dueDate: '2026-09-05' },
+  ];
+  const urut = (f, dir) => { ctx.state.sort = { field: f, dir: dir }; return jalan.urutkanTabel(baris).map(r => r.id).join(''); };
+  eq('status naik ikut urutan dropdown', urut('status', 1), 'bcad');
+  eq('status turun membalikkannya', urut('status', -1), 'dacb');
+  /* Nilai di luar daftar dropdown (peninggalan lama) ditaruh sesudah yang masih terdaftar,
+     bukan diselipkan menurut abjad. */
+  ok('nilai asing ada di belakang saat naik', urut('status', 1).indexOf('d') === 3);
+  eq('deadline terdekat di atas', urut('dueDate', 1), 'cdab');
+  /* Task tanpa deadline bukan berarti deadline-nya paling awal — membalik urutan tak
+     semestinya melemparkannya ke atas. */
+  eq('yang tanpa deadline tetap di bawah walau dibalik', urut('dueDate', -1).slice(-1), 'b');
+  ctx.state.sort = null;
+  eq('tanpa urutan, susunannya tak diubah', jalan.urutkanTabel(baris).map(r => r.id).join(''), 'abcd');
+}
+
+console.log('=== 16g. Esc menutup satu lapis ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+  ok('penangan Esc terpasang', idx.indexOf("e.key==='Escape' && tutupLapisanAtas()") >= 0);
+  const fn = idx.slice(idx.indexOf('function tutupLapisanAtas()'), idx.indexOf('function msOutsideClose(e)'));
+  /* Satu lapis per tekan: tiap cabang berhenti begitu ada yang ditutup. Menekan Esc saat
+     menu terbuka di atas modal semestinya menutup menunya saja. */
+  ok('menu ditutup lebih dulu daripada modal', fn.indexOf('notifOutsideClose') < fn.indexOf('closeTaskModal'));
+  ok('saringan melayang juga ikut', fn.indexOf('msOutsideClose(diLuar)') >= 0);
+  ['dashModal', 'paketModal', 'collabModal', 'taskModal'].forEach(m => {
+    ok('modal ' + m + ' bisa ditutup dengan Esc', fn.indexOf("modalTerbuka('" + m + "')") >= 0);
+  });
+  ok('berhenti sesudah satu lapis', (fn.match(/return true;/g) || []).length >= 6);
+}
+
+console.log('=== 16h. Tombol selesai di kartu ringkas ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+  const fn = idx.slice(idx.indexOf('function tombolSelesai(t)'), idx.indexOf('function taskMiniCard('));
+  /* Lewat quickUpdate(), jadi gerbang "Done", pesan penolakan, dan pembatalan saat server
+     menolak tetap yang sudah ada — ini jalan pintas, bukan jalur kedua. */
+  ok('memakai quickUpdate yang sudah ada', fn.indexOf('quickUpdate(event,') >= 0);
+  ok('gerbang Done tetap dihormati', fn.indexOf('canSetDoneFor(t)') >= 0);
+  ok('yang tak boleh mengubah tak dapat tombolnya', fn.indexOf('canEditTask(t)') >= 0);
+  ok('tak muncul di kartu kolaborasi atau yang sudah selesai', fn.indexOf('t._collab || isDone(t)') >= 0);
+  /* Nilai "Done"-nya diambil dari daftar dropdown, bukan ditulis mati: Dropdown Master
+     boleh mengubah tulisannya, dan yang dikirim harus yang benar-benar ada di daftar. */
+  ok('nilai Done diambil dari daftar', fn.indexOf('(state.options.status||[]).find(isDoneStatus)') >= 0);
+  ok('terpasang di kartunya', idx.indexOf('${statusChip(t.status)}${tombolSelesai(t)}') >= 0);
 }
 
 console.log(`\n✅ Semua ${passed} assertion lulus.`);
