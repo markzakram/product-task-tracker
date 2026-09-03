@@ -25,6 +25,7 @@ const APPLY = process.argv.includes('--apply');
    sepadan dengan CONFIG.FIRST_DATA_ROW di api/_sheets.js — kalau meleset, migrasinya bisa
    menimpa baris header. */
 const BARIS_DATA = 4;
+const BARIS_HEADER = 3;   // judul kolom satu baris di atas data
 const SHEET_TASK = process.env.SHEET_TASK || 'Main';
 const SHEET_OPTIONS = process.env.SHEET_OPTIONS || 'OPTIONS';
 
@@ -87,15 +88,32 @@ async function utama() {
     sisaTak.forEach(k => console.log('    ' + (k || '(kosong)').padEnd(24) + takDikenal[k] + ' task'));
   }
 
+  // --- judul kolom di sheet ---
+  /* Perbaikan header di aplikasi hanya jalan lewat Setup (aksi manual Dev), jadi kalau tidak
+     diganti di sini sheet akan terus tertulis "Priority" di atas nilai Sulit/Normal/Mudah. */
+  const hd = await sheets.spreadsheets.values.get({
+    spreadsheetId: TUJUAN_ID, range: SHEET_TASK + "!F" + BARIS_HEADER });
+  const judulLama = t(((hd.data.values || [])[0] || [])[0]);
+  const perluJudul = judulLama !== 'Kesulitan';
+  console.log('\n== JUDUL KOLOM ==');
+  console.log('  sekarang : ' + (judulLama || '(kosong)') + (perluJudul ? '  -> Kesulitan' : '  (sudah benar)'));
+
   // --- daftar pilihan di OPTIONS ---
   const o = await sheets.spreadsheets.values.get({ spreadsheetId: TUJUAN_ID, range: `${SHEET_OPTIONS}!A2:D` });
   const opsi = o.data.values || [];
   const barisPriority = [];
   opsi.forEach((row, i) => { if (t((row || [])[0]).toLowerCase() === 'priority') barisPriority.push(i); });
+  const aktifSekarang = barisPriority
+    .filter(i => String(t(opsi[i][2])).toLowerCase() !== 'false')
+    .map(i => t(opsi[i][1]));
+  // Sudah tepat? Jangan disentuh — kalau tidak, tiap jalan ulang menambah tiga baris mati.
+  const opsiSudahBenar = aktifSekarang.length === BARU.length
+    && BARU.every(v => aktifSekarang.some(a => a.toLowerCase() === v.toLowerCase()));
   console.log('\n== DAFTAR PILIHAN (' + SHEET_OPTIONS + ') ==');
   console.log('  baris priority sekarang : ' + barisPriority.length
     + (barisPriority.length ? '  -> ' + barisPriority.map(i => t(opsi[i][1])).join(', ') : ''));
-  console.log('  akan jadi               : ' + BARU.join(', '));
+  console.log('  yang AKTIF sekarang     : ' + (aktifSekarang.join(', ') || '(tak ada)'));
+  console.log('  akan jadi               : ' + (opsiSudahBenar ? 'sudah tepat, dilewati' : BARU.join(', ')));
 
   if (!APPLY) { console.log('\n== UJI COBA — tidak ada yang ditulis. Tambahkan --apply untuk menjalankan. =='); return; }
 
@@ -106,6 +124,7 @@ async function utama() {
   }
   /* Baris lama dinonaktifkan lewat kolom Active, bukan dihapus: menghapus baris menggeser
      nomor baris lain di sheet yang sama dan itu mengundang kekacauan sendiri. */
+  if (opsiSudahBenar) { console.log('\n== SELESAI DITULIS (daftar pilihan tak perlu diubah) =='); return; }
   const upd = barisPriority.map(i => ({
     range: `${SHEET_OPTIONS}!C${i + 2}`, values: [['FALSE']],
   }));
@@ -117,6 +136,12 @@ async function utama() {
     spreadsheetId: TUJUAN_ID, range: `${SHEET_OPTIONS}!A:D`,
     valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS',
     requestBody: { values: BARU.map(v => ['priority', v, 'TRUE', '']) } });
+
+  if (perluJudul) {
+    await sheets.spreadsheets.values.update({ spreadsheetId: TUJUAN_ID,
+      range: SHEET_TASK + "!F" + BARIS_HEADER,
+      valueInputOption: 'RAW', requestBody: { values: [['Kesulitan']] } });
+  }
 
   console.log('\n== SELESAI DITULIS ==');
 }

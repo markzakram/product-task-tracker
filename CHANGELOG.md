@@ -89,7 +89,10 @@ lewat kolom Active bukan dihapus, dan menjalankannya dua kali tidak merusak apa 
 
 ### Judul kolom sheet ikut berganti
 
-`Priority` → `Kesulitan` di baris header sheet Main. Aman: pemetaan kolom memakai **indeks**
+`Priority` → `Kesulitan` di baris header sheet Main — dikerjakan oleh skrip migrasi.
+Perbaikan header bawaan aplikasi hanya jalan lewat **Setup** (aksi manual Dev), jadi kalau
+diserahkan ke sana, sheet akan terus tertulis "Priority" di atas nilai Sulit/Normal/Mudah.
+Aman: pemetaan kolom memakai **indeks**
 (`priority` selalu kolom F), bukan nama header. Kalau ada rumus di spreadsheet yang menunjuk
 kolom itu lewat namanya, itu perlu disesuaikan sendiri.
 
