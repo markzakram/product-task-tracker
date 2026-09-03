@@ -855,7 +855,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.95.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.95.2'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1845,6 +1845,18 @@ function picOptionsHtml(values, selected, opsiPeran){
   }
   return out;
 }
+/* Nilai lama yang sudah tak ada di daftar pilihan tetap ditampilkan, ditandai "(lama)".
+   Tanpa ini, <select> jadi kosong dan menyimpan task akan menghapus nilainya diam-diam.
+   Ditandai supaya jelas ini peninggalan, bukan pilihan yang masih berlaku — dan begitu
+   diganti ke nilai baru, opsi lamanya hilang sendiri. */
+function pastikanOpsi(id, nilai){
+  const el=document.getElementById(id); if(!el) return;
+  const v=String(nilai==null?'':nilai).trim(); if(!v) return;
+  if([...el.options].some(o=>o.value===v)) return;
+  const o=document.createElement('option');
+  o.value=v; o.textContent=v+' (lama)';
+  el.appendChild(o);
+}
 function fillSelect(id, values=[], placeholder=null, defaultValue=''){
   const el=document.getElementById(id); if(!el) return;
   const old=el.value;
@@ -2225,7 +2237,9 @@ function quickUpdate(ev, id, field, value){
 function inlineSelect(field, t){
   const cur=t[field]||'';
   if(!canEditTask(t)) return `<span class="text-xs font-medium text-gray-700 dark:text-slate-200">${escapeHtml(cur||'—')}</span>`;
-  const opts=(field==='status') ? statusOptionsFor(cur, t) : (state.options[field]||[]);
+  const daftar=(field==='status') ? statusOptionsFor(cur, t) : (state.options[field]||[]);
+  // Nilai yang sedang dipakai selalu ikut, walau sudah dicabut dari Dropdown Master.
+  const opts=(cur && !daftar.some(o=>same(o,cur))) ? daftar.concat([cur]) : daftar;
   const options=opts.map(o=>`<option value="${escapeAttr(o)}" ${same(o,cur)?'selected':''}>${escapeHtml(o)}</option>`).join('');
   return `<select onclick="event.stopPropagation()" onchange="quickUpdate(event,'${escapeAttr(t.id)}','${field}',this.value)" class="text-xs font-medium text-gray-700 dark:text-slate-200 bg-transparent border border-gray-200 dark:border-slate-700 rounded-md px-1.5 py-1 outline-none focus:ring-2 focus:ring-indigo-200 cursor-pointer">${options}</select>`;
 }
@@ -2840,7 +2854,7 @@ function openTaskModal(id='', dupSrc=null){
   populateVerbSelect(t?.stage||'', t?.verb||'', t?.objek||'');
   setVal('fieldJumlah', t?.jumlah||''); setVal('fieldDetail', t?.detail||'');
   setVal('fieldCreatedDate', t?.createdDate||todayStr()); setVal('fieldDueDate', t?.dueDate||'');
-  fillSelect('fieldStatus', statusOptionsFor(t?.status||'Todo', t), null, t?.status||'Todo'); setVal('fieldStatus', t?.status||'Todo'); setVal('fieldPriority', t?.priority||'Normal');
+  fillSelect('fieldStatus', statusOptionsFor(t?.status||'Todo', t), null, t?.status||'Todo'); setVal('fieldStatus', t?.status||'Todo'); pastikanOpsi('fieldPriority', t?.priority); setVal('fieldPriority', t?.priority||'Normal');
   // Siapa yang terakhir mengubah status — penting untuk task milik bersama (PIC berupa peran),
   // karena satu status dipakai beramai-ramai.
   (function(){

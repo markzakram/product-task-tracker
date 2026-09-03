@@ -2373,6 +2373,16 @@ ok('saringan Kesulitan di dashboard ikut disembunyikan', commHtml.indexOf('bisaL
 /* Beban Kerja mengambil 2 dari 3 kolom grid. Begitu ia hilang, Komposisi Status harus
    melebar penuh — kalau tidak, ia tertinggal di sepertiga layar dengan ruang kosong lebar. */
 ok('Komposisi Status melebar saat Beban Kerja hilang', commHtml.indexOf("panelKomp.classList.toggle('xl:col-span-3', !bisaKes)") >= 0);
+
+/* Data lama sengaja dibiarkan apa adanya. Supaya "dibiarkan" tidak berubah jadi "terhapus":
+   <select> tak bisa menampilkan nilai yang bukan salah satu opsinya — ia jadi KOSONG, dan
+   menyimpan task itu menulis kosong ke sheet. Nilai lama karena itu ikut dijadikan opsi. */
+ok('ada penjaga nilai lama', commHtml.indexOf('function pastikanOpsi(id, nilai)') >= 0);
+ok('ditandai sebagai peninggalan', commHtml.indexOf("v+' (lama)'") >= 0);
+ok('modal task memakainya sebelum memilih', commHtml.indexOf("pastikanOpsi('fieldPriority', t?.priority); setVal('fieldPriority'") >= 0);
+ok('dropdown daftar task ikut menjaga', commHtml.indexOf('(cur && !daftar.some(o=>same(o,cur))) ? daftar.concat([cur]) : daftar') >= 0);
+// Berlaku untuk semua dropdown yang bisa diubah lewat Dropdown Master, bukan khusus kesulitan.
+ok('penjaganya tidak dikhususkan ke satu field', commHtml.indexOf("const daftar=(field==='status')") >= 0);
 ok('warna mengikuti tingkat kesulitan', commHtml.indexOf("v==='sulit'") >= 0 && commHtml.indexOf("v==='mudah'") >= 0);
 // Nilai lama tetap punya warna sendiri supaya data yang belum dimigrasi tak menyamar Normal.
 ok('nilai lama masih dikenali di grafik', commHtml.indexOf("urgent:'#ef4444'") >= 0);

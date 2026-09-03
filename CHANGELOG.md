@@ -31,6 +31,29 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.95.2 — Nilai lama tetap utuh walau sudah dicabut dari Dropdown Master
+
+Ali memutuskan data lama dibiarkan apa adanya — tidak dimigrasi. Supaya "dibiarkan" tidak
+berubah jadi "terhapus", aplikasinya perlu bisa menampilkan nilai yang sudah tak ada lagi di
+daftar pilihan.
+
+Sebabnya mekanis: `<select>` tak bisa menampilkan nilai yang bukan salah satu `<option>`-nya.
+Ia jadi **kosong**, dan menyimpan task itu menulis kosong ke sheet — nilai lama hilang tanpa
+peringatan, dan orangnya tak akan sadar karena di layar memang tak ada apa-apa untuk dilihat.
+
+Sekarang nilai yang sedang dipakai selalu ikut jadi pilihannya sendiri, ditandai **"(lama)"**
+supaya jelas itu peninggalan dan bukan pilihan yang masih berlaku. Begitu diganti ke nilai
+baru, opsi lamanya hilang sendiri.
+
+Berlaku di dua tempat: dropdown pada modal task, dan dropdown ringkas di Task List. Polanya
+sudah dipakai kolom Status sejak lama lewat `statusOptionsFor(cur, t)`; sekarang field lain
+ikut.
+
+**Bukan khusus Tingkat Kesulitan.** Menonaktifkan sebuah stage, platform, atau PIC lewat
+Dropdown Master punya akibat yang sama persis, dan sejak sekarang sama-sama aman.
+
+---
+
 ## 1.95.1 — Saringan Kesulitan ikut disembunyikan, dan dashboard staff tak lagi bolong
 
 Dua hal yang baru kelihatan setelah 1.95.0 dipakai sungguhan.
