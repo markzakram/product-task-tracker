@@ -331,7 +331,7 @@
               </div>
               <div class="h-[320px]"><canvas id="chartPic"></canvas></div>
             </div>
-            <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-5">
+            <div id="panelKomposisi" class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-5">
               <h2 class="font-semibold text-gray-900 dark:text-white mb-4">Komposisi Status</h2>
               <div class="h-[320px]"><canvas id="chartStatus"></canvas></div>
             </div>
@@ -855,7 +855,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.95.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.95.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1421,6 +1421,11 @@ function applyRoleUI(){
   const thKes=document.getElementById('thPriority'); if(thKes) thKes.classList.toggle('hide', !bisaKes);
   const boxKes=document.getElementById('fieldPriorityBox'); if(boxKes) boxKes.classList.toggle('hide', !bisaKes);
   const panelBeban=document.getElementById('panelBebanKerja'); if(panelBeban) panelBeban.classList.toggle('hide', !bisaKes);
+  /* Grid dashboard 3 kolom: Beban Kerja mengambil 2, Komposisi Status 1. Begitu Beban
+     Kerja hilang, Komposisi ikut melebar penuh — kalau tidak, ia tertinggal sendirian di
+     sepertiga layar dengan dua pertiga ruang kosong di sebelahnya. */
+  const panelKomp=document.getElementById('panelKomposisi');
+  if(panelKomp) panelKomp.classList.toggle('xl:col-span-3', !bisaKes);
   const navComm=document.getElementById('nav-communication'); if(navComm) navComm.classList.toggle('hide', vo);
   if(vo && state.activeView==='communication') switchView('dashboard');
   const addBtn=document.getElementById('btnAddTask'); if(addBtn) addBtn.classList.toggle('hide',vo);
@@ -1962,7 +1967,10 @@ function renderFilterBar(){
     const base=on?'bg-indigo-600 text-white border-indigo-600':'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-300 dark:border-slate-700 hover:bg-gray-50';
     return `<button onclick="setQuickFilter('${k}')" class="px-3 h-9 text-sm rounded-full font-medium border ${base}">${label}<span class="ml-1.5 text-[11px] opacity-70">${counts[k]}</span></button>`;
   }).join('');
-  const ms=FILTER_FIELDS.map(([f,l])=>fieldFilterDropdown(f,l)).join('');
+  /* Kesulitan hanya disaring oleh yang bisa melihatnya. Menyisakan saringan untuk kolom
+     yang tak tampak membuat orang menyaring sesuatu yang tak bisa mereka baca. */
+  const ms=FILTER_FIELDS.filter(([f])=>f!=='priority'||bisaLihatKesulitan())
+    .map(([f,l])=>fieldFilterDropdown(f,l)).join('');
   const totalSel=FILTER_FIELDS.reduce((n,[f])=>n+(state.filters[f]||[]).length,0)+(state.filters.dueStart?1:0)+(state.filters.dueEnd?1:0);
   bar.innerHTML=`
     <div class="flex items-center gap-1.5 flex-wrap">${pills}</div>
@@ -2254,7 +2262,7 @@ function renderDashFilters(){
     <span class="w-px h-6 bg-gray-200 dark:bg-slate-700 mx-1 hidden lg:inline-block"></span>
     ${msDropdown({key:'pic',label:'Beban Kerja',options:dashPicOptions(),selected:f.pic,open:state.openDashFilter==='pic',onToggle:'toggleDashFilter',onOpen:'toggleDashPanel'})}
     ${msDropdown({key:'status',label:'Status',options:(state.options.status||[]),selected:f.status,open:state.openDashFilter==='status',onToggle:'toggleDashFilter',onOpen:'toggleDashPanel'})}
-    ${msDropdown({key:'priority',label:'Kesulitan',options:(state.options.priority||[]),selected:f.priority,open:state.openDashFilter==='priority',onToggle:'toggleDashFilter',onOpen:'toggleDashPanel'})}
+    ${bisaLihatKesulitan()?msDropdown({key:'priority',label:'Kesulitan',options:(state.options.priority||[]),selected:f.priority,open:state.openDashFilter==='priority',onToggle:'toggleDashFilter',onOpen:'toggleDashPanel'}):''}
     ${n?`<button onclick="resetDashFilters()" class="h-9 px-3 rounded-lg border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-1"><span class="material-icons-round text-[15px]">filter_alt_off</span>Reset</button>`:''}
     <span class="ml-auto text-xs text-gray-400 font-medium whitespace-nowrap">${shown} dari ${total} task • ${escapeHtml(rangeLabel(f))}</span>
   </div>`;

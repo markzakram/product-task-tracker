@@ -2366,6 +2366,13 @@ ok('kolom daftar hanya untuk Manager', commHtml.indexOf("bisaLihatKesulitan()?`<
    tampil untuk staff, angkanya membocorkan lagi apa yang baru ditutup di tabel. */
 ok('kartu KPI Sulit khusus Manager', commHtml.indexOf("bisaLihatKesulitan()?[['Sulit'") >= 0);
 ok('grafik Beban Kerja ikut disembunyikan', commHtml.indexOf("getElementById('panelBebanKerja')") >= 0);
+/* Saringannya ikut hilang: menyisakan saringan untuk kolom yang tak tampak membuat orang
+   menyaring sesuatu yang tak bisa mereka baca. */
+ok('saringan Kesulitan di daftar task ikut disaring', commHtml.indexOf("FILTER_FIELDS.filter(([f])=>f!=='priority'||bisaLihatKesulitan())") >= 0);
+ok('saringan Kesulitan di dashboard ikut disembunyikan', commHtml.indexOf('bisaLihatKesulitan()?msDropdown({key:') >= 0);
+/* Beban Kerja mengambil 2 dari 3 kolom grid. Begitu ia hilang, Komposisi Status harus
+   melebar penuh — kalau tidak, ia tertinggal di sepertiga layar dengan ruang kosong lebar. */
+ok('Komposisi Status melebar saat Beban Kerja hilang', commHtml.indexOf("panelKomp.classList.toggle('xl:col-span-3', !bisaKes)") >= 0);
 ok('warna mengikuti tingkat kesulitan', commHtml.indexOf("v==='sulit'") >= 0 && commHtml.indexOf("v==='mudah'") >= 0);
 // Nilai lama tetap punya warna sendiri supaya data yang belum dimigrasi tak menyamar Normal.
 ok('nilai lama masih dikenali di grafik', commHtml.indexOf("urgent:'#ef4444'") >= 0);

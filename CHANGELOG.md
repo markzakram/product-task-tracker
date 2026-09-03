@@ -31,6 +31,25 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.95.1 — Saringan Kesulitan ikut disembunyikan, dan dashboard staff tak lagi bolong
+
+Dua hal yang baru kelihatan setelah 1.95.0 dipakai sungguhan.
+
+**Saringan "Kesulitan" masih tampil untuk yang bukan Manager** — di bilah Task List maupun
+di Dashboard. Kolomnya sudah tak ada, pil-nya sudah tak digambar, tapi saringannya tertinggal.
+Menyisakan saringan untuk kolom yang tak tampak membuat orang menyaring sesuatu yang tak bisa
+mereka baca. Sekarang ikut hilang bersama kolomnya.
+
+**Dashboard staff meninggalkan ruang kosong lebar.** Grid dashboard tiga kolom: *Beban Kerja
+per PIC* mengambil dua, *Komposisi Status* satu. Begitu Beban Kerja disembunyikan, Komposisi
+tertinggal sendirian di sepertiga layar dengan dua pertiga kosong di sebelahnya. Sekarang ia
+melebar penuh saat panel sebelahnya hilang.
+
+Keduanya cacat dari 1.95.0: penjagaannya dipasang pada kolom, pil, kartu KPI, dan grafik —
+tapi tidak pada saringan, dan akibat tata letaknya tak diperhitungkan.
+
+---
+
 ## 1.95.0 — Priority jadi Tingkat Kesulitan, dan hanya Manager yang melihatnya
 
 Empat tingkat **urgensi** (Urgent, High, Normal, Low) diganti tiga tingkat **kesulitan**:
