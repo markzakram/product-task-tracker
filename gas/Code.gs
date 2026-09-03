@@ -68,7 +68,7 @@ var CONFIG = {
 };
 
 var TASK_HEADERS = [
-  'Task ID', 'Created Date', 'Due Date', 'Status', 'Priority',
+  'Task ID', 'Created Date', 'Due Date', 'Status', 'Kesulitan',
   'Task Name', 'Stage', 'Platform', 'PIC', 'Support', 'Document',
   'PIC Notes', 'PM Notes', 'Divisi Tujuan', 'Kontak Divisi', 'Kata Kerja',
   'Jumlah', 'Objek', 'Detail', 'Dibuat Oleh', 'Lintas View', 'Status By'
@@ -87,7 +87,8 @@ var OPTION_TYPES = ['status', 'priority', 'stage', 'platform', 'pic', 'support',
 
 var DEFAULT_OPTIONS = {
   status: ['Todo', 'In progress', 'Review PM', 'Revisi', 'Hold', 'Done'],
-  priority: ['Urgent', 'High', 'Normal', 'Low'],
+  // Tingkat kesulitan, bukan urgensi. Tiga tingkat saja.
+  priority: ['Sulit', 'Normal', 'Mudah'],
   stage: [
     'RnD', 'Develop Materi', 'Develop Soal', 'QC Konten', 'Input',
     'Liveclass', 'Report', 'Data & Intelligence', 'Manajemen Sistem', 'Manajemen Guru'
@@ -104,7 +105,7 @@ var DEFAULT_OPTIONS = {
 
 // Validasi dropdown di dalam Spreadsheet (header -> tipe opsi).
 var VALIDATION_MAP = {
-  Status: 'status', Priority: 'priority', Stage: 'stage',
+  Status: 'status', Kesulitan: 'priority', Stage: 'stage',
   Platform: 'platform', PIC: 'pic', Support: 'support',
   'Divisi Tujuan': 'division'
 };
@@ -913,6 +914,12 @@ function saveTask(task) {
     var isUpdate = rowNumber !== -1;
     var actor = String(task.actor || '').trim() || 'Unknown';
 
+    /* Tingkat Kesulitan hanya boleh diatur Manager. Untuk yang lain nilainya DIPERTAHANKAN,
+       bukan ditimpa: kiriman kosong berarti "tidak saya sentuh", bukan "hapus". */
+    if (!isManagerActor_(actor)) {
+      task.priority = (existingTask && existingTask.priority) || (isUpdate ? '' : 'Normal');
+    }
+
     // Gerbang "Done": hanya Done approver yang boleh MENETAPKAN status ke Done.
     // Task yang sudah Done boleh tetap Done atau ditarik balik.
     var oldStatus = (existingTask && existingTask.status) || '';
@@ -984,6 +991,10 @@ function quickUpdateField(taskId, field, value, actor) {
   var row = findRowByTaskId_(ids, taskId);
   if (row === -1) return { success: false, message: 'Task ID tidak ditemukan.' };
 
+  // Jalur cepat dari daftar task. Gerbangnya sama dengan saveTask.
+  if (f === 'priority' && !isManagerActor_(actor)) {
+    return { success: false, message: 'Tingkat Kesulitan hanya bisa diatur Manager.' };
+  }
   var col = QUICK_FIELD_COL[f];
   if (!col) {
     // Field virtual tanpa kolom di sheet ini: no-op sukses agar UI tak menampilkan error.

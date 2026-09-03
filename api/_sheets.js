@@ -53,7 +53,7 @@ const CONFIG = {
 };
 
 const TASK_HEADERS = [
-  'Task ID', 'Created Date', 'Due Date', 'Status', 'Priority',
+  'Task ID', 'Created Date', 'Due Date', 'Status', 'Kesulitan',
   'Task Name', 'Stage', 'Platform', 'PIC', 'Support', 'Document',
   'PIC Notes', 'PM Notes', 'Divisi Tujuan', 'Kontak Divisi', 'Kata Kerja', 'Jumlah', 'Objek', 'Detail', 'Dibuat Oleh', 'Lintas View', 'Status By',
 ];
@@ -72,7 +72,9 @@ const OPTION_TYPES = ['status', 'priority', 'stage', 'platform', 'pic', 'support
 
 const DEFAULT_OPTIONS = {
   status: ['Todo', 'In progress', 'Review PM', 'Revisi', 'Hold', 'Done'],
-  priority: ['Urgent', 'High', 'Normal', 'Low'],
+  // Tingkat kesulitan, bukan urgensi. Tiga tingkat saja — empat tingkat urgensi dulu
+  // jarang dipakai lengkap dan Urgent vs High tak pernah jelas bedanya.
+  priority: ['Sulit', 'Normal', 'Mudah'],
   stage: [
     'RnD', 'Develop Materi', 'Develop Soal', 'QC Konten', 'Input',
     'Liveclass', 'Report', 'Data & Intelligence', 'Manajemen Sistem', 'Manajemen Guru',
@@ -90,7 +92,7 @@ const DEFAULT_OPTIONS = {
 
 // Validasi dropdown di dalam Spreadsheet (header -> tipe opsi).
 const VALIDATION_MAP = {
-  Status: 'status', Priority: 'priority', Stage: 'stage',
+  Status: 'status', Kesulitan: 'priority', Stage: 'stage',
   Platform: 'platform', PIC: 'pic', Support: 'support',
   'Divisi Tujuan': 'division',
 };
@@ -641,6 +643,14 @@ async function saveTask(task) {
   const isUpdate = rowNumber !== -1;
   const actor = String(task.actor || '').trim() || 'Unknown';
 
+  /* Tingkat Kesulitan hanya boleh diatur Manager. Untuk yang lain nilainya DIPERTAHANKAN,
+     bukan ditimpa: form mereka tak menampilkan field ini, jadi kiriman kosong berarti
+     "tidak saya sentuh" — bukan "hapus". Tanpa ini, sekadar membuka lalu menyimpan task
+     akan mengosongkan penilaian Manager tanpa siapa pun sadar. */
+  if (!isManagerActor(actor)) {
+    task = Object.assign({}, task, { priority: (existingTask && existingTask.priority) || (isUpdate ? '' : 'Normal') });
+  }
+
   // Gerbang "Done": hanya Done approver yang boleh MENETAPKAN status ke Done.
   // Perpindahan KE Done oleh yang tak berhak ditolak; task yang sudah Done boleh
   // tetap Done atau ditarik balik (bukan aksi "membuat Done").
@@ -725,6 +735,10 @@ async function quickUpdateField(taskId, field, value, actor) {
   const row = findRowByTaskId(ids, taskId);
   if (row === -1) return { success: false, message: 'Task ID tidak ditemukan.' };
 
+  // Jalur cepat dari daftar task. Gerbangnya sama dengan saveTask.
+  if (f === 'priority' && !isManagerActor(actor)) {
+    return { success: false, message: 'Tingkat Kesulitan hanya bisa diatur Manager.' };
+  }
   const col = QUICK_FIELD_COL[f];
   if (!col) {
     // Field 'virtual' tanpa kolom di sheet ini: no-op sukses agar UI tidak menampilkan error.

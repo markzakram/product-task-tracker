@@ -324,7 +324,7 @@
           <div id="dashFilterBar"></div>
           <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3" id="kpiGrid"></div>
           <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
-            <div class="xl:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-5">
+            <div id="panelBebanKerja" class="xl:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-5">
               <div class="flex items-center justify-between mb-4">
                 <h2 class="font-semibold text-gray-900 dark:text-white">Beban Kerja per PIC</h2>
                 <span class="text-xs text-gray-400 font-medium">Aktif + selesai</span>
@@ -365,7 +365,7 @@
               <table class="w-full text-left text-sm">
                 <thead class="bg-gray-50 dark:bg-slate-800 text-xs uppercase tracking-wider text-gray-500 font-semibold border-b border-gray-200 dark:border-slate-700">
                   <tr>
-                    <th class="px-4 py-3">Task</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Stage</th><th class="px-4 py-3">PIC</th><th class="px-4 py-3">Platform</th><th class="px-4 py-3">Priority</th><th class="px-4 py-3">Due</th><th class="px-4 py-3 text-right">Aksi</th>
+                    <th class="px-4 py-3">Task</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Stage</th><th class="px-4 py-3">PIC</th><th class="px-4 py-3">Platform</th><th class="px-4 py-3" id="thPriority">Kesulitan</th><th class="px-4 py-3">Due</th><th class="px-4 py-3 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody id="taskTable" class="divide-y divide-gray-100 dark:divide-slate-800"></tbody>
@@ -692,7 +692,7 @@
           <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div><label class="form-label">Task ID</label><input id="fieldIdDisplay" class="form-control bg-gray-100 dark:bg-slate-800" placeholder="Auto" disabled></div>
             <div><label class="form-label">Status</label><select id="fieldStatus" class="form-control"></select><div id="fieldStatusBy" class="hide mt-1 flex items-center gap-1 text-[11px] text-gray-500 dark:text-slate-400"><span class="material-icons-round text-[13px]">history</span><span></span></div></div>
-            <div><label class="form-label">Priority</label><select id="fieldPriority" class="form-control"></select></div>
+            <div id="fieldPriorityBox"><label class="form-label">Tingkat Kesulitan</label><select id="fieldPriority" class="form-control"></select></div>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div><label class="form-label">Platform</label><select id="fieldPlatform" class="form-control" multiple></select><p class="text-[11px] text-gray-400 mt-1">Ctrl/Cmd untuk pilih lebih dari satu.</p></div>
@@ -855,7 +855,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.94.1'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.95.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1063,7 +1063,7 @@ function linkIcon(v, judul){
 function statusRank(s){ const i=STATUS_ORDER.findIndex(o=>same(o,s)); return i<0 ? 99 : i; }
 
 const dummyOptions = {
-  status:['Todo','In progress','Review PM','Hold','Done'], priority:['Urgent','High','Normal','Low'],
+  status:['Todo','In progress','Review PM','Hold','Done'], priority:['Sulit','Normal','Mudah'],
   stage:['RnD','Develop Materi','Develop Soal','QC Konten','Input','Liveclass','Report','Data & Intelligence','Manajemen Sistem','Manajemen Guru'],
   platform:['All Platform','Cerebrum','JadiASN','JadiPPPK','JadiBUMN','JadiSekdin','JadiBeasiswa','JadiOJK','JadiPCPM','JadiPrajurit','JadiPolisi','Jago TPA','Siadu','Markaz','Toefl Academy'],
   pic:['Nynda','Andika','Alya','Kiki','Bilar','Ali','Dhea','Uma','Arifah','Lintas Divisi'], support:['Nynda','Andika','Alya','Kiki','Bilar','Ali','Dhea','Uma','Arifah','Lintas Divisi'], division:['IT','Marketing','Sales'], approvalGate:['No','Yes','Need Approval','Approved','Rejected']
@@ -1295,6 +1295,11 @@ function canMirror(){ return !isViewOnly() && isManager(state.currentUser); } //
 /* Mirror TASK KOLABORASI: Leader & Manager, sama seperti mirror paket dan berbeda dari
    mirror task biasa yang tetap PM/Dev saja. Task kolaborasi memang dikelola Leader
    sehari-hari, jadi keputusan menampilkannya ke divisi lain ikut ke sana. */
+/* Tingkat Kesulitan = penilaian Manager atas beratnya sebuah tugas. Yang bukan Manager
+   tidak melihatnya sama sekali — bukan melihat versi terkunci. Kalau ditampilkan
+   terkunci, orang tetap membaca penilaian atas tugasnya sendiri, dan justru itu yang
+   ingin ditutup. Server menjaga hal yang sama, jadi ini bukan satu-satunya lapis. */
+function bisaLihatKesulitan(){ return !isViewOnly() && isManager(state.currentUser); }
 function canMirrorCollab(){ return !isViewOnly() && (isManager(state.currentUser)||isLeader(state.currentUser)); }
 function canMirrorPaket(){ return !isViewOnly() && (isManager(state.currentUser)||isLeader(state.currentUser)); }
 function inLintasView(t){ return isExternalTask(t) || isMirrored(t); }
@@ -1410,6 +1415,12 @@ function applyRoleUI(){
   /* Komunikasi disembunyikan dari Lintas Divisi: mereka melihat yang dibagikan, tidak ikut
      mengobrol. Kalau kebetulan sedang berada di layar itu saat mode berubah, dipindahkan
      supaya tak tertinggal di halaman yang tombolnya sudah hilang. */
+  /* Tingkat Kesulitan: judul kolomnya dan field-nya ikut hilang untuk yang bukan Manager.
+     Sel <td>-nya sudah tak digambar (lihat inlineSelect), jadi jumlah kolomnya tetap sepadan. */
+  const bisaKes=bisaLihatKesulitan();
+  const thKes=document.getElementById('thPriority'); if(thKes) thKes.classList.toggle('hide', !bisaKes);
+  const boxKes=document.getElementById('fieldPriorityBox'); if(boxKes) boxKes.classList.toggle('hide', !bisaKes);
+  const panelBeban=document.getElementById('panelBebanKerja'); if(panelBeban) panelBeban.classList.toggle('hide', !bisaKes);
   const navComm=document.getElementById('nav-communication'); if(navComm) navComm.classList.toggle('hide', vo);
   if(vo && state.activeView==='communication') switchView('dashboard');
   const addBtn=document.getElementById('btnAddTask'); if(addBtn) addBtn.classList.toggle('hide',vo);
@@ -1921,7 +1932,7 @@ function applyQuickFilterCount(qf){
 function setQuickFilter(qf){state.quickFilter=qf; renderAll();}
 
 /* ---------- Shared filter bar (multi-select) ---------- */
-const FILTER_FIELDS=[['status','Status'],['priority','Priority'],['stage','Stage'],['platform','Platform'],['pic','PIC']];
+const FILTER_FIELDS=[['status','Status'],['priority','Kesulitan'],['stage','Stage'],['platform','Platform'],['pic','PIC']];
 const FILTER_VIEWS=['kanban','list','timeline','calendar'];
 function fieldFilterDropdown(field,label){
   const opts=state.options[field]||[];
@@ -2243,7 +2254,7 @@ function renderDashFilters(){
     <span class="w-px h-6 bg-gray-200 dark:bg-slate-700 mx-1 hidden lg:inline-block"></span>
     ${msDropdown({key:'pic',label:'Beban Kerja',options:dashPicOptions(),selected:f.pic,open:state.openDashFilter==='pic',onToggle:'toggleDashFilter',onOpen:'toggleDashPanel'})}
     ${msDropdown({key:'status',label:'Status',options:(state.options.status||[]),selected:f.status,open:state.openDashFilter==='status',onToggle:'toggleDashFilter',onOpen:'toggleDashPanel'})}
-    ${msDropdown({key:'priority',label:'Prioritas',options:(state.options.priority||[]),selected:f.priority,open:state.openDashFilter==='priority',onToggle:'toggleDashFilter',onOpen:'toggleDashPanel'})}
+    ${msDropdown({key:'priority',label:'Kesulitan',options:(state.options.priority||[]),selected:f.priority,open:state.openDashFilter==='priority',onToggle:'toggleDashFilter',onOpen:'toggleDashPanel'})}
     ${n?`<button onclick="resetDashFilters()" class="h-9 px-3 rounded-lg border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-1"><span class="material-icons-round text-[15px]">filter_alt_off</span>Reset</button>`:''}
     <span class="ml-auto text-xs text-gray-400 font-medium whitespace-nowrap">${shown} dari ${total} task • ${escapeHtml(rangeLabel(f))}</span>
   </div>`;
@@ -2262,7 +2273,7 @@ function renderDashboard(){
   const active=tasks.filter(t=>!isDone(t));
   const late=tasks.filter(isLate);
   const dueToday=tasks.filter(t=>isDeadlineActive(t)&&daysToDue(t)===0);
-  const urgent=active.filter(t=>['urgent','high'].includes(String(t.priority||'').toLowerCase()));
+  const urgent=active.filter(t=>String(t.priority||'').toLowerCase()==='sulit');
   const dueSoon=tasks.filter(t=>isDeadlineActive(t)&&daysToDue(t)>=0&&daysToDue(t)<=3);
   const data=[
     ['Total Task',tasks.length,'receipt_long','bg-gray-100 text-gray-600'],
@@ -2270,7 +2281,7 @@ function renderDashboard(){
     ['Done',tasks.filter(isDone).length,'task_alt','bg-emerald-100 text-emerald-600'],
     ['Overdue',late.length,'warning_amber','bg-rose-100 text-rose-600'],
     ['Due Hari Ini',dueToday.length,'today','bg-pink-100 text-pink-600'],
-    ['Urgent/High',urgent.length,'priority_high','bg-orange-100 text-orange-600'],
+    ...(bisaLihatKesulitan()?[['Sulit',urgent.length,'fitness_center','bg-red-100 text-red-600']]:[]),
     ['Due ≤ 3 hari',dueSoon.length,'event_busy','bg-violet-100 text-violet-600']
   ];
   document.getElementById('kpiGrid').innerHTML=data.map(k=>`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-4"><div class="w-9 h-9 ${k[3]} rounded-lg flex items-center justify-center mb-3"><span class="material-icons-round text-[18px]">${k[2]}</span></div><div class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">${k[0]}</div><div class="text-2xl font-bold mt-0.5 text-gray-900 dark:text-white">${k[1]}</div></div>`).join('');
@@ -2302,8 +2313,11 @@ function renderCharts(){
   const tasks=dashTasks();
   const dark=document.documentElement.classList.contains('dark');
   Chart.defaults.color=dark?'#cbd5e1':'#64748b'; Chart.defaults.borderColor=dark?'#1e293b':'#e5e7eb'; Chart.defaults.font.family='Inter';
-  const priList=(state.options.priority||['Urgent','High','Normal','Low']);
-  const priColor=p=>{const k=String(p||'').toLowerCase().trim(); return ({urgent:'#ef4444',high:'#f97316',normal:'#3b82f6',medium:'#3b82f6',low:'#94a3b8'})[k]||'#8b5cf6';};
+  const priList=(state.options.priority||['Sulit','Normal','Mudah']);
+  const priColor=p=>{const k=String(p||'').toLowerCase().trim(); return /* Merah -> hijau, bukan tangga urgensi: yang diukur sekarang KESULITAN. Nilai lama
+         dipertahankan di peta supaya data yang belum dimigrasi tetap punya warna sendiri
+         dan tak menyamar jadi Normal. */
+      ({sulit:'#dc2626',normal:'#4f46e5',mudah:'#059669',urgent:'#ef4444',high:'#f97316',low:'#94a3b8'})[k]||'#94a3b8';};
   const picCtx=document.getElementById('chartPic');
   if(picCtx){
     if(state.chartPic) state.chartPic.destroy();
@@ -2543,7 +2557,7 @@ function taskCard(t){
     </div>
     <p class="text-[13px] font-medium leading-snug text-gray-800 dark:text-slate-100 mt-1.5 line-clamp-3">${escapeHtml(t.taskName||'-')}</p>
     <div class="flex flex-wrap items-center gap-1.5 mt-2.5">
-      ${priorityPill(t.priority)}
+      ${bisaLihatKesulitan()?priorityPill(t.priority):''}
       ${checklistChip(t)}
       ${isSupportOnly(t,state.currentUser)?`<span class="inline-flex items-center h-5 px-1.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Support</span>`:''}
       ${isExternalTask(t)?`<span class="inline-flex items-center gap-0.5 h-5 px-1.5 rounded text-[11px] font-semibold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"><span class="material-icons-round text-[12px]">swap_horiz</span>${escapeHtml(t.divisiTujuan)}</span>`:''}
@@ -2584,7 +2598,7 @@ function renderTable(){
     <td class="px-4 py-3 text-gray-600 dark:text-slate-300">${escapeHtml(t.stage||'-')}</td>
     <td class="px-4 py-3"><div class="flex items-center gap-2">${avatar(t.pic)}${inlineSelect('pic', t)}</div></td>
     <td class="px-4 py-3 text-gray-600 dark:text-slate-300">${escapeHtml(t.platform||'-')}</td>
-    <td class="px-4 py-3">${inlineSelect('priority', t)}</td>
+    ${bisaLihatKesulitan()?`<td class="px-4 py-3">${inlineSelect('priority', t)}</td>`:''}
     <td class="px-4 py-3 font-medium ${overdue?'text-rose-600':(today?'text-pink-600':'text-gray-600 dark:text-slate-300')}">${t.dueDate?formatDateHuman(t.dueDate):'-'}</td>
     <td class="px-4 py-3 text-right whitespace-nowrap">${canMirror()?`<button onclick="toggleMirror(event,'${escapeAttr(t.id)}')" title="${isMirrored(t)?'Tampil di Lintas Divisi — klik untuk sembunyikan':'Klik untuk tampilkan ke Lintas Divisi'}" class="mr-2 align-middle ${isMirrored(t)?'text-emerald-600':'text-gray-300 hover:text-gray-500'}"><span class="material-icons-round text-[18px]">cast</span></button>`:(isMirrored(t)?`<span class="mr-2 align-middle text-emerald-600" title="Tampil di Lintas Divisi"><span class="material-icons-round text-[16px]">cast</span></span>`:'')}<span class="text-sm font-medium text-indigo-600 hover:text-indigo-700">Buka</span></td>
   </tr>`;}).join('');
@@ -5168,7 +5182,7 @@ function exportReportCSV(){
     names.forEach(s=>{ const g=mine.filter(t=>repStageName(t)===s);
       rows.push([s, g.length, g.filter(t=>!isDone(t)).length, g.filter(isDone).length, g.filter(isLate).length]); });
     rows.push([]);
-    rows.push(['ID','Jenis','Task','Proses','Stage','Status','Priority','Deadline','Overdue']);
+    rows.push(['ID','Jenis','Task','Proses','Stage','Status','Kesulitan','Deadline','Overdue']);
     mine.forEach(t=>rows.push([t.id, t._collab?'Kolaborasi':'Task', t.taskName, t._collab?`#${t.stepOrder} ${t._myStepName||'—'}`:'', repStageName(t), t.status, t.priority, t.dueDate||'', isLate(t)?'Ya':'']));
   }
   const csv=rows.map(r=>r.map(c=>{ const s=String(c==null?'':c); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',')).join('\r\n');
@@ -5441,7 +5455,7 @@ function editOptionPrompt(type, oldValue){
   } else { showToast('Edit (preview).'); }
 }
 function renderSettings(){
-  const names={status:'Status',priority:'Priority',stage:'Stage',platform:'Platform',pic:'PIC',support:'Support'};
+  const names={status:'Status',priority:'Kesulitan',stage:'Stage',platform:'Platform',pic:'PIC',support:'Support'};
   document.getElementById('settingsGrid').innerHTML=Object.keys(names).map(type=>`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden"><div class="p-4 border-b border-gray-100 dark:border-slate-800"><div class="font-semibold text-gray-900 dark:text-white">${names[type]}</div><div class="flex gap-2 mt-2.5"><input id="new-${type}" placeholder="Tambah opsi…" class="flex-1 rounded-lg bg-gray-100 dark:bg-slate-800 px-3 py-2 outline-none text-sm focus:ring-2 focus:ring-indigo-300"><button onclick="addOption('${type}')" class="px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm">Add</button></div></div><div class="p-3 space-y-1.5 max-h-[340px] overflow-y-auto scrollbar-thin">${(state.options[type]||[]).map(v=>`<div class="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-slate-800"><span class="font-medium text-sm text-gray-700 dark:text-slate-200">${escapeHtml(v)}</span><span class="flex items-center gap-1"><button onclick="editOptionPrompt('${type}','${escapeAttr(v)}')" class="text-gray-400 hover:text-indigo-600"><span class="material-icons-round text-[18px]">edit</span></button><button onclick="removeOption('${type}','${escapeAttr(v)}')" class="text-rose-500 hover:text-rose-600"><span class="material-icons-round text-[18px]">delete</span></button></span></div>`).join('')}</div></div>`).join('');
 }
 function addOption(type){const input=document.getElementById('new-'+type); const value=input.value.trim(); if(!value)return; if(IS_GAS){GAS.withSuccessHandler(res=>{if(!res.success){showToast(res.message,false);return;} state.options=res.options; showToast(res.message); populateUserSelect(); populateManagerFocus(); populateModalDropdowns(); renderSettings(); renderAll();}).withFailureHandler(err=>showToast(err.message||err,false)).saveOption(type,value);} else {state.options[type]=[...(state.options[type]||[]),value]; renderSettings(); populateModalDropdowns(); renderAll();}}
@@ -5566,7 +5580,7 @@ function collabExportRows(){
 }
 function exportCsv(){
   const rows=viewTasks();
-  const headers=['Sumber','Task ID','Created Date','Due Date','Status','Priority','Task Name','Stage','Platform','PIC','Support','Document / Link','PIC Notes','PM Notes','Diselesaikan Oleh','Diselesaikan Pada'];
+  const headers=['Sumber','Task ID','Created Date','Due Date','Status','Kesulitan','Task Name','Stage','Platform','PIC','Support','Document / Link','PIC Notes','PM Notes','Diselesaikan Oleh','Diselesaikan Pada'];
   const data=rows.map(t=>['Task',t.id,t.createdDate,t.dueDate,t.status,t.priority,t.taskName,t.stage,t.platform,t.pic,t.support,t.document,t.picNotes,t.pmNotes,'',t.statusBy||'']);
   const collab=collabExportRows();
   const csv=[headers,...data,...collab].map(r=>r.map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',')).join(String.fromCharCode(10));
@@ -5622,7 +5636,7 @@ function shadeColor(hex,percent){
   return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
 }
 function statusChip(status){const hex=statusHex(status); return `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-700"><span class="w-1.5 h-1.5 rounded-full" style="background:${hex}"></span>${escapeHtml(status||'No Status')}</span>`;}
-function priorityPill(text){if(!text)return''; const v=String(text).toLowerCase(); let cls='bg-gray-50 border-gray-200 text-gray-700 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200'; if(v==='urgent')cls='bg-red-50 border-red-200 text-red-700'; else if(v==='high')cls='bg-orange-50 border-orange-200 text-orange-700'; else if(v==='normal')cls='bg-indigo-50 border-indigo-200 text-indigo-700'; return `<span class="inline-flex items-center h-5 px-1.5 rounded border text-[11px] font-semibold ${cls}">${escapeHtml(text)}</span>`;}
+function priorityPill(text){if(!text)return''; const v=String(text).toLowerCase(); let cls='bg-gray-50 border-gray-200 text-gray-700 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200'; if(v==='sulit')cls='bg-red-50 border-red-200 text-red-700 dark:bg-red-900/25 dark:border-red-900 dark:text-red-300'; else if(v==='normal')cls='bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/25 dark:border-indigo-900 dark:text-indigo-300'; else if(v==='mudah')cls='bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/25 dark:border-emerald-900 dark:text-emerald-300'; return `<span class="inline-flex items-center h-5 px-1.5 rounded border text-[11px] font-semibold ${cls}">${escapeHtml(text)}</span>`;}
 function taskMiniCard(t,showDue){if(t._collab) return collabMiniCard(t); return `<div onclick="openTaskModal('${escapeAttr(t.id)}')" class="p-2.5 rounded-lg bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 cursor-pointer hover:bg-gray-100"><div class="flex justify-between gap-3 items-start"><div class="font-medium text-sm leading-snug line-clamp-2 text-gray-800 dark:text-slate-100">${escapeHtml(t.taskName||'-')}</div>${statusChip(t.status)}</div><div class="mt-1.5 text-[11px] text-gray-500 font-medium flex justify-between items-center"><span class="flex items-center gap-1.5 min-w-0 truncate">${avatar(t.pic)} ${escapeHtml(t.platform||'-')}${t.createdBy?' • dari '+escapeHtml(t.createdBy):''}</span><span class="shrink-0 ${isLate(t)?'text-rose-600':''}">${showDue?formatDateHuman(t.dueDate):escapeHtml(t.lastUpdate||'-')}</span></div></div>`;}
 function emptyState(text){return `<div class="h-full min-h-[120px] flex items-center justify-center text-center text-gray-400 font-medium text-sm p-6">${escapeHtml(text)}</div>`;}
 

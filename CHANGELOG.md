@@ -31,6 +31,73 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.95.0 — Priority jadi Tingkat Kesulitan, dan hanya Manager yang melihatnya
+
+Empat tingkat **urgensi** (Urgent, High, Normal, Low) diganti tiga tingkat **kesulitan**:
+**Sulit · Normal · Mudah**. Yang diukur sekarang beratnya pekerjaan, bukan seberapa mendesak.
+
+Namanya ikut berganti di seluruh layar: **Tingkat Kesulitan** pada form, dipendekkan jadi
+**Kesulitan** di tempat sempit — judul kolom, chip saringan, judul ekspor. "Tingkat" saja
+masih menggantung (tingkat apa?), sedangkan "Kesulitan: Sulit" langsung terbaca.
+
+### Hanya Manager
+
+Ini penilaian Manager atas beratnya sebuah tugas, jadi yang lain **tidak melihatnya sama
+sekali** — bukan melihat versi terkunci. Kalau ditampilkan terkunci, orang tetap membaca
+penilaian atas tugasnya sendiri, dan justru itu yang ingin ditutup.
+
+Yang ikut disembunyikan, karena keduanya dibangun di atas kesulitan dan akan membocorkan
+lagi apa yang baru ditutup di tabel:
+
+- kartu KPI **Sulit** (dulu *Urgent/High*), dan
+- grafik **Beban Kerja per PIC**, yang dikelompokkan per tingkat kesulitan.
+
+Dijaga di server juga, bukan cuma disembunyikan di layar: `saveTask` dan `quickUpdateField`
+sama-sama menolak perubahan dari yang bukan Manager.
+
+### Bagian yang paling rawan, dan penjagaannya
+
+Form staff tidak menampilkan field ini, jadi kiriman mereka membawa kesulitan **kosong**.
+Kalau kiriman itu ditulis apa adanya, sekadar **membuka lalu menyimpan** task akan menghapus
+penilaian Manager — tanpa siapa pun sadar, karena di layar mereka memang tak ada apa-apa
+untuk dilihat.
+
+Karena itu nilai lama **dipertahankan**, bukan ditimpa: kiriman kosong berarti "tidak saya
+sentuh", bukan "hapus". Ada assertion khusus yang menguji persis skenario itu.
+
+### Migrasi data — wajib dijalankan lebih dulu
+
+`scripts/migrasi-kesulitan.js` memetakan nilai lama di kolom F sheet Main dan memperbarui
+daftar pilihan di OPTIONS:
+
+| Lama | Baru |
+|---|---|
+| Urgent, High | **Sulit** |
+| Normal, Medium | **Normal** |
+| Low | **Mudah** |
+
+Urgent dan High digabung atas keputusan Ali — empat tingkat memang harus menyusut jadi tiga,
+dan bedanya tak pernah jelas dalam pemakaian sehari-hari.
+
+Tanpa migrasi ini, task lama menyimpan nilai yang tak ada di daftar pilihan, dan `<select>`
+HTML tak bisa menampilkan nilai yang bukan salah satu opsinya — sehingga nilainya terhapus
+begitu task dibuka lalu disimpan.
+
+Pengamannya: uji coba adalah bawaannya (`--apply` untuk menulis), nilai yang **tak dikenal
+dibiarkan apa adanya** dan dilaporkan alih-alih ditebak, baris pilihan lama dinonaktifkan
+lewat kolom Active bukan dihapus, dan menjalankannya dua kali tidak merusak apa pun.
+
+### Judul kolom sheet ikut berganti
+
+`Priority` → `Kesulitan` di baris header sheet Main. Aman: pemetaan kolom memakai **indeks**
+(`priority` selalu kolom F), bukan nama header. Kalau ada rumus di spreadsheet yang menunjuk
+kolom itu lewat namanya, itu perlu disesuaikan sendiri.
+
+Peta warna grafik sengaja **masih mengenali nilai lama** (Urgent, High, Low) supaya data yang
+belum dimigrasi tetap punya warnanya sendiri dan tidak menyamar jadi Normal.
+
+---
+
 ## 1.94.1 — Lintas Divisi jadi jendela baca saja, tanpa Komunikasi
 
 Tiga PIN sekarang punya peran yang jelas terpisah:

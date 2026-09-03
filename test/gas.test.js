@@ -2319,4 +2319,54 @@ ok('ada tombol bagikan di modal task', commHtml.indexOf('id="collabMirrorBtn"') 
 ok('daftar collab disaring untuk Lihat Saja', commHtml.indexOf('if(isViewOnly()) arr=arr.filter(c=>c.mirror);') >= 0);
 ok('menu Kolaborasi tak lagi disembunyikan', commHtml.indexOf("['nav-extdash','nav-mylinks','nav-hariini','nav-mynotes'].forEach") >= 0);
 ok('dan tombol ubah tetap tertutup lewat canManageCollab', commHtml.indexOf('function canManageCollab(){\n  if(isViewOnly()) return false;') >= 0 || commHtml.indexOf('if(isViewOnly()) return false;') >= 0);
+
+console.log('\n=== 25. Tingkat Kesulitan (dulu Priority) — hanya Manager ===');
+
+/* Skalanya berubah dari empat tingkat URGENSI jadi tiga tingkat KESULITAN, dan jadi
+   penilaian Manager atas beratnya tugas. Yang lain tak melihat dan tak bisa mengubahnya. */
+eq('nilai bawaan tiga tingkat', (call('getOptions').priority || []).join(','), 'Sulit,Normal,Mudah');
+
+const KS = call('saveTask', { taskName: 'Task Kesulitan', status: 'Todo', priority: 'Sulit', pic: 'Staff Data', actor: 'Manager' });
+eq('manager boleh menetapkan kesulitan', KS.success, true);
+const ksId = call('getTasks').filter(t => t.taskName === 'Task Kesulitan')[0].id;
+const ks = function () { return call('getTasks').filter(t => t.id === ksId)[0]; };
+eq('tersimpan sebagai Sulit', ks().priority, 'Sulit');
+
+/* PALING RAWAN. Form staff tidak menampilkan field ini, jadi kiriman mereka membawa
+   priority KOSONG. Kalau kiriman itu ditulis apa adanya, sekadar membuka lalu menyimpan
+   task akan menghapus penilaian Manager — tanpa siapa pun sadar, karena di layar mereka
+   memang tak ada apa-apa untuk dilihat. Nilai lama harus DIPERTAHANKAN. */
+call('saveTask', { id: ksId, taskName: 'Task Kesulitan (diubah staff)', status: 'In progress', priority: '', pic: 'Staff Data', actor: 'Staff Data' });
+eq('staff menyimpan TIDAK menghapus kesulitannya', ks().priority, 'Sulit');
+eq('dan perubahan lain tetap tersimpan', ks().status, 'In progress');
+
+// Staff juga tak bisa menetapkan nilai lain diam-diam lewat payload.
+call('saveTask', { id: ksId, taskName: 'Task Kesulitan (diubah staff)', status: 'In progress', priority: 'Mudah', pic: 'Staff Data', actor: 'Staff Data' });
+eq('staff tak bisa mengubah kesulitan lewat payload', ks().priority, 'Sulit');
+
+// Jalur cepat dari daftar task dijaga terpisah, dan menolak dengan alasan yang jelas.
+const qk = call('quickUpdateField', ksId, 'priority', 'Mudah', 'Staff Data');
+eq('staff DITOLAK lewat jalur cepat', qk.success, false);
+ok('alasannya disebutkan', /hanya bisa diatur Manager/.test(qk.message || ''));
+eq('penolakan tak mengubah apa pun', ks().priority, 'Sulit');
+eq('manager boleh lewat jalur cepat', call('quickUpdateField', ksId, 'priority', 'Mudah', 'Manager').success, true);
+eq('dan nilainya berubah', ks().priority, 'Mudah');
+call('deleteTask', ksId, 'Manager');
+
+// --- tampilan ---
+// Judul kolom di sheet ikut berganti; pemetaan kolom memakai INDEKS, jadi aman.
+ok('judul kolom sheet jadi Kesulitan', code.indexOf("'Status', 'Kesulitan',") >= 0);
+ok('validasi dropdown ikut nama baru', code.indexOf("Kesulitan: 'priority'") >= 0);
+ok('label form jadi Tingkat Kesulitan', commHtml.indexOf('>Tingkat Kesulitan</label>') >= 0);
+ok('judul kolom daftar task jadi Kesulitan', commHtml.indexOf('id="thPriority">Kesulitan</th>') >= 0);
+ok('penjaga tampilannya ada', commHtml.indexOf('function bisaLihatKesulitan()') >= 0);
+ok('pil hanya digambar untuk Manager', commHtml.indexOf('bisaLihatKesulitan()?priorityPill(t.priority)') >= 0);
+ok('kolom daftar hanya untuk Manager', commHtml.indexOf("bisaLihatKesulitan()?`<td class=\"px-4 py-3\">${inlineSelect('priority', t)}") >= 0);
+/* Kartu KPI dan grafik Beban Kerja dibangun DI ATAS kesulitan. Kalau keduanya tetap
+   tampil untuk staff, angkanya membocorkan lagi apa yang baru ditutup di tabel. */
+ok('kartu KPI Sulit khusus Manager', commHtml.indexOf("bisaLihatKesulitan()?[['Sulit'") >= 0);
+ok('grafik Beban Kerja ikut disembunyikan', commHtml.indexOf("getElementById('panelBebanKerja')") >= 0);
+ok('warna mengikuti tingkat kesulitan', commHtml.indexOf("v==='sulit'") >= 0 && commHtml.indexOf("v==='mudah'") >= 0);
+// Nilai lama tetap punya warna sendiri supaya data yang belum dimigrasi tak menyamar Normal.
+ok('nilai lama masih dikenali di grafik', commHtml.indexOf("urgent:'#ef4444'") >= 0);
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

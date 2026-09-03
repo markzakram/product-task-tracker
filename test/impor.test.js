@@ -8,6 +8,7 @@
 const assert = require('assert');
 const { uraiSel } = require('../scripts/urai-master.js');
 const { susun, PETA, BARIS_AWAL } = require('../scripts/impor-rancangan-produksi.js');
+const { petakan } = require('../scripts/migrasi-kesulitan.js');
 
 let passed = 0;
 function ok(name, cond) { assert.ok(cond, name); console.log('  ✓ ' + name); passed++; }
@@ -113,5 +114,24 @@ ok('yang lain tetap dibuat', ulang.rowPkg.every(r => r[4] !== PETA[BARIS_AWAL].n
 const nihil = susun(master, { paket: hasil.rowPkg.map(r => r[4]), maksPkg: 3, maksItm: 10 });
 eq('jalan ulang penuh tak membuat apa pun', nihil.rowPkg.length, 0);
 eq('dan tak ada target menggantung', nihil.rowItem.length, 0);
+
+
+console.log('\n=== 3. Migrasi Prioritas -> Tingkat Kesulitan ===');
+
+/* Empat tingkat urgensi menyusut jadi tiga tingkat kesulitan. Urgent + High digabung.
+   Yang tak dikenal DIBIARKAN (null), bukan dipaksa jadi Normal — menebak diam-diam atas
+   nilai yang tak terduga justru menghapus informasi tanpa ada yang sadar. */
+eq('Urgent jadi Sulit', petakan('Urgent'), 'Sulit');
+eq('High juga jadi Sulit', petakan('High'), 'Sulit');
+eq('Normal tetap Normal', petakan('Normal'), 'Normal');
+eq('Medium ikut jadi Normal', petakan('Medium'), 'Normal');
+eq('Low jadi Mudah', petakan('Low'), 'Mudah');
+eq('huruf besar-kecil tak jadi soal', petakan('uRgEnT'), 'Sulit');
+eq('spasi di ujung dibuang', petakan('  Low  '), 'Mudah');
+eq('kosong tetap kosong', petakan(''), '');
+// Jalan kedua kali tak mengubah apa-apa — migrasi boleh diulang tanpa merusak.
+eq('yang sudah Sulit dibiarkan', petakan('Sulit'), 'Sulit');
+eq('yang sudah Mudah dibiarkan', petakan('Mudah'), 'Mudah');
+eq('nilai asing TIDAK ditebak', petakan('Penting Sekali'), null);
 
 console.log(`\n✅ Semua ${passed} assertion lulus.`);
