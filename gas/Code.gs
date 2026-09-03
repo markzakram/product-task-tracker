@@ -112,7 +112,7 @@ var VALIDATION_MAP = {
 
 // Header standar tiap sheet pendukung — dipakai saat sheet dibuat otomatis.
 var SHEET_HEADERS = {};
-SHEET_HEADERS[CONFIG.OPTIONS_SHEET] = ['Type', 'Value', 'Active', 'Parent'];
+SHEET_HEADERS[CONFIG.OPTIONS_SHEET] = ['Type', 'Value', 'Active', 'Parent', 'Order'];
 SHEET_HEADERS[CONFIG.COMMENTS_SHEET] = ['Timestamp', 'Task ID', 'Author', 'Message'];
 SHEET_HEADERS[CONFIG.ACTIVITY_SHEET] = ['Timestamp', 'User', 'Action', 'Task ID', 'Detail'];
 SHEET_HEADERS[CONFIG.AUTH_SHEET] = ['User', 'PinHash'];
@@ -1045,7 +1045,7 @@ function quickUpdateDates(taskId, startDate, dueDate, actor) {
 /* ================================================================== */
 
 function readOptionsRaw_(pre) {
-  var rows = (pre !== undefined) ? pre : valuesGet_(CONFIG.OPTIONS_SHEET + '!A2:D');
+  var rows = (pre !== undefined) ? pre : valuesGet_(CONFIG.OPTIONS_SHEET + '!A2:E');
   return rows
     .map(function (r, i) {
       return {
@@ -1053,10 +1053,13 @@ function readOptionsRaw_(pre) {
         type: String((r && r[0]) || '').trim(),
         value: String((r && r[1]) || '').trim(),
         active: !!(r && (r[2] === true || String(r[2]).toUpperCase() === 'TRUE')),
-        parent: String((r && r[3]) || '').trim()
+        parent: String((r && r[3]) || '').trim(),
+        // Baris lama tanpa Order tetap di belakang dengan urutan aslinya.
+        order: Number((r && r[4]) || 0) || Number.MAX_SAFE_INTEGER
       };
     })
-    .filter(function (r) { return r.type && r.value; });
+    .filter(function (r) { return r.type && r.value; })
+    .sort(function (a, b) { return (a.order - b.order) || (a.row - b.row); });
 }
 
 function getOptions(pre) {
@@ -1103,6 +1106,35 @@ function findOptionRow_(rows, type, value, parent) {
   return null;
 }
 
+/* Padanan reorderOptions di api/_sheets.js — hanya kolom E yang disentuh. */
+function reorderOptions(type, values, actor) {
+  type = String(type || '').trim();
+  if (!type) return { success: false, message: 'Jenis dropdown tidak disebut.' };
+  if (!isManagerActor_(actor)) return { success: false, message: 'Hanya Manager yang bisa mengatur urutan dropdown.' };
+  ensureOptionsSheet_();
+  var raw = readOptionsRaw_();
+  // Hanya baris aktif — lihat catatan di padanan Vercel-nya.
+  var milik = raw.filter(function (r) { return r.active && r.type.toLowerCase() === type.toLowerCase(); });
+  var urut = (values || []).map(function (v) { return String(v == null ? '' : v).trim(); })
+    .filter(function (v) { return !!v; });
+  var sudah = {};
+  urut.forEach(function (v, i) {
+    // Kembar yang sama-sama aktif diberi nomor sama supaya tetap berdampingan.
+    milik.forEach(function (r) {
+      if (sudah[r.row] || r.value.toLowerCase() !== v.toLowerCase()) return;
+      sudah[r.row] = true;
+      valuesUpdate_(CONFIG.OPTIONS_SHEET + '!E' + r.row, [[i + 1]]);
+    });
+  });
+  // Yang tak disebut ditaruh sesudahnya, bukan dibiarkan kosong.
+  var n = urut.length;
+  milik.forEach(function (r) {
+    if (!sudah[r.row]) { n = n + 1; valuesUpdate_(CONFIG.OPTIONS_SHEET + '!E' + r.row, [[n]]); }
+  });
+  logActivity_(actor, 'Option Reorder', '', 'Urutan dropdown ' + type + ' diubah');
+  return { success: true, message: 'Urutan dropdown disimpan.', options: getOptions() };
+}
+
 function saveOption(type, value, parent) {
   type = String(type || '').trim();
   value = String(value || '').trim();
@@ -1115,7 +1147,7 @@ function saveOption(type, value, parent) {
   var rows = readOptionsRaw_();
   var found = findOptionRow_(rows, type, value, parent);
   if (found) valuesUpdate_(CONFIG.OPTIONS_SHEET + '!C' + found.row + ':D' + found.row, [[true, parent]]);
-  else valuesAppend_(CONFIG.OPTIONS_SHEET + '!A:D', [[type, value, true, parent]]);
+  else valuesAppend_(CONFIG.OPTIONS_SHEET + '!A:E', [[type, value, true, parent]]);
 
   try { applySheetValidations_(); } catch (e) { /* abaikan */ }
   return { success: true, message: 'Opsi berhasil disimpan.', options: getOptions() };
@@ -2590,9 +2622,10 @@ function getBootstrapData(opts) {
 
 function ensureOptionsSheet_() {
   sheet_(CONFIG.OPTIONS_SHEET, true);
-  var head = valuesGet_(CONFIG.OPTIONS_SHEET + '!A1:D1');
+  var head = valuesGet_(CONFIG.OPTIONS_SHEET + '!A1:E1');
   var h0 = head[0] || [];
-  if (!h0[0]) valuesUpdate_(CONFIG.OPTIONS_SHEET + '!A1:D1', [['Type', 'Value', 'Active', 'Parent']]);
+  if (!h0[0]) valuesUpdate_(CONFIG.OPTIONS_SHEET + '!A1:E1', [SHEET_HEADERS[CONFIG.OPTIONS_SHEET]]);
+  else if (!h0[4]) valuesUpdate_(CONFIG.OPTIONS_SHEET + '!E1', [['Order']]);
   else if (!h0[3]) valuesUpdate_(CONFIG.OPTIONS_SHEET + '!D1', [['Parent']]);
 
   // Seed opsi default yang belum ada.
@@ -2606,7 +2639,7 @@ function ensureOptionsSheet_() {
       if (!exists) toAppend.push([type, value, true, '']);
     });
   });
-  if (toAppend.length) valuesAppend_(CONFIG.OPTIONS_SHEET + '!A:D', toAppend);
+  if (toAppend.length) valuesAppend_(CONFIG.OPTIONS_SHEET + '!A:E', toAppend);
 }
 
 // Template rumus nama task: Stage -> Kata Kerja -> Objek.
@@ -2643,7 +2676,7 @@ function seedFormulaTemplate() {
       });
     });
   });
-  if (toAppend.length) valuesAppend_(CONFIG.OPTIONS_SHEET + '!A:D', toAppend);
+  if (toAppend.length) valuesAppend_(CONFIG.OPTIONS_SHEET + '!A:E', toAppend);
   try { applySheetValidations_(); } catch (e) { /* abaikan */ }
   return { success: true, message: 'Template terisi: ' + toAppend.length + ' baris baru (stage + kata kerja + objek).', options: getOptions() };
 }

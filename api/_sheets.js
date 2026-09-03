@@ -430,6 +430,18 @@ async function valuesAppend(range, values) {
   }), bolehUlangTulis);
 }
 
+/* Menulis BANYAK sel sekaligus dalam satu permintaan. Dipakai saat mengurutkan dropdown:
+   memakai valuesUpdate satu per satu berarti sepuluh permintaan untuk sepuluh pilihan, dan
+   kuota tulis Sheets tak sebanding dengan itu. */
+async function valuesBatchUpdate(data) {
+  if (!data || !data.length) return;
+  const sheets = await getSheets();
+  await ulangi(() => sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: getSpreadsheetId(),
+    requestBody: { valueInputOption: 'USER_ENTERED', data },
+  }), bolehUlangTulis);
+}
+
 async function getSheetMeta() {
   const sheets = await getSheets();
   const res = await ulangi(() => sheets.spreadsheets.get({
@@ -815,7 +827,7 @@ async function quickUpdateDates(taskId, startDate, dueDate, actor) {
 /* ------------------------------------------------------------------ */
 
 async function readOptionsRaw(pre) {
-  const rows = pre !== undefined ? pre : await valuesGet(`${CONFIG.OPTIONS_SHEET}!A2:D`, { valueRenderOption: 'UNFORMATTED_VALUE' });
+  const rows = pre !== undefined ? pre : await valuesGet(`${CONFIG.OPTIONS_SHEET}!A2:E`, { valueRenderOption: 'UNFORMATTED_VALUE' });
   return rows
     .map((r, i) => ({
       row: i + 2,
@@ -823,8 +835,12 @@ async function readOptionsRaw(pre) {
       value: String((r && r[1]) || '').trim(),
       active: r && (r[2] === true || String(r[2]).toUpperCase() === 'TRUE'),
       parent: String((r && r[3]) || '').trim(),
+      // Baris lama belum punya Order. Diberi nilai sangat besar supaya tetap di belakang
+      // dengan urutan aslinya — tak ada yang berpindah tempat sampai benar-benar digeser.
+      order: Number((r && r[4]) || 0) || Number.MAX_SAFE_INTEGER,
     }))
-    .filter(r => r.type && r.value);
+    .filter(r => r.type && r.value)
+    .sort((a, b) => (a.order - b.order) || (a.row - b.row));
 }
 
 async function getOptions(pre) {
@@ -854,6 +870,45 @@ async function getOptions(pre) {
 
 const USES_PARENT = ['verb', 'object']; // tipe opsi bertingkat (punya induk di kolom Parent): kata kerja & objek
 
+/* Simpan urutan baru satu jenis dropdown. Yang dikirim adalah daftar NILAI menurut urutan
+   yang diinginkan; nomor barisnya dicari di sini, jadi layar tak perlu tahu apa pun tentang
+   letak baris di sheet. Hanya kolom E yang disentuh — nilai, status aktif, dan parent tak
+   ikut tertulis ulang. */
+async function reorderOptions(type, values, actor) {
+  type = String(type || '').trim();
+  if (!type) return { success: false, message: 'Jenis dropdown tidak disebut.' };
+  await loadUsers();
+  if (!isManagerActor(actor)) return { success: false, message: 'Hanya Manager yang bisa mengatur urutan dropdown.' };
+  await ensureOptionsSheet();
+  const raw = await readOptionsRaw();
+  /* Hanya baris aktif yang diurutkan — itulah yang tampil di layar. Nilai yang sama bisa
+     punya baris kembar yang sudah dinonaktifkan; kalau ikut dicocokkan, nomor urut bisa
+     tertulis ke baris yang tak pernah tampil dan daftarnya terlihat tak bergerak. */
+  const milik = raw.filter(r => r.active && r.type.toLowerCase() === type.toLowerCase());
+  const urut = (values || []).map(v => String(v == null ? '' : v).trim()).filter(Boolean);
+  const data = [];
+  const sudah = new Set();
+  urut.forEach((v, i) => {
+    // Kembar yang sama-sama aktif diberi nomor sama supaya tetap berdampingan.
+    milik.forEach(r => {
+      if (sudah.has(r.row) || r.value.toLowerCase() !== v.toLowerCase()) return;
+      sudah.add(r.row);
+      data.push({ range: `${CONFIG.OPTIONS_SHEET}!E${r.row}`, values: [[i + 1]] });
+    });
+  });
+  /* Yang tak ikut disebut (mis. baris nonaktif) ditaruh sesudahnya, bukan dibiarkan
+     ber-Order kosong — kalau tidak, ia melompat ke belakang semua sesudah pengurutan
+     berikutnya dan urutannya terlihat berubah sendiri. */
+  let n = urut.length;
+  milik.forEach(r => {
+    if (!sudah.has(r.row)) data.push({ range: `${CONFIG.OPTIONS_SHEET}!E${r.row}`, values: [[++n]] });
+  });
+  if (!data.length) return { success: false, message: 'Tak ada pilihan yang cocok untuk diurutkan.' };
+  await valuesBatchUpdate(data);
+  await logActivity(actor, 'Option Reorder', '', `Urutan dropdown ${type} diubah`);
+  return { success: true, message: 'Urutan dropdown disimpan.', options: await getOptions() };
+}
+
 async function saveOption(type, value, parent) {
   type = String(type || '').trim();
   value = String(value || '').trim();
@@ -868,7 +923,7 @@ async function saveOption(type, value, parent) {
   if (found) {
     await valuesUpdate(`${CONFIG.OPTIONS_SHEET}!C${found.row}:D${found.row}`, [[true, parent]]);
   } else {
-    await valuesAppend(`${CONFIG.OPTIONS_SHEET}!A:D`, [[type, value, true, parent]]);
+    await valuesAppend(`${CONFIG.OPTIONS_SHEET}!A:E`, [[type, value, true, parent]]);
   }
   await applySheetValidations().catch(() => {});
   return { success: true, message: 'Opsi berhasil disimpan.', options: await getOptions() };
@@ -2639,7 +2694,7 @@ async function getBootstrapData(opts) {
     collab: CONFIG.COLLAB_SHEET, collabSteps: CONFIG.COLLAB_STEP_SHEET, users: CONFIG.USERS_SHEET,
   };
   const R = {
-    tasks: MAIN_DATA_RANGE(), options: `${CONFIG.OPTIONS_SHEET}!A2:D`, activity: `${CONFIG.ACTIVITY_SHEET}!A2:E`,
+    tasks: MAIN_DATA_RANGE(), options: `${CONFIG.OPTIONS_SHEET}!A2:E`, activity: `${CONFIG.ACTIVITY_SHEET}!A2:E`,
     comments: `${CONFIG.COMMENTS_SHEET}!A2:D`, auth: `${CONFIG.AUTH_SHEET}!A2:B`, links: `${CONFIG.LINKS_SHEET}!A2:D`,
     dashboards: `${CONFIG.DASHBOARDS_SHEET}!A2:D`, notes: `${CONFIG.NOTES_SHEET}!A2:E`, checklist: `${CONFIG.CHECKLIST_SHEET}!A2:C`,
     // A2:J, bukan A2:I — kolom J menyimpan Paket ID. Kalau berhenti di I, tiap muat
@@ -2780,9 +2835,11 @@ async function ensureSheetExists(title) {
 
 async function ensureOptionsSheet() {
   await ensureSheetExists(CONFIG.OPTIONS_SHEET);
-  const head = await valuesGet(`${CONFIG.OPTIONS_SHEET}!A1:D1`);
+  const head = await valuesGet(`${CONFIG.OPTIONS_SHEET}!A1:E1`);
   const h0 = head[0] || [];
-  if (!h0[0]) await valuesUpdate(`${CONFIG.OPTIONS_SHEET}!A1:D1`, [['Type', 'Value', 'Active', 'Parent']]);
+  if (!h0[0]) await valuesUpdate(`${CONFIG.OPTIONS_SHEET}!A1:E1`, [['Type', 'Value', 'Active', 'Parent', 'Order']]);
+  // Sheet lama yang baru punya A..D — tambah judulnya saja, tanpa menyentuh baris data.
+  else if (!h0[4]) await valuesUpdate(`${CONFIG.OPTIONS_SHEET}!E1`, [['Order']]);
   else if (!h0[3]) await valuesUpdate(`${CONFIG.OPTIONS_SHEET}!D1`, [['Parent']]);
   // Seed opsi default yang belum ada.
   const existing = await readOptionsRaw();
@@ -2793,7 +2850,7 @@ async function ensureOptionsSheet() {
       if (!exists) toAppend.push([type, value, true, '']);
     });
   });
-  if (toAppend.length) await valuesAppend(`${CONFIG.OPTIONS_SHEET}!A:D`, toAppend);
+  if (toAppend.length) await valuesAppend(`${CONFIG.OPTIONS_SHEET}!A:E`, toAppend);
 }
 
 // Template rumus nama task (dari tabel "RUMUS DETAIL TASK"): Stage -> Kata Kerja -> Objek.
@@ -2822,7 +2879,7 @@ async function seedFormulaTemplate() {
       });
     });
   });
-  if (toAppend.length) await valuesAppend(`${CONFIG.OPTIONS_SHEET}!A:D`, toAppend);
+  if (toAppend.length) await valuesAppend(`${CONFIG.OPTIONS_SHEET}!A:E`, toAppend);
   await applySheetValidations().catch(() => {});
   return { success: true, message: `Template terisi: ${toAppend.length} baris baru (stage + kata kerja + objek).`, options: await getOptions() };
 }
@@ -3294,7 +3351,7 @@ module.exports = {
   getBootstrapData, getTasks, getOptions, getComments, getActivityLog,
   // writes
   saveTask, deleteTask, quickUpdateField, quickUpdateDates,
-  addComment, saveOption, deleteOption, editOption,
+  addComment, saveOption, reorderOptions, deleteOption, editOption,
   // ceklis per task (PM menyusun, PIC mencentang)
   renameUser,
   getChecklist, addChecklistItem, copyChecklist, setChecklistLink, setChecklistDone, deleteChecklistItem,

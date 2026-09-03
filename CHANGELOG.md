@@ -31,6 +31,54 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.96.0 — Urutan pilihan di Dropdown Master bisa digeser
+
+Setelah Priority diganti jadi **Sulit / Normal / Mudah**, urutannya di dropdown mengikuti
+urutan baris di sheet OPTIONS — dan baris baru selalu masuk paling bawah. Satu-satunya cara
+mengubah urutan tampil adalah menggeser barisnya sendiri di spreadsheet, padahal nomor baris
+itulah yang dipakai tombol **Ubah** dan **Hapus**: menggesernya berarti mengubah sasaran
+kedua tombol tadi.
+
+Sekarang sheet OPTIONS punya kolom baru **Order** (kolom E) yang memisahkan *urutan tampil*
+dari *letak baris*. Di Dropdown Master tiap pilihan dapat gagang seret di kirinya; lepas
+gagangnya, urutan langsung tersimpan dan berlaku untuk semua orang di semua form. Pola yang
+sama sudah dipakai Rancangan Paket, jadi tak ada pustaka baru — Sortable sudah ada sejak
+papan Kanban.
+
+Tiga hal yang sengaja dipilih:
+
+- **Hanya Manager.** Urutan ini dilihat semua orang di setiap form, jadi ia keputusan
+  bersama, bukan selera pribadi. Backend menolaknya juga, bukan cuma tombolnya yang
+  disembunyikan.
+- **Yang bisa diseret hanya gagangnya**, bukan seluruh baris — kalau seluruh baris bisa
+  diseret, menekan Ubah atau Hapus di dalamnya mudah berubah jadi geseran tak sengaja.
+- **Baris lama tidak disentuh.** Yang belum punya Order tetap di tempatnya dengan urutan
+  aslinya, jadi tak ada satu pun dropdown yang berubah sendiri sampai benar-benar digeser.
+
+Kalau server menolak, tampilannya dikembalikan ke keadaan tersimpan. Geseran yang bertahan
+di layar padahal tidak tersimpan adalah cara tercepat membuat orang mengira urutannya sudah
+berubah.
+
+### Tombol "Lintas Divisi" di kartu kolaborasi tak pernah benar-benar jalan
+
+Ketemu sambil mengerjakan yang di atas. `BACKEND_ACTIONS` di layar adalah daftar putih: nama
+yang tak tercantum di sana tidak dipasang sama sekali pada objek `GAS`. `setCollabMirror`
+terlewat sejak **1.93.0**, jadi menekan tombolnya melempar TypeError — tanpa toast, tanpa
+pesan, tanpa gejala apa pun selain tak terjadi apa-apa.
+
+Namanya sekarang terdaftar. Supaya kelalaian yang sama tak lolos lagi, ada pemeriksaan
+otomatis yang membandingkan daftar putih itu dengan handler di `api/rpc.js`: aksi yang
+dipanggil layar tapi belum didaftarkan bikin `npm test` merah.
+
+### Nomor urut sempat tertulis ke baris yang salah
+
+Masih di rilis yang sama, ketemu saat mencoba fiturnya ke sheet sungguhan. Satu nilai bisa
+punya lebih dari satu baris di OPTIONS — sisa pilihan lama biasanya *dinonaktifkan*, bukan
+dihapus. Pencocokan pertama mengambil baris nonaktif itu, jadi nomor urutnya tertulis ke
+baris yang memang tak pernah tampil dan daftarnya terlihat tak bergerak sedikit pun.
+Sekarang hanya baris aktif yang diurutkan.
+
+---
 ## 1.95.2 — Nilai lama tetap utuh walau sudah dicabut dari Dropdown Master
 
 Ali memutuskan data lama dibiarkan apa adanya — tidak dimigrasi. Supaya "dibiarkan" tidak

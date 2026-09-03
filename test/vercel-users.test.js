@@ -120,6 +120,7 @@ process.env.SPREADSHEET_ID = 'x';
 process.env.GOOGLE_SERVICE_ACCOUNT_JSON = JSON.stringify({ client_email: 'a@b.c', private_key: 'k' });
 
 const backend = require(path.join(__dirname, '..', 'api', '_sheets.js'));
+const GARIS = ',';
 
 /* ---------------- Data awal ---------------- */
 ensureSheet('Main'); ensureSheet('OPTIONS'); ensureSheet('USERS'); ensureSheet('ACTIVITY'); ensureSheet('DASHBOARDS');
@@ -735,6 +736,47 @@ function resetAll() { ['TSK-001', 'TSK-002', 'TSK-003', 'TSK-004'].forEach(id =>
     ((await backend.getOptions()).platform || []).filter(v => v === 'Jangan Ganda').length, 0);
   suntik.append = [];
 
+  /* ---------------- Urutan pilihan dropdown ---------------- */
+  /* Baris kembar yang sudah dinonaktifkan sengaja ditaruh DI DEPAN yang aktif — itu keadaan
+     nyata di sheet (sisa pilihan lama yang dimatikan, bukan dihapus). Dulu nomor urut
+     tertulis ke baris nonaktif itu, jadi daftar di layar tak bergerak sama sekali. */
+  const barisOpsi = readRange('OPTIONS!A1:E').length;
+  const bSulitMati = barisOpsi + 1, bSulit = barisOpsi + 2;
+  writeRange(`OPTIONS!A${barisOpsi + 1}:E${barisOpsi + 5}`, [
+    ['ujiurut', 'Sulit', 'FALSE', '', ''],
+    ['ujiurut', 'Sulit', 'TRUE', '', ''],
+    ['ujiurut', 'Normal', 'TRUE', '', ''],
+    ['ujiurut', 'Mudah', 'TRUE', '', ''],
+    ['ujiurut', 'Sudah Pensiun', 'FALSE', '', ''],
+  ]);
+  const urutan = async () => ((await backend.getOptions()).ujiurut || []).join(GARIS);
+  const sel = a1 => String((readRange(a1)[0] || [''])[0]);
+
+  eq('semula urutannya mengikuti letak baris', await urutan(), 'Sulit,Normal,Mudah');
+  ok('staff ditolak mengatur urutan',
+    (await backend.reorderOptions('ujiurut', ['Mudah', 'Normal', 'Sulit'], 'Ali')).success === false);
+  eq('dan urutannya tak bergeser', await urutan(), 'Sulit,Normal,Mudah');
+
+  const hasil = await backend.reorderOptions('ujiurut', ['Mudah', 'Normal', 'Sulit'], 'Nynda');
+  ok('manager boleh', hasil.success === true);
+  eq('jawabannya langsung membawa urutan baru', (hasil.options.ujiurut || []).join(GARIS), 'Mudah,Normal,Sulit');
+  eq('dan urutan itu benar-benar terbaca ulang', await urutan(), 'Mudah,Normal,Sulit');
+  eq('nomor urut ditulis ke baris yang aktif', sel(`OPTIONS!E${bSulit}`), '3');
+  eq('bukan ke kembarannya yang nonaktif', sel(`OPTIONS!E${bSulitMati}`), '');
+  eq('nilai barisnya tak ikut tertulis ulang',
+    readRange(`OPTIONS!A${bSulit}:D${bSulit}`)[0].join(GARIS), ['ujiurut', 'Sulit', 'TRUE', ''].join(GARIS));
+
+  /* Menyebut sebagian saja harus tetap aman: yang tak disebut ditaruh sesudahnya, bukan
+     dibiarkan ber-Order kosong — kalau kosong, ia melompat ke belakang sendiri nanti. */
+  ok('boleh menyebut sebagian saja', (await backend.reorderOptions('ujiurut', ['Sulit'], 'Nynda')).success === true);
+  eq('sisanya menyusul, tak ada yang hilang', await urutan(), 'Sulit,Mudah,Normal');
+  ok('nilai asing diabaikan, bukan menggagalkan',
+    (await backend.reorderOptions('ujiurut', ['Normal', 'Entah Apa', 'Sulit'], 'Nynda')).success === true);
+  eq('yang ada saja yang dipakai', await urutan(), 'Normal,Sulit,Mudah');
+  eq('daftar kosong tak mengacak apa pun', 
+    (await backend.reorderOptions('ujiurut', [], 'Nynda'), await urutan()), 'Normal,Sulit,Mudah');
+  ok('jenis dropdown tanpa nama ditolak', (await backend.reorderOptions('', ['x'], 'Nynda')).success === false);
+  ok('jenis dropdown lain tak ikut terganggu', ((await backend.getOptions()).status || []).length > 0);
   // Tanpa VERCEL_ENV (jalan lokal / host lain) sengaja BUKAN production: lebih baik keliru
   // menandai produksi sebagai uji coba daripada uji coba tampak seperti produksi.
   eq('tanpa VERCEL_ENV -> bukan production', (await backend.getBootstrapData({})).meta.env, 'development');

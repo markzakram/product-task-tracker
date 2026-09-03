@@ -78,6 +78,7 @@ const HANDLERS = {
   saveUser: (name, role, active, actor) => backend.saveUser(name, role, active, actor),
   deleteUser: (name, actor) => backend.deleteUser(name, actor),
   renameUser: (oldName, newName, actor) => backend.renameUser(oldName, newName, actor),
+  reorderOptions: (type, values, actor) => backend.reorderOptions(type, values, actor),
   saveOption: (type, value, parent) => backend.saveOption(type, value, parent),
   deleteOption: (type, value, parent) => backend.deleteOption(type, value, parent),
   editOption: (type, oldValue, newValue, parent) => backend.editOption(type, oldValue, newValue, parent),
@@ -218,7 +219,7 @@ module.exports = async (req, res) => {
   const MAGANG_DENY = {
     saveUser: 1, deleteUser: 1, renameUser: 1, setUserPin: 1, deleteUserPin: 1, listPinUsers: 1,
     setupTaskTracker: 1, assignMissingTaskIds: 1, seedFormulaTemplate: 1,
-    saveOption: 1, deleteOption: 1, editOption: 1,
+    saveOption: 1, reorderOptions: 1, deleteOption: 1, editOption: 1,
     addDashboard: 1, updateDashboard: 1, deleteDashboard: 1,
     deleteTask: 1, deleteCollab: 1, saveCollab: 1, setCollabType: 1, savePackage: 1, deletePackage: 1, deletePackages: 1, setCollabPackage: 1, setCollabMirror: 1, setPackageContrib: 1,
   };

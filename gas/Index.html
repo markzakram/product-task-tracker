@@ -855,7 +855,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.95.2'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.96.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -948,7 +948,7 @@ function onGoogleCredential(resp){
       else { var e=document.getElementById('googleErr'); if(e){ e.textContent=(d&&d.message)||'Email tidak diizinkan.'; e.classList.remove('hide'); } }
     }).catch(function(){ var e=document.getElementById('googleErr'); if(e) e.classList.remove('hide'); });
 }
-var BACKEND_ACTIONS = ['getBootstrapData','getTasks','getOptions','getActivityLog','getComments','saveTask','deleteTask','quickUpdateField','quickUpdateDates','addComment','getChecklist','addChecklistItem','copyChecklist','setChecklistLink','setChecklistDone','deleteChecklistItem','getCollabs','saveCollab','setCollabStepDone','setCollabStepNote','setCollabStepLink','setCollabType','deleteCollab','savePackage','getPackages','deletePackage','deletePackages','setCollabPackage','setPackageContrib','getNotifications','markNotificationsRead','saveOption','deleteOption','setupTaskTracker','assignMissingTaskIds','verifyPin','setUserPin','deleteUserPin','listPinUsers','editOption','addUserLink','updateUserLink','deleteUserLink','renameUserFolder','deleteUserFolder','addDashboard','updateDashboard','deleteDashboard','seedFormulaTemplate','addNote','updateNote','deleteNote','renameNoteFolder','deleteNoteFolder','getUsers','saveUser','deleteUser','renameUser'];
+var BACKEND_ACTIONS = ['getBootstrapData','getTasks','getOptions','getActivityLog','getComments','saveTask','deleteTask','quickUpdateField','quickUpdateDates','addComment','getChecklist','addChecklistItem','copyChecklist','setChecklistLink','setChecklistDone','deleteChecklistItem','getCollabs','saveCollab','setCollabStepDone','setCollabStepNote','setCollabStepLink','setCollabType','setCollabMirror','deleteCollab','savePackage','getPackages','deletePackage','deletePackages','setCollabPackage','setPackageContrib','getNotifications','markNotificationsRead','saveOption','deleteOption','reorderOptions','setupTaskTracker','assignMissingTaskIds','verifyPin','setUserPin','deleteUserPin','listPinUsers','editOption','addUserLink','updateUserLink','deleteUserLink','renameUserFolder','deleteUserFolder','addDashboard','updateDashboard','deleteDashboard','seedFormulaTemplate','addNote','updateNote','deleteNote','renameNoteFolder','deleteNoteFolder','getUsers','saveUser','deleteUser','renameUser'];
 function makeRunner(){
   var onSuccess = null, onFailure = null;
   var runner = {
@@ -5476,9 +5476,42 @@ function editOptionPrompt(type, oldValue){
     GAS.withSuccessHandler(res=>{ document.getElementById('loading').classList.add('hide'); if(!res||!res.success){ showToast((res&&res.message)||'Gagal mengubah opsi',false); return; } state.options=Object.assign({},dummyOptions,res.options||{}); if(res.tasks) state.tasks=res.tasks; showToast(res.message); applyRoleUI(); renderAll(); renderSettings(); }).withFailureHandler(err=>{ document.getElementById('loading').classList.add('hide'); showToast(err.message||err,false); }).editOption(type, oldValue, newValue);
   } else { showToast('Edit (preview).'); }
 }
+/* Urutan pilihan dropdown bisa digeser. Hanya Manager — urutan ini dilihat semua orang di
+   setiap form, jadi bukan preferensi pribadi. Sortable sudah dipakai papan Kanban, jadi tak
+   ada pustaka baru; yang bisa diseret hanya gagangnya, supaya tombol Ubah dan Hapus di baris
+   yang sama tak mudah tak sengaja berubah jadi geseran. */
+function pasangUrutOpsi(){
+  (state._optSortables||[]).forEach(s=>{try{s.destroy();}catch(e){}}); state._optSortables=[];
+  if(!window.Sortable || !IS_GAS) return;
+  if(!isManager(state.currentUser) || isViewOnly()) return;
+  document.querySelectorAll('[data-opttype]').forEach(kotak=>{
+    const type=kotak.getAttribute('data-opttype');
+    state._optSortables.push(Sortable.create(kotak, {
+      handle:'.opt-drag', draggable:'.opt-row', animation:150,
+      ghostClass:'card-drag-ghost',
+      onEnd(){ simpanUrutOpsi(type, kotak); }
+    }));
+  });
+}
+function simpanUrutOpsi(type, kotak){
+  const urut=[...kotak.querySelectorAll('.opt-row')].map(el=>el.getAttribute('data-nilai')||'').filter(Boolean);
+  if(!urut.length) return;
+  GAS.withSuccessHandler(res=>{
+    if(!res||!res.success){ showToast((res&&res.message)||'Gagal menyimpan urutan', false); renderSettings(); return; }
+    state.options=res.options||state.options;
+    showToast('Urutan '+type+' disimpan.');
+    populateModalDropdowns();
+  }).withFailureHandler(err=>{
+    showToast('Gagal: '+(err.message||err), false);
+    /* Kembalikan tampilan ke keadaan tersimpan. Membiarkan urutan hasil geseran padahal
+       server menolak akan membuat orang mengira urutannya sudah tersimpan. */
+    renderSettings();
+  }).reorderOptions(type, urut, state.currentUser);
+}
 function renderSettings(){
   const names={status:'Status',priority:'Kesulitan',stage:'Stage',platform:'Platform',pic:'PIC',support:'Support'};
-  document.getElementById('settingsGrid').innerHTML=Object.keys(names).map(type=>`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden"><div class="p-4 border-b border-gray-100 dark:border-slate-800"><div class="font-semibold text-gray-900 dark:text-white">${names[type]}</div><div class="flex gap-2 mt-2.5"><input id="new-${type}" placeholder="Tambah opsi…" class="flex-1 rounded-lg bg-gray-100 dark:bg-slate-800 px-3 py-2 outline-none text-sm focus:ring-2 focus:ring-indigo-300"><button onclick="addOption('${type}')" class="px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm">Add</button></div></div><div class="p-3 space-y-1.5 max-h-[340px] overflow-y-auto scrollbar-thin">${(state.options[type]||[]).map(v=>`<div class="flex items-center justify-between gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-slate-800"><span class="font-medium text-sm text-gray-700 dark:text-slate-200">${escapeHtml(v)}</span><span class="flex items-center gap-1"><button onclick="editOptionPrompt('${type}','${escapeAttr(v)}')" class="text-gray-400 hover:text-indigo-600"><span class="material-icons-round text-[18px]">edit</span></button><button onclick="removeOption('${type}','${escapeAttr(v)}')" class="text-rose-500 hover:text-rose-600"><span class="material-icons-round text-[18px]">delete</span></button></span></div>`).join('')}</div></div>`).join('');
+  document.getElementById('settingsGrid').innerHTML=Object.keys(names).map(type=>`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden"><div class="p-4 border-b border-gray-100 dark:border-slate-800"><div class="font-semibold text-gray-900 dark:text-white">${names[type]}</div><div class="flex gap-2 mt-2.5"><input id="new-${type}" placeholder="Tambah opsi…" class="flex-1 rounded-lg bg-gray-100 dark:bg-slate-800 px-3 py-2 outline-none text-sm focus:ring-2 focus:ring-indigo-300"><button onclick="addOption('${type}')" class="px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm">Add</button></div></div><div id="optList-${type}" data-opttype="${type}" class="p-3 space-y-1.5 max-h-[340px] overflow-y-auto scrollbar-thin">${(state.options[type]||[]).map(v=>`<div class="opt-row flex items-center justify-between gap-3 p-2.5 rounded-lg bg-gray-50 dark:bg-slate-800" data-nilai="${escapeAttr(v)}"><span class="flex items-center gap-2 min-w-0"><span class="opt-drag material-icons-round text-[16px] text-gray-300 dark:text-slate-600 cursor-grab select-none" title="Seret untuk mengurutkan">drag_indicator</span><span class="font-medium text-sm text-gray-700 dark:text-slate-200 truncate">${escapeHtml(v)}</span></span><span class="flex items-center gap-1"><button onclick="editOptionPrompt('${type}','${escapeAttr(v)}')" class="text-gray-400 hover:text-indigo-600"><span class="material-icons-round text-[18px]">edit</span></button><button onclick="removeOption('${type}','${escapeAttr(v)}')" class="text-rose-500 hover:text-rose-600"><span class="material-icons-round text-[18px]">delete</span></button></span></div>`).join('')}</div></div>`).join('');
+  pasangUrutOpsi();
 }
 function addOption(type){const input=document.getElementById('new-'+type); const value=input.value.trim(); if(!value)return; if(IS_GAS){GAS.withSuccessHandler(res=>{if(!res.success){showToast(res.message,false);return;} state.options=res.options; showToast(res.message); populateUserSelect(); populateManagerFocus(); populateModalDropdowns(); renderSettings(); renderAll();}).withFailureHandler(err=>showToast(err.message||err,false)).saveOption(type,value);} else {state.options[type]=[...(state.options[type]||[]),value]; renderSettings(); populateModalDropdowns(); renderAll();}}
 function removeOption(type,value){if(!confirm('Nonaktifkan opsi '+value+'?'))return; if(IS_GAS){GAS.withSuccessHandler(res=>{if(!res.success){showToast(res.message,false);return;} state.options=res.options; showToast(res.message); populateUserSelect(); populateManagerFocus(); populateModalDropdowns(); renderSettings(); renderCatSubManager(); renderAll();}).withFailureHandler(err=>showToast(err.message||err,false)).deleteOption(type,value);} else {state.options[type]=(state.options[type]||[]).filter(v=>v!==value); renderSettings(); renderAll();}}

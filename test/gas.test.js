@@ -2386,4 +2386,74 @@ ok('penjaganya tidak dikhususkan ke satu field', commHtml.indexOf("const daftar=
 ok('warna mengikuti tingkat kesulitan', commHtml.indexOf("v==='sulit'") >= 0 && commHtml.indexOf("v==='mudah'") >= 0);
 // Nilai lama tetap punya warna sendiri supaya data yang belum dimigrasi tak menyamar Normal.
 ok('nilai lama masih dikenali di grafik', commHtml.indexOf("urgent:'#ef4444'") >= 0);
+/* ---------------- Daftar aksi backend ---------------- */
+/* BACKEND_ACTIONS di layar adalah daftar putih: nama yang tak tercantum tidak terpasang
+   di objek GAS, jadi tombolnya melempar TypeError begitu diklik — tanpa gejala apa pun
+   sampai ada yang menekannya. setCollabMirror pernah terlewat begitu selama dua rilis. */
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+  const rpc = fs.readFileSync(path.join(__dirname, '..', 'api', 'rpc.js'), 'utf8');
+  const awal = idx.indexOf('var BACKEND_ACTIONS = [');
+  ok('daftar putih ketemu di layar', awal >= 0);
+  const punyaLayar = idx.slice(awal, idx.indexOf('];', awal)).split("'").filter((x, i) => i % 2 === 1);
+  const hAwal = rpc.indexOf('const HANDLERS = {');
+  const terdaftar = rpc.slice(hAwal, rpc.indexOf(String.fromCharCode(10) + '};', hAwal))
+    .split(String.fromCharCode(10))
+    .map(l => l.trim())
+    .filter(l => l.indexOf(':') > 0)
+    .map(l => l.slice(0, l.indexOf(':')).trim())
+    .filter(n => n && n.indexOf(' ') < 0 && n.indexOf('(') < 0);
+  ok('handler rpc terbaca', terdaftar.length > 30);
+  /* Yang dipanggil layar tapi belum masuk daftar putih. Hanya nama yang memang punya
+     handler rpc yang dihitung, jadi tak ada tuduhan palsu dari kata biasa. */
+  const lupa = terdaftar.filter(n => punyaLayar.indexOf(n) < 0 && idx.indexOf('.' + n + '(') >= 0);
+  eq('aksi dipanggil tapi lupa didaftarkan: ' + lupa.join(', '), lupa.length, 0);
+  ok('reorderOptions ada di daftar putih', punyaLayar.indexOf('reorderOptions') >= 0);
+  ok('setCollabMirror ada di daftar putih', punyaLayar.indexOf('setCollabMirror') >= 0);
+}
+
+/* ---------------- Seret-urut Dropdown Master ---------------- */
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+  ok('tiap baris opsi membawa nilainya sendiri', idx.indexOf('class="opt-row') >= 0 && idx.indexOf('data-nilai=') >= 0);
+  ok('wadah daftarnya ditandai jenis dropdown', idx.indexOf('data-opttype=') >= 0);
+  /* Yang bisa diseret hanya gagangnya. Kalau seluruh baris bisa diseret, menekan tombol
+     Ubah atau Hapus di dalamnya gampang berubah jadi geseran tanpa disengaja. */
+  ok('hanya gagangnya yang menyeret', idx.indexOf("handle:'.opt-drag'") >= 0);
+  ok('yang diseret barisnya, bukan isinya', idx.indexOf("draggable:'.opt-row'") >= 0);
+  ok('urutan baru dikirim ke backend', idx.indexOf('.reorderOptions(type, urut, state.currentUser)') >= 0);
+  /* Hanya Manager: urutan ini dilihat semua orang di setiap form, jadi bukan selera pribadi. */
+  const fn = idx.slice(idx.indexOf('function pasangUrutOpsi()'), idx.indexOf('function simpanUrutOpsi('));
+  ok('bukan Manager tidak dipasangi', fn.indexOf('isManager(state.currentUser)') >= 0);
+  ok('mode lihat-saja tidak dipasangi', fn.indexOf('isViewOnly()') >= 0);
+  /* Daftarnya digambar ulang tiap kali; pegangan lama harus dilepas dulu supaya satu
+     geseran tidak memicu penyimpanan berkali-kali. */
+  ok('pegangan lama dilepas sebelum dipasang lagi', fn.indexOf('.destroy()') >= 0);
+  const gambar = idx.slice(idx.indexOf("getElementById('settingsGrid').innerHTML="));
+  ok('dipasang sesudah daftarnya digambar', gambar.slice(0, 4000).indexOf('pasangUrutOpsi();') >= 0);
+  /* Kalau server menolak, tampilan dikembalikan — geseran yang bertahan di layar padahal
+     tidak tersimpan membuat orang mengira urutannya sudah berubah. */
+  const simpan = idx.slice(idx.indexOf('function simpanUrutOpsi('), idx.indexOf('function renderSettings('));
+  ok('gagal simpan mengembalikan tampilan', simpan.indexOf('renderSettings();') >= 0);
+}
+
+console.log('=== 16c. Urutan pilihan dropdown (GAS) ===');
+{
+  ['ZUji A', 'ZUji B', 'ZUji C'].forEach(v => call('saveOption', 'platform', v, ''));
+  const urutan = () => (call('getOptions').platform || []).filter(v => v.indexOf('ZUji') === 0).join(', ');
+  eq('semula mengikuti letak baris', urutan(), 'ZUji A, ZUji B, ZUji C');
+  const balik = ['ZUji C', 'ZUji B', 'ZUji A'];
+  eq('staff ditolak', call('reorderOptions', 'platform', balik, 'Staff Soal').success, false);
+  eq('dan urutannya tak bergeser', urutan(), 'ZUji A, ZUji B, ZUji C');
+  const r = call('reorderOptions', 'platform', balik, 'Manager');
+  eq('manager boleh', r.success, true);
+  eq('jawabannya membawa urutan baru', (r.options.platform || []).filter(v => v.indexOf('ZUji') === 0).join(', '), 'ZUji C, ZUji B, ZUji A');
+  eq('dan bertahan saat dibaca ulang', urutan(), 'ZUji C, ZUji B, ZUji A');
+  /* Menyebut sebagian saja: sisanya menyusul di belakang dengan urutan yang sedang berlaku,
+     bukan dibiarkan ber-Order kosong — yang kosong akan melompat ke belakang sendiri nanti. */
+  eq('boleh menyebut sebagian saja', call('reorderOptions', 'platform', ['ZUji A'], 'Manager').success, true);
+  eq('sisanya menyusul, tak ada yang hilang', urutan(), 'ZUji A, ZUji C, ZUji B');
+  eq('jenis tanpa nama ditolak', call('reorderOptions', '', ['ZUji A'], 'Manager').success, false);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);
