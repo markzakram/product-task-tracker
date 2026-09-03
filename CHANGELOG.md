@@ -31,6 +31,29 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.102.0 — Yang hanya membaca paket langsung melihat hasilnya
+
+Paket dibagikan ke Lintas Divisi supaya **isinya** dibaca. Sesudah 1.101.0, yang mereka
+dapat justru kotak isian mati berisi penanda mentah — `Catatan **penting** dari Manager` —
+lengkap dengan tombol *Pratinjau* di bawahnya.
+
+Itu salah dua kali. Yang terbaca jadi penandanya, bukan kalimatnya; dan tombol "Pratinjau"
+menyiratkan ada sesuatu yang sedang mereka tulis dan bisa mereka periksa, padahal tak ada
+yang bisa mereka ubah sama sekali.
+
+Sekarang kolom teks paket bercabang di izin, bukan cuma dimatikan:
+
+- **Boleh mengubah** — kotak isian seperti biasa, dengan pintasan dan tombol Pratinjau.
+- **Hanya membaca** — hasilnya langsung, tanpa kotak, tanpa tombol. Yang kosong tetap
+  ditandai *(belum diisi)* supaya bedanya dengan "belum dimuat" tetap jelas.
+
+Berlaku untuk catatan per kategori maupun field teks panjangnya. Kolom sebaris tidak ikut:
+tak ada format untuk dilihat di sana.
+
+Syaratnya izin, bukan peran, jadi bukan hanya Lintas Divisi yang tertolong — siapa pun yang
+membuka paket di luar wewenangnya melihat kalimatnya, bukan penandanya.
+
+---
 ## 1.101.0 — Pintasan format di semua kolom teks, plus tombol Pratinjau
 
 Lanjutan 1.100.0. Pintasan yang sama kini berlaku di **sembilan** kolom teks panjang, bukan

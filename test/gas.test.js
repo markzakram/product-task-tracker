@@ -2688,4 +2688,31 @@ console.log('=== 16j. Pratinjau format ===');
     && idx.indexOf("barisPratinjau('collab-note-") < 0);
 }
 
+console.log('=== 16k. Paket yang dibagikan: pembaca melihat hasilnya, bukan penandanya ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+  /* Paket dibagikan ke Lintas Divisi supaya ISINYA dibaca. Memberi mereka kotak isian mati
+     berisi **penanda mentah** plus tombol "Pratinjau" salah dua kali: yang terbaca jadi
+     penandanya, dan tombol itu menyiratkan ada yang bisa diubah padahal tidak ada. */
+  ok('ada pembungkus baca sendiri', idx.indexOf('function pkgTeksBaca(nilai)') >= 0);
+  const fn = idx.slice(idx.indexOf('function pkgTeksBaca(nilai)'), idx.indexOf('function pkgStatusPil(it)'));
+  ok('isinya lewat perender yang sama', fn.indexOf('formatTeks(v)') >= 0);
+  ok('yang kosong tetap ada keterangannya', fn.indexOf('(belum diisi)') >= 0);
+  // Catatan per kategori: kotak isian HANYA untuk yang boleh mengubah.
+  ok('catatan kategori bercabang di izin', idx.indexOf('${bisaP') >= 0
+    && idx.indexOf('pkgTeksBaca(p[PKG_KAT_FIELD[kat]])') >= 0);
+  // Field teks panjang: urutannya sebaris -> boleh ubah -> hanya baca.
+  /* Batas akhirnya baris return di bawahnya — 'const picSel' juga muncul di fungsi lain
+     yang letaknya jauh di atas, dan potongannya jadi kosong. */
+  const ctl = idx.slice(idx.indexOf('const ctl = !fd.area'), idx.indexOf('const picSel=(id,sel,bisa)'));
+  ok('field teks bercabang di izin', ctl.indexOf(': bisa') >= 0 && ctl.indexOf(': pkgTeksBaca(v)') >= 0);
+  /* Kolom sebaris tak punya format untuk dilihat, jadi ia tetap <input> apa adanya. */
+  ok('kolom sebaris tak ikut diubah', ctl.indexOf('<input id="pkg-') >= 0);
+  /* Yang hanya membaca tak boleh dapat pintasan maupun tombol pratinjau: keduanya menjanjikan
+     sesuatu yang tak bisa mereka lakukan. */
+  const cabangBaca = ctl.slice(ctl.indexOf(': pkgTeksBaca(v)'));
+  ok('cabang baca tanpa data-fmt', cabangBaca.indexOf('data-fmt') < 0);
+  ok('cabang baca tanpa tombol pratinjau', cabangBaca.indexOf('barisPratinjau') < 0);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);
