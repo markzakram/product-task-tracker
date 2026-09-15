@@ -866,7 +866,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.103.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.104.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3883,6 +3883,7 @@ function pkgKategoriBlok(p, bisaRancang, c, bisaP){
               : `<span class="flex-1 min-w-0 text-xs text-gray-700 dark:text-slate-200 truncate">${escapeHtml(it.nama||'')}${it.grup?`<span class="text-gray-400"> · ${escapeHtml(it.grup)}</span>`:''}</span>
                  <span class="shrink-0 text-[11px] font-mono text-gray-500 dark:text-slate-400">${it.terpenuhi}/${it.target} ${escapeHtml(it.satuan||'')}</span>`}
             ${pkgStatusPil(it)}
+            ${bisaRancang?`<button type="button" onclick="pkgIsiKeBawah(this)" title="Salin target, satuan &amp; awal baris ini ke semua baris di bawahnya" class="shrink-0 text-gray-300 hover:text-indigo-600"><span class="material-icons-round text-[15px]">vertical_align_bottom</span></button>`:''}
             ${bisaRancang?`<button type="button" onclick="pkgRemoveItem(${o.i})" title="Hapus target" class="shrink-0 text-gray-300 hover:text-rose-500"><span class="material-icons-round text-[15px]">close</span></button>`:''}
           </div>
           ${bisaRancang?'':`<div class="mt-0.5 h-1 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden"><div class="h-full ${it.status==='done'?'bg-emerald-500':(it.status==='lebih'?'bg-amber-500':'bg-indigo-500')}" style="width:${pct}%"></div></div>`}
@@ -4213,9 +4214,9 @@ function renderPackagePanel(){
       </div>`:''}
       ${suplai?`<div class="flex items-center gap-1.5 flex-wrap text-[11px] text-gray-500 dark:text-slate-400"><span class="material-icons-round text-[13px]">account_tree</span>Disuplai ${(p.collabIds||[]).length} task:${suplai}</div>`:''}
 
-      ${bos?`<div class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+      ${bisaUbahNamaPaket()?`<div class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
         <div class="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Identitas paket <span class="font-normal normal-case tracking-normal text-gray-400">— nama yang dipakai judul & daftar paket</span></div>
-        <div class="p-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">${PKG_FIELDS.identitas.map(fd=>`<div>${field(fd,'marsel',bos)}</div>`).join('')}</div>
+        <div class="p-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">${PKG_FIELDS.identitas.map(fd=>`<div>${field(fd,'marsel',true)}</div>`).join('')}</div>
       </div>`:''}
 
       ${(bisaRancang||(p.links||[]).length)?`<div class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
@@ -4634,7 +4635,10 @@ function renderPaket(){
               : (p.mirror?`<span class="inline-flex items-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" title="Tampil di Lintas Divisi"><span class="material-icons-round text-[12px]">cast</span>Lintas Divisi</span>`:'')}
             ${pkgPenandaTautan(p)}
           </div>
-          <div class="font-semibold text-sm text-gray-900 dark:text-white mt-0.5 line-clamp-2">${escapeHtml(p.namaPaket||p.program||'(tanpa nama)')}</div>
+          <div class="flex items-start gap-1">
+            <div class="font-semibold text-sm text-gray-900 dark:text-white mt-0.5 line-clamp-2 min-w-0">${escapeHtml(p.namaPaket||p.program||'(tanpa nama)')}</div>
+            ${bisaUbahNamaPaket()?`<button type="button" onclick="ubahNamaPaket(&#39;${escapeAttr(p.id)}&#39;, event)" title="Ubah nama paket" class="shrink-0 mt-0.5 text-gray-300 hover:text-indigo-600"><span class="material-icons-round text-[15px]">edit</span></button>`:''}
+          </div>
         </div>
         <span class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${rk.target&&rk.terpenuhi>=rk.target?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300':'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}">${rk.done}/${(p.items||[]).length} target</span>
       </div>
@@ -4648,6 +4652,61 @@ function renderPaket(){
       </div>
     </div>`;
   }).join('');
+}
+/* ---------- Isi ke bawah ----------
+
+   Menyalin Target, Satuan, dan Awal satu baris ke SELURUH baris di bawahnya dalam kategori
+   yang sama. Lahir dari kebiasaan nyata: satu kategori Latsol berisi belasan target yang
+   angkanya sama semua, dan sebelumnya harus diketik satu per satu.
+
+   Hanya ke bawah, tak pernah ke atas — orang yang menekannya sedang mengisi dari atas ke
+   bawah, dan membatasi arahnya membuat salah tekan jauh lebih murah.
+
+   Yang diubah cuma isian di layar, bukan sheet. Jadi selama belum ditekan Simpan, menutup
+   paketnya mengembalikan semuanya seperti semula — itu jaring pengaman yang menggantikan
+   tombol "urungkan" yang memang tak ada di aplikasi ini. */
+function pkgIsiKeBawah(btn){
+  const baris=btn.closest('[data-pkgi]'), blok=btn.closest('[data-pkgkat]');
+  if(!baris || !blok) return;
+  const semua=[...blok.querySelectorAll('[data-pkgi]')];
+  const sesudah=semua.slice(semua.indexOf(baris)+1);
+  if(!sesudah.length){ showToast('Ini baris terakhir — tak ada yang di bawahnya.', false); return; }
+  const ambil=(el,k)=>{ const x=el.querySelector('.pkgi-'+k); return x?x.value:''; };
+  const nilai={ target:ambil(baris,'target'), satuan:ambil(baris,'satuan'), awal:ambil(baris,'awal') };
+  sesudah.forEach(r=>{
+    ['target','satuan','awal'].forEach(k=>{ const x=r.querySelector('.pkgi-'+k); if(x) x.value=nilai[k]; });
+  });
+  showToast('Target, satuan & awal disalin ke '+sesudah.length+' baris di bawahnya. Tekan Simpan bila sudah pas.');
+}
+
+/* ---------- Ubah nama paket dari daftar ----------
+
+   Hanya Manager. Nama paket dipakai di judul, di daftar, dan di salinan untuk tim Marsel —
+   mengubahnya mengubah sebutan paket itu bagi semua orang sekaligus, jadi wewenangnya lebih
+   sempit daripada menyunting isinya.
+
+   Tombolnya di kartu daftar supaya tak perlu membuka paketnya dulu. Kotak isian yang sama
+   juga ada di dalam paketnya (blok Identitas Paket). */
+function bisaUbahNamaPaket(){ return !isViewOnly() && isManager(state.currentUser); }
+function ubahNamaPaket(id, ev){
+  if(ev && ev.stopPropagation) ev.stopPropagation();
+  if(!bisaUbahNamaPaket()){ showToast('Hanya Manager yang bisa mengubah nama paket.', false); return; }
+  const p=packageById(id); if(!p) return;
+  const lama=String(p.namaPaket||p.program||'');
+  const nama=prompt('Nama paket:', lama);
+  if(nama===null) return;
+  const bersih=String(nama).trim();
+  if(!bersih){ showToast('Nama paket tidak boleh kosong.', false); return; }
+  if(bersih===lama.trim()) return;
+  GAS.withSuccessHandler(res=>{
+    if(!res||!res.success){ showToast((res&&res.message)||'Gagal mengubah nama paket', false); return; }
+    state.packages=res.packages||state.packages;
+    showToast('Nama paket diperbarui.');
+    renderPaket();
+    // Kalau paketnya sedang terbuka, judulnya ikut segar tanpa perlu ditutup dulu.
+    if(state._paketId===id) segarkanJudulPaket(id);
+  }).withFailureHandler(err=>showToast('Gagal: '+(err.message||err), false))
+    .savePackage(id, { marsel: { namaPaket: bersih } }, state.currentUser);
 }
 function segarkanJudulPaket(id){
   id = id || state._paketId;

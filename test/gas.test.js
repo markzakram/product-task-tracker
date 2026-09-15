@@ -2722,7 +2722,7 @@ console.log('=== 16l. Rancangan Paket: identitas, kolom lurus, urutan blok ===')
   /* Program & Nama Paket sudah lama dibaca penyusun data simpan, tapi kotaknya tak pernah
      digambar — jadi nama paket tak bisa diubah dari aplikasi sama sekali. */
   ok('kotak identitas digambar', idx.indexOf('PKG_FIELDS.identitas.map(fd=>') >= 0);
-  ok('hanya untuk Manager/Leader', idx.indexOf('${bos?`<div class="rounded-lg border border-gray-200') >= 0);
+  ok('hanya untuk Manager', idx.indexOf('${bisaUbahNamaPaket()?`<div class="rounded-lg border border-gray-200') >= 0);
   ok('jalur simpannya memang sudah ada', idx.indexOf('payload.marsel=ambil(PKG_FIELDS.identitas)') >= 0);
   /* Judul modal dulu hanya diisi saat paket dibuka. Karena namanya kini bisa diubah dari
      dalam modal itu juga, ia harus ikut segar — kalau tidak, orang mengganti nama lalu
@@ -2748,6 +2748,44 @@ console.log('=== 16l. Rancangan Paket: identitas, kolom lurus, urutan blok ===')
   const iRancangan = idx.indexOf('class="rounded-lg border border-indigo-200');
   ok('ketiga blok ketemu', iIdentitas > 0 && iTautan > 0 && iRancangan > 0);
   ok('urutannya Identitas -> Tautan -> Rancangan', iIdentitas < iTautan && iTautan < iRancangan);
+}
+
+console.log('=== 16m. Isi ke bawah & ubah nama paket ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Satu kategori bisa berisi belasan target yang angkanya sama semua; sebelumnya harus
+     diketik satu per satu. Tombol ini menyalin Target, Satuan & Awal ke bawah. */
+  ok('fungsinya ada', idx.indexOf('function pkgIsiKeBawah(btn)') >= 0);
+  ok('tombolnya terpasang di baris target', idx.indexOf('onclick="pkgIsiKeBawah(this)"') >= 0);
+  const fn = idx.slice(idx.indexOf('function pkgIsiKeBawah(btn)'), idx.indexOf('/* ---------- Ubah nama paket'));
+  /* Dibatasi ke kategori yang sama — Latsol tak boleh menimpa Materi. */
+  ok('dibatasi satu kategori', fn.indexOf("btn.closest('[data-pkgkat]')") >= 0);
+  /* Hanya ke bawah. Orang yang menekannya sedang mengisi dari atas ke bawah, dan membatasi
+     arahnya membuat salah tekan jauh lebih murah. */
+  ok('hanya ke arah bawah', fn.indexOf('semua.indexOf(baris)+1') >= 0);
+  ok('baris terakhir diberi tahu, bukan diam saja', fn.indexOf('Ini baris terakhir') >= 0);
+  ok('jumlah baris yang tersalin dilaporkan', fn.indexOf("sesudah.length+' baris di bawahnya") >= 0);
+  /* Yang diubah hanya isian di layar. Penyimpanan paket memang membaca ulang dari DOM, jadi
+     menutup tanpa Simpan mengembalikan semuanya — itu pengganti tombol "urungkan". */
+  ok('tiga kolom yang disalin', fn.indexOf("['target','satuan','awal']") >= 0);
+  ok('tak menyentuh backend sama sekali', fn.indexOf('GAS.') < 0 && fn.indexOf('savePackage') < 0);
+
+  /* Nama paket dipakai di judul, daftar, dan salinan untuk tim Marsel — mengubahnya
+     mengubah sebutan paket itu bagi semua orang, jadi wewenangnya lebih sempit daripada
+     menyunting isinya: Manager saja, bukan Leader. */
+  ok('penjaganya ada', idx.indexOf('function bisaUbahNamaPaket()') >= 0);
+  ok('Manager saja, bukan Leader',
+    idx.indexOf('return !isViewOnly() && isManager(state.currentUser); }') >= 0);
+  ok('tombolnya ada di kartu daftar', idx.indexOf('onclick="ubahNamaPaket(') >= 0);
+  const ub = idx.slice(idx.indexOf('function ubahNamaPaket(id, ev)'), idx.indexOf('function segarkanJudulPaket(id)'));
+  /* Klik tombolnya tak boleh ikut membuka paketnya — kartunya sendiri punya onclick. */
+  ok('klik tak merembet ke kartu', ub.indexOf('ev.stopPropagation()') >= 0);
+  ok('gerbangnya diperiksa lagi saat ditekan', ub.indexOf('if(!bisaUbahNamaPaket())') >= 0);
+  ok('nama kosong ditolak', ub.indexOf('Nama paket tidak boleh kosong') >= 0);
+  /* Nama yang sama persis tak perlu perjalanan ke server. */
+  ok('tanpa perubahan tak menyimpan', ub.indexOf('if(bersih===lama.trim()) return;') >= 0);
+  ok('judul ikut segar bila paketnya sedang terbuka', ub.indexOf('if(state._paketId===id) segarkanJudulPaket(id);') >= 0);
 }
 
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

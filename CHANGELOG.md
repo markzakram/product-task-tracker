@@ -31,6 +31,41 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.104.0 — Isi ke bawah, dan tombol ubah nama paket di daftar
+
+### Isi ke bawah
+
+Satu kategori bisa berisi belasan target yang angkanya sama semua — sebelas baris Latsol
+dengan Target 10, Satuan Paket, Awal 0, diketik satu per satu. Tiap baris target sekarang
+punya tombol ⤓ yang menyalin **Target, Satuan, dan Awal** baris itu ke seluruh baris di
+bawahnya dalam kategori yang sama, lalu memberi tahu berapa baris yang tersalin.
+
+Tiga batas yang disengaja:
+
+- **Hanya ke bawah.** Orang yang menekannya sedang mengisi dari atas ke bawah; membatasi
+  arahnya membuat salah tekan jauh lebih murah.
+- **Hanya kategori yang sama.** Latsol tak pernah menimpa Materi.
+- **Hanya isian di layar.** Penyimpanan paket memang membaca ulang dari kotak isiannya,
+  jadi menutup paket tanpa menekan Simpan mengembalikan semuanya seperti semula. Itu
+  pengganti tombol "urungkan" yang memang tak ada di aplikasi ini.
+
+Baris paling bawah memberi tahu bahwa tak ada yang di bawahnya, bukan diam saja.
+
+### Ubah nama paket langsung dari daftar
+
+Tombol pensil di tiap kartu Rancangan Paket. Tak perlu membuka paketnya dulu; kalau paketnya
+kebetulan sedang terbuka, judulnya ikut segar tanpa ditutup-buka.
+
+**Manager saja.** Nama paket dipakai di judul, di daftar, dan di salinan untuk tim Marsel —
+mengubahnya mengubah sebutan paket itu bagi semua orang sekaligus, jadi wewenangnya memang
+lebih sempit daripada menyunting isinya.
+
+Karena itu blok **Identitas Paket** yang baru masuk di 1.103.0 ikut dipersempit dari
+Manager/Leader jadi Manager saja — satu aturan untuk satu kemampuan, di mana pun tombolnya
+berada. Leader belum pernah benar-benar bisa mengubah nama paket sebelum 1.103.0, jadi ini
+bukan pencabutan hak yang sudah berjalan.
+
+---
 ## 1.103.0 — Nama paket bisa diubah, kolom target lurus, Tautan naik ke atas
 
 Tiga perbaikan di Rancangan Paket.
