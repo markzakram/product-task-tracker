@@ -31,6 +31,42 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.103.0 — Nama paket bisa diubah, kolom target lurus, Tautan naik ke atas
+
+Tiga perbaikan di Rancangan Paket.
+
+### Nama paket akhirnya bisa diubah
+
+Ternyata bukan fitur baru. **Program** dan **Nama Paket** sudah lama terdaftar sebagai field
+paket, penyusun data simpan sudah membacanya, dan backend sudah menerimanya lewat kanal
+`marsel` — yang tak pernah ada hanya kotak isiannya. Judul modal memang membaca `namaPaket`,
+tapi tak ada satu pun tempat untuk mengubahnya, jadi nama paket praktis terkunci sejak
+dibuat. Kotaknya sekarang digambar di blok **Identitas Paket** paling atas, khusus Manager
+dan Leader — gerbang yang sudah ada, bukan yang baru.
+
+Ikut diperbaiki saat mengujinya: judul modal dulu hanya diisi sekali, saat paketnya dibuka.
+Mengganti nama lalu menyimpan membuat nama lama tetap terpampang di atas kotak yang sudah
+berisi nama baru — terlihat seperti gagal tersimpan padahal berhasil. Judulnya kini ikut
+disegarkan sesudah simpan.
+
+### Kolom target tak lagi bergeser-geser
+
+Barisan judul kolom sudah menyediakan ruang tetap `5.5rem` untuk status, tapi pil statusnya
+sendiri selebar tulisannya: *terpenuhi* ±4rem, *belum digarap* ±5,5rem, *kurang 3* ±3,8rem.
+Karena kolom **nama target** memakai sisa ruang, tiap selisih itu menggeser seluruh baris —
+jadi Target, Satuan, dan Awal berhenti di titik yang berbeda-beda tergantung status barisnya.
+Yang paling terasa di kategori dengan status campur, persis kasus Latsol.
+
+Pilnya kini dibungkus wadah selebar kolom yang memang sudah disediakan. Diuji pada paket
+berisi 27 baris dengan tiga status berbeda: tiap kolom hanya punya **satu** posisi.
+
+### Tautan pindah ke atas
+
+Dulu di bawah, berdempetan dengan Catatan Paket. Sekarang urutannya **Identitas Paket →
+Tautan → Rancangan (target & setoran)** — tautan sumber biasanya dibuka lebih dulu sebelum
+mengisi targetnya, bukan sesudah.
+
+---
 ## 1.102.0 — Yang hanya membaca paket langsung melihat hasilnya
 
 Paket dibagikan ke Lintas Divisi supaya **isinya** dibaca. Sesudah 1.101.0, yang mereka

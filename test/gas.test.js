@@ -2715,4 +2715,39 @@ console.log('=== 16k. Paket yang dibagikan: pembaca melihat hasilnya, bukan pena
   ok('cabang baca tanpa tombol pratinjau', cabangBaca.indexOf('barisPratinjau') < 0);
 }
 
+console.log('=== 16l. Rancangan Paket: identitas, kolom lurus, urutan blok ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Program & Nama Paket sudah lama dibaca penyusun data simpan, tapi kotaknya tak pernah
+     digambar — jadi nama paket tak bisa diubah dari aplikasi sama sekali. */
+  ok('kotak identitas digambar', idx.indexOf('PKG_FIELDS.identitas.map(fd=>') >= 0);
+  ok('hanya untuk Manager/Leader', idx.indexOf('${bos?`<div class="rounded-lg border border-gray-200') >= 0);
+  ok('jalur simpannya memang sudah ada', idx.indexOf('payload.marsel=ambil(PKG_FIELDS.identitas)') >= 0);
+  /* Judul modal dulu hanya diisi saat paket dibuka. Karena namanya kini bisa diubah dari
+     dalam modal itu juga, ia harus ikut segar — kalau tidak, orang mengganti nama lalu
+     melihat nama lama masih terpampang dan mengira simpannya gagal. */
+  ok('judul punya pengisi tersendiri', idx.indexOf('function segarkanJudulPaket(id)') >= 0);
+  ok('dipanggil juga sesudah simpan',
+    idx.indexOf('segarkanJudulPaket();   // namanya bisa baru saja diubah') >= 0);
+
+  /* Pil status dulu selebar tulisannya sendiri, sementara barisan judul sudah menyediakan
+     kolom 5.5rem. Karena kolom nama memakai sisa ruang, selisih antara "terpenuhi" dan
+     "belum digarap" menggeser SELURUH baris — tiap baris berhenti di titik berbeda. */
+  /* pkgTeksBaca justru terletak SEBELUM pkgStatusPil, jadi ia tak bisa jadi batas akhir —
+     potongannya akan kosong. Batasnya fungsi berikutnya sesudah pkgStatusPil. */
+  const awalPil = idx.indexOf('function pkgStatusPil(it)');
+  const pil = idx.slice(awalPil, idx.indexOf('function ', awalPil + 20));
+  ok('pil dibungkus wadah berlebar tetap', pil.indexOf('w-[5.5rem] shrink-0 flex items-center') >= 0);
+  ok('lebarnya sama dengan yang disediakan barisan judul', idx.indexOf('<span class="w-[5.5rem] shrink-0"></span>') >= 0);
+
+  /* Tautan naik ke atas, sebelum blok Rancangan. */
+  const panel = idx.slice(idx.indexOf('RANCANGAN — TARGET'), 0) || idx;
+  const iIdentitas = idx.indexOf('Identitas paket');
+  const iTautan = idx.indexOf('(bisaRancang||(p.links||[]).length)?');
+  const iRancangan = idx.indexOf('class="rounded-lg border border-indigo-200');
+  ok('ketiga blok ketemu', iIdentitas > 0 && iTautan > 0 && iRancangan > 0);
+  ok('urutannya Identitas -> Tautan -> Rancangan', iIdentitas < iTautan && iTautan < iRancangan);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

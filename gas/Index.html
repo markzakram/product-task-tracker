@@ -866,7 +866,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.102.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.103.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -3818,7 +3818,11 @@ function pkgStatusPil(it){
     belum:['bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400','belum digarap'],
   };
   const [cls,lbl]=peta[s]||peta.belum;
-  return `<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-semibold shrink-0 ${cls}">${escapeHtml(lbl)}</span>`;
+  /* Wadah berlebar tetap — selebar kolom yang sudah disediakan barisan judulnya — dan di
+     dalamnya pil yang selebar tulisannya sendiri. Tanpa wadah ini, selisih lebar antara
+     "terpenuhi" dan "belum digarap" menggeser kolom-kolom di kirinya, dan tiap baris
+     berhenti di titik yang berbeda-beda. */
+  return `<span class="w-[5.5rem] shrink-0 flex items-center"><span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-semibold ${cls}">${escapeHtml(lbl)}</span></span>`;
 }
 /* Pilihan proses penyetor, dikelompokkan per task. Nilai "0" = dihitung saat TASK-nya
    Selesai — dipakai kalau setorannya memang hasil seluruh task, bukan satu proses. */
@@ -4209,6 +4213,19 @@ function renderPackagePanel(){
       </div>`:''}
       ${suplai?`<div class="flex items-center gap-1.5 flex-wrap text-[11px] text-gray-500 dark:text-slate-400"><span class="material-icons-round text-[13px]">account_tree</span>Disuplai ${(p.collabIds||[]).length} task:${suplai}</div>`:''}
 
+      ${bos?`<div class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div class="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Identitas paket <span class="font-normal normal-case tracking-normal text-gray-400">— nama yang dipakai judul & daftar paket</span></div>
+        <div class="p-3 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">${PKG_FIELDS.identitas.map(fd=>`<div>${field(fd,'marsel',bos)}</div>`).join('')}</div>
+      </div>`:''}
+
+      ${(bisaRancang||(p.links||[]).length)?`<div class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div class="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Tautan <span class="font-normal normal-case tracking-normal text-gray-400">— opsional, boleh lebih dari satu</span></div>
+        <div class="p-2">
+          <div class="pkgl-box space-y-1" id="pkgTautanBox">${((p.links||[]).length?p.links:(bisaRancang?[null]:[])).map(t=>pkgTautanBaris(t,bisaRancang)).join('')}</div>
+          ${bisaRancang?`<button type="button" onclick="pkgTambahTautan(this)" title="Tambah tautan lain" class="mt-1 text-[10px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5"><span class="material-icons-round text-[12px]">add</span>Tautan</button>`:''}
+        </div>
+      </div>`:''}
+
       <${lipat?'details':'div'} class="rounded-lg border border-indigo-200 dark:border-indigo-900/50 overflow-hidden" ${lipat?(state._pkgOpen?'open':''):''} ${lipat?'ontoggle="state._pkgOpen=this.open"':''}>
         <${lipat?'summary':'div'} class="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/25 flex items-center justify-between gap-2 flex-wrap ${lipat?'cursor-pointer select-none':''}">
           <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Rancangan — target &amp; setoran</span>
@@ -4231,13 +4248,6 @@ function renderPackagePanel(){
         </div>
       </${lipat?'details':'div'}>
 
-      ${(bisaRancang||(p.links||[]).length)?`<div class="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-        <div class="px-3 py-1.5 bg-gray-50 dark:bg-slate-800 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-slate-400">Tautan <span class="font-normal normal-case tracking-normal text-gray-400">— opsional, boleh lebih dari satu</span></div>
-        <div class="p-2">
-          <div class="pkgl-box space-y-1" id="pkgTautanBox">${((p.links||[]).length?p.links:(bisaRancang?[null]:[])).map(t=>pkgTautanBaris(t,bisaRancang)).join('')}</div>
-          ${bisaRancang?`<button type="button" onclick="pkgTambahTautan(this)" title="Tambah tautan lain" class="mt-1 text-[10px] font-semibold text-indigo-600 hover:underline flex items-center gap-0.5"><span class="material-icons-round text-[12px]">add</span>Tautan</button>`:''}
-        </div>
-      </div>`:''}
 
       ${(function(){
         /* Catatan per kategori sudah pindah ke dalam blok kategorinya. Yang tersisa di
@@ -4370,6 +4380,7 @@ function savePackagePanel(){
   const selesai=(res)=>{
     state.packages=res.packages||state.packages; state.collabs=res.collabs||state.collabs;
     showToast(res.message); renderPackagePanel();
+    segarkanJudulPaket();   // namanya bisa baru saja diubah dari dalam modal ini
     if(state.activeView==='collab') renderCollab();
     if(state.activeView==='paket') renderPaket();
   };
@@ -4638,13 +4649,19 @@ function renderPaket(){
     </div>`;
   }).join('');
 }
+function segarkanJudulPaket(id){
+  id = id || state._paketId;
+  const p = packageById(id);
+  const t=document.getElementById('paketModalTitle');
+  if(t) t.textContent=(p&&(p.namaPaket||p.program))||id;
+  const sub=document.getElementById('paketModalSub');
+  if(sub) sub.textContent=p?(p.id+(p.platform?' · '+p.platform:'')+' · disuplai '+((p.collabIds||[]).length)+' task kolaborasi'):id;
+}
 function openPaketModal(id){
   state._paketId=id;
   const m=document.getElementById('paketModal'); if(!m) return;
   const p=packageById(id);
-  const t=document.getElementById('paketModalTitle'); if(t) t.textContent=(p&&(p.namaPaket||p.program))||id;
-  const sub=document.getElementById('paketModalSub');
-  if(sub) sub.textContent=p?(p.id+(p.platform?' · '+p.platform:'')+' · disuplai '+((p.collabIds||[]).length)+' task kolaborasi'):id;
+  segarkanJudulPaket(id);
   const del=document.getElementById('paketDeleteBtn');
   if(del) del.classList.toggle('hide', !(isManager(state.currentUser)||isLeader(state.currentUser)));
   m.classList.remove('hide');
