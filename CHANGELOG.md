@@ -31,6 +31,37 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.106.0 — Laporan sendiri dikelompokkan per peran, bukan per PIC
+
+Lanjutan 1.105.0, dari dua pertanyaan Ali setelah memakainya.
+
+### "Kenapa saya masih melihat Alya dan Dhea?"
+
+Bukan kebocoran, tapi memang membingungkan. Cakupan laporan memakai aturan "milik saya"
+yang dipakai seluruh aplikasi: **PIC atau Support**. Jadi task ber-PIC Dhea yang Ali bantu
+sebagai Support memang masuk — itu pekerjaan Ali juga. Yang salah bukan datanya, melainkan
+cara mengelompokkannya: tabel **Per PIC** lalu menampilkan baris bernama "Dhea" di dalam
+laporan milik Ali sendiri.
+
+Pada laporan milik sendiri, yang berguna bukan *siapa PIC-nya* melainkan **mana yang saya
+pimpin dan mana yang saya bantu**. Tabelnya kini berjudul **Peran Saya** dengan dua baris:
+*Sebagai PIC* dan *Sebagai Support*. Tak ada lagi nama orang lain di sana.
+
+Laporan tim (Manager/Dev) tetap **Per PIC** dengan nama sungguhan, tak berubah sedikit pun.
+
+### "Mana yang saya sebagai PIC, mana sebagai Support?"
+
+Tiap baris di rincian sekarang membawa penanda **PIC** (indigo) atau **SUPPORT** (amber) —
+penanda yang sudah dipakai Kanban dan Task List, jadi bukan lambang baru untuk dihafal.
+
+Penanda itu **hanya** muncul di laporan milik sendiri. Di laporan tim ia justru menyesatkan:
+ia menandai peran si pembaca pada task orang lain, sementara PIC sudah punya kolomnya
+sendiri di sana.
+
+Ikut dirapikan: lingkaran avatar pada rincian sempat menampilkan huruf **"@"** — sisa dari
+kunci peran yang dipakai di baliknya. Sekarang ia menampilkan inisial pemilik laporannya.
+
+---
 ## 1.105.0 — Laporan untuk semua peran, berisi pekerjaannya sendiri
 
 Laporan dulu hanya ada untuk Manager. Sekarang setiap peran punya tabnya — tapi isinya

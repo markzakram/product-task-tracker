@@ -866,7 +866,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.105.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.106.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -5490,9 +5490,11 @@ function renderReport(){
   const collabDoneThisWeek=collabRows.filter(t=>t._doneAt&&inWin(t._doneAt)).length;
   const doneThisWeek=[...new Set(doneEvents.map(a=>a.taskId).filter(Boolean))].length+collabDoneThisWeek;
   const commentsThisWeek=(state.activity||[]).filter(a=>String(a.action||'').toLowerCase()==='comment'&&inWin(a.timestamp)&&inScope(a)).length;
-  const pics=[...new Set(tasks.map(t=>String(t.pic||'').trim()).filter(Boolean))].sort();
-  const picRows=pics.map(p=>{ const g=tasks.filter(t=>same(t.pic,p));
-    return {pic:p, aktif:g.filter(t=>!isDone(t)).length, selesai:g.filter(isDone).length, overdue:g.filter(isLate).length, baru:newThisWeek.filter(t=>same(t.pic,p)).length, kolab:g.filter(t=>t._collab).length}; });
+  const pics=repPakaiPeran()
+    ? REP_PERAN.map(p=>p[0]).filter(k=>tasks.some(t=>repCocokPeran(t,k)))
+    : [...new Set(tasks.map(t=>String(t.pic||'').trim()).filter(Boolean))].sort();
+  const picRows=pics.map(p=>{ const g=repPakaiPeran()?tasks.filter(t=>repCocokPeran(t,p)):tasks.filter(t=>same(t.pic,p));
+    return {pic:p, aktif:g.filter(t=>!isDone(t)).length, selesai:g.filter(isDone).length, overdue:g.filter(isLate).length, baru:(repPakaiPeran()?newThisWeek.filter(t=>repCocokPeran(t,p)):newThisWeek.filter(t=>same(t.pic,p))).length, kolab:g.filter(t=>t._collab).length}; });
   const stages=[...new Set(tasks.map(t=>String(t.stage||'').trim()).filter(Boolean))];
   const stageRows=stages.map(s=>({stage:s, jumlah:tasks.filter(t=>same(t.stage,s)&&!isDone(t)).length})).filter(r=>r.jumlah>0).sort((a,b)=>b.jumlah-a.jumlah);
   const summary={total:tasks.length, active:active.length, done:done.length, overdue:overdue.length, newThisWeek:newThisWeek.length, doneThisWeek, commentsThisWeek, collab:collabRows.length, collabDone:collabRows.filter(isDone).length};
@@ -5512,7 +5514,7 @@ function renderReport(){
     <span class="ml-auto text-xs text-gray-400 font-medium whitespace-nowrap">${tasks.length} dari ${repSourceTasks('all').length} baris (${collabRows.length} kolaborasi) • ${escapeHtml(rangeLabel(f))}</span>
   </div>`;
   const kpiHtml=kpis.map(k=>`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-3"><div class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">${k[0]}</div><div class="text-2xl font-bold mt-0.5 ${k[2]||'text-gray-900 dark:text-white'}">${k[1]}</div></div>`).join('');
-  const picTable=`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden"><div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2"><span class="font-semibold text-sm text-gray-900 dark:text-white">Per PIC</span><span class="text-[11px] text-gray-400 font-medium">Klik baris untuk lihat detail stage</span></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-[11px] uppercase tracking-wider text-gray-400"><th class="px-4 py-2">PIC</th><th class="px-4 py-2">Aktif</th><th class="px-4 py-2">Selesai</th><th class="px-4 py-2">Overdue</th><th class="px-4 py-2">Baru ${wl}</th><th class="px-4 py-2" title="Baris yang berasal dari task kolaborasi">Kolab</th></tr></thead><tbody>${picRows.length?picRows.map((r,i)=>{const on=same(state.repPic,r.pic); return `<tr onclick="selectReportPic(${i})" class="border-t border-gray-100 dark:border-slate-800 cursor-pointer ${on?'bg-indigo-50 dark:bg-indigo-900/30':'hover:bg-gray-50 dark:hover:bg-slate-800/60'}"><td class="px-4 py-2 font-medium text-gray-800 dark:text-slate-200 flex items-center gap-1.5"><span class="material-icons-round text-[16px] ${on?'text-indigo-600':'text-gray-300 dark:text-slate-600'}">${on?'expand_more':'chevron_right'}</span>${escapeHtml(r.pic)}</td><td class="px-4 py-2">${r.aktif}</td><td class="px-4 py-2 text-emerald-600">${r.selesai}</td><td class="px-4 py-2 ${r.overdue?'text-rose-600 font-semibold':''}">${r.overdue}</td><td class="px-4 py-2">${r.baru}</td><td class="px-4 py-2 ${r.kolab?'text-violet-600 font-semibold':'text-gray-400'}">${r.kolab}</td></tr>`;}).join(''):`<tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">Tidak ada data.</td></tr>`}</tbody></table></div></div>`;
+  const picTable=`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden"><div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2"><span class="font-semibold text-sm text-gray-900 dark:text-white">${repPakaiPeran()?'Peran Saya':'Per PIC'}</span><span class="text-[11px] text-gray-400 font-medium">Klik baris untuk lihat detail stage</span></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-[11px] uppercase tracking-wider text-gray-400"><th class="px-4 py-2">${repPakaiPeran()?'Peran':'PIC'}</th><th class="px-4 py-2">Aktif</th><th class="px-4 py-2">Selesai</th><th class="px-4 py-2">Overdue</th><th class="px-4 py-2">Baru ${wl}</th><th class="px-4 py-2" title="Baris yang berasal dari task kolaborasi">Kolab</th></tr></thead><tbody>${picRows.length?picRows.map((r,i)=>{const on=same(state.repPic,r.pic); return `<tr onclick="selectReportPic(${i})" class="border-t border-gray-100 dark:border-slate-800 cursor-pointer ${on?'bg-indigo-50 dark:bg-indigo-900/30':'hover:bg-gray-50 dark:hover:bg-slate-800/60'}"><td class="px-4 py-2 font-medium text-gray-800 dark:text-slate-200 flex items-center gap-1.5"><span class="material-icons-round text-[16px] ${on?'text-indigo-600':'text-gray-300 dark:text-slate-600'}">${on?'expand_more':'chevron_right'}</span>${escapeHtml(repPakaiPeran()?repLabelPeran(r.pic):r.pic)}</td><td class="px-4 py-2">${r.aktif}</td><td class="px-4 py-2 text-emerald-600">${r.selesai}</td><td class="px-4 py-2 ${r.overdue?'text-rose-600 font-semibold':''}">${r.overdue}</td><td class="px-4 py-2">${r.baru}</td><td class="px-4 py-2 ${r.kolab?'text-violet-600 font-semibold':'text-gray-400'}">${r.kolab}</td></tr>`;}).join(''):`<tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">Tidak ada data.</td></tr>`}</tbody></table></div></div>`;
   const stageTable=`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden"><div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2"><span class="font-semibold text-sm text-gray-900 dark:text-white">Per Stage (task aktif)</span><span class="text-[11px] text-gray-400 font-medium">Klik untuk filter stage</span></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-[11px] uppercase tracking-wider text-gray-400"><th class="px-4 py-2">Stage</th><th class="px-4 py-2">Jumlah aktif</th></tr></thead><tbody>${stageRows.length?stageRows.map((r,i)=>{const on=f.stage.some(v=>same(v,r.stage)); return `<tr onclick="toggleRepStageIdx(${i})" class="border-t border-gray-100 dark:border-slate-800 cursor-pointer ${on?'bg-indigo-50 dark:bg-indigo-900/30':'hover:bg-gray-50 dark:hover:bg-slate-800/60'}"><td class="px-4 py-2 font-medium text-gray-800 dark:text-slate-200">${escapeHtml(r.stage)}${on?' <span class="material-icons-round text-[14px] text-indigo-600 align-middle">check</span>':''}</td><td class="px-4 py-2">${r.jumlah}</td></tr>`;}).join(''):`<tr><td colspan="2" class="px-4 py-6 text-center text-gray-400">Tidak ada data.</td></tr>`}</tbody></table></div></div>`;
   const detail=state.repPic?repDetailHtml(state.repPic,tasks):'';
   box.innerHTML=`<div class="flex items-center justify-between gap-3 flex-wrap"><div><h2 class="text-lg font-semibold text-gray-900 dark:text-white">Laporan</h2><p class="text-sm text-gray-500">${escapeHtml(rangeLabel(f))} • ${escapeHtml(repSrcLabel(f.src))} • klik PIC untuk lihat stage yang dikerjakan.</p></div><div class="flex gap-2"><button onclick="exportReportCSV()" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold flex items-center gap-1.5"><span class="material-icons-round text-[18px]">download</span> Export CSV</button><button onclick="window.print()" class="px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold flex items-center gap-1.5"><span class="material-icons-round text-[18px]">print</span> Print/PDF</button></div></div>${filterBar}<div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">${kpiHtml}</div><div class="grid grid-cols-1 lg:grid-cols-2 gap-4">${picTable}${stageTable}</div>${detail}`;
@@ -5546,6 +5548,26 @@ function repStepCakupan(){
   if(repBolehSemua()) return semua;
   return semua.filter(r=>same(r._stepOwner, state.currentUser));
 }
+/* ---------- "Per PIC" vs "Peran Saya" ----------
+
+   Pada laporan milik sendiri, mengelompokkan per PIC justru memunculkan nama orang lain:
+   task yang PIC-nya Dhea dan saya bantu sebagai Support tetap masuk cakupan saya (memang
+   pekerjaan saya juga), lalu muncul sebagai baris "Dhea" di tabel. Benar secara data, tapi
+   membingungkan dibaca — seolah laporan saya bocor ke orang lain.
+
+   Yang benar-benar berguna bagi pemilik laporan bukan "siapa PIC-nya", melainkan "mana yang
+   saya pimpin, mana yang saya bantu". Jadi untuk mereka tabelnya dikelompokkan per PERAN.
+   Laporan tim (Manager/Dev) tetap per PIC seperti sebelumnya. */
+const REP_PERAN=[['@pic','Sebagai PIC'],['@support','Sebagai Support']];
+function repPakaiPeran(){ return !repBolehSemua(); }
+function repCocokPeran(t, kunci){
+  const me=state.currentUser;
+  return kunci==='@pic' ? isPicOf(t, me) : isSupportOnly(t, me);
+}
+function repLabelPeran(kunci){ const x=REP_PERAN.filter(p=>p[0]===kunci)[0]; return x?x[1]:kunci; }
+/* Penanda peran di baris detail. Hanya pada laporan milik sendiri — di laporan tim, PIC
+   sudah punya kolomnya sendiri, dan menandai peran PEMBACA pada task orang lain menyesatkan. */
+function repPeranChip(t){ return repPakaiPeran() ? roleChip(t) : ''; }
 function repSourceTasks(src){
   const v=src||state.repFilters.src||'all';
   return (v==='collab'?[]:repTaskCakupan()).concat(v==='task'?[]:repStepCakupan());
@@ -5597,8 +5619,14 @@ function toggleRepStageIdx(i){
 }
 function repStageName(t){ return String(t.stage||'').trim()||'Tanpa Stage'; }
 function repDetailHtml(picName,tasks){
-  const mine=tasks.filter(t=>same(t.pic,picName));
-  const pal=AV_PALETTE[avHash(picName)];
+  // Kunci peran (@pic / @support) tak pernah bisa jadi nama orang, jadi aman dibedakan begini.
+  const mine=String(picName).charAt(0)==='@'
+    ? tasks.filter(t=>repCocokPeran(t,picName))
+    : tasks.filter(t=>same(t.pic,picName));
+  /* Kunci peran (@pic/@support) bukan nama orang, jadi avatarnya memakai identitas pemilik
+     laporan itu sendiri — bukan huruf "@" yang tak berarti apa-apa. */
+  const namaAvatar=String(picName).charAt(0)==='@' ? state.currentUser : picName;
+  const pal=AV_PALETTE[avHash(namaAvatar)];
   const names=[]; mine.forEach(t=>{const s=repStageName(t); if(!names.includes(s)) names.push(s);});
   const rows=names.map(s=>{const g=mine.filter(t=>repStageName(t)===s);
     return {stage:s,total:g.length,aktif:g.filter(t=>!isDone(t)).length,selesai:g.filter(isDone).length,overdue:g.filter(isLate).length,tasks:g};
@@ -5620,15 +5648,16 @@ function repDetailHtml(picName,tasks){
           <span class="text-[11px] font-mono text-gray-400 shrink-0">${escapeHtml(t.id)}</span>
           ${t._collab?`<span title="Task kolaborasi" class="inline-flex items-center gap-0.5 h-[18px] px-1 rounded text-[9px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 shrink-0"><span class="material-icons-round text-[11px]">account_tree</span>KOLAB</span>`:''}
           <span class="text-[13px] text-gray-700 dark:text-slate-300 truncate flex-1">${escapeHtml(t.taskName||'-')}${t._collab?` <span class="text-gray-400">· proses ${t.stepOrder}: ${escapeHtml(t._myStepName||'—')}</span>`:''}</span>
+          ${repPeranChip(t)}
           ${statusChip(t.status)}
           <span class="text-[11px] shrink-0 ${isLate(t)?'text-rose-600 font-semibold':'text-gray-400'}">${t.dueDate?escapeHtml(t.dueDate):'—'}${isLate(t)?' • telat':''}</span>
         </div>`).join('')}</div>
     </div>`).join(''):'<div class="px-4 py-8 text-center text-gray-400 text-sm">Tidak ada task pada filter ini.</div>';
   return `<div id="repDetail" class="bg-white dark:bg-slate-900 rounded-xl border-2 border-indigo-300 dark:border-indigo-800 overflow-hidden">
     <div class="px-4 py-3 flex items-center gap-3 flex-wrap bg-indigo-50/70 dark:bg-indigo-900/20">
-      <div class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style="background:${pal[0]};color:${pal[1]}">${escapeHtml(String(picName).trim().charAt(0).toUpperCase())}</div>
+      <div class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0" style="background:${pal[0]};color:${pal[1]}">${escapeHtml(initials(namaAvatar))}</div>
       <div class="min-w-0">
-        <div class="font-semibold text-gray-900 dark:text-white truncate">${escapeHtml(picName)}</div>
+        <div class="font-semibold text-gray-900 dark:text-white truncate">${escapeHtml(String(picName).charAt(0)==='@'?repLabelPeran(picName):picName)}</div>
         <div class="text-[11px] text-gray-500 dark:text-slate-400">${mine.length} baris${mine.filter(t=>t._collab).length?` (${mine.filter(t=>t._collab).length} kolaborasi)`:''} • ${rows.length} stage • ${escapeHtml(rangeLabel(state.repFilters))}</div>
       </div>
       <button onclick="closeRepDetail()" class="ml-auto h-8 px-3 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-1"><span class="material-icons-round text-[16px]">close</span>Tutup</button>
@@ -5650,7 +5679,7 @@ function exportReportCSV(){
   // task kolaborasinya; angkanya tak bisa langsung dibandingkan dengan jumlah task.
   rows.push(['Dari task kolaborasi', S.collab||0]); rows.push(['— sudah selesai', S.collabDone||0]);
   rows.push([]);
-  rows.push(['Per PIC','Aktif','Selesai','Overdue','Baru '+wl,'Kolaborasi']);
+  rows.push([repPakaiPeran()?'Peran Saya':'Per PIC','Aktif','Selesai','Overdue','Baru '+wl,'Kolaborasi']);
   d.picRows.forEach(r=>rows.push([r.pic, r.aktif, r.selesai, r.overdue, r.baru, r.kolab||0]));
   rows.push([]);
   rows.push(['Per Stage (aktif)','Jumlah']);

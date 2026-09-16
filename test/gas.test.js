@@ -2825,4 +2825,40 @@ console.log('=== 16n. Laporan per pengguna ===');
     && idx.indexOf('Rekap pekerjaan Anda sendiri') >= 0);
 }
 
+console.log('=== 16o. Laporan sendiri: dikelompokkan per peran ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Pada laporan milik sendiri, mengelompokkan per PIC justru memunculkan nama orang lain:
+     task ber-PIC Dhea yang saya bantu sebagai Support tetap masuk cakupan saya (memang
+     pekerjaan saya juga) lalu muncul sebagai baris "Dhea". Benar secara data, membingungkan
+     dibaca. Yang berguna: mana yang saya pimpin, mana yang saya bantu. */
+  ok('ada dua kelompok peran', idx.indexOf("const REP_PERAN=[['@pic','Sebagai PIC'],['@support','Sebagai Support']]") >= 0);
+  ok('dipakai hanya pada laporan sendiri', idx.indexOf('function repPakaiPeran(){ return !repBolehSemua(); }') >= 0);
+  const cocok = idx.slice(idx.indexOf('function repCocokPeran(t, kunci)'), idx.indexOf('function repLabelPeran'));
+  ok('PIC dan Support dibedakan', cocok.indexOf('isPicOf(t, me)') >= 0 && cocok.indexOf('isSupportOnly(t, me)') >= 0);
+  /* Laporan tim tetap per PIC dengan nama sungguhan. */
+  ok('judul tabel mengikuti jenis laporannya', idx.indexOf("repPakaiPeran()?'Peran Saya':'Per PIC'") >= 0);
+  ok('judul kolomnya juga', idx.indexOf("repPakaiPeran()?'Peran':'PIC'") >= 0);
+  ok('ekspor CSV ikut', idx.indexOf("repPakaiPeran()?'Peran Saya':'Per PIC'") >= 0);
+
+  /* Kunci peran tak pernah bisa jadi nama orang, jadi drill-down aman membedakannya. */
+  /* repStageName justru terletak SEBELUM repDetailHtml, jadi ia tak bisa jadi batas akhir.
+     Batasnya fungsi berikutnya sesudah repDetailHtml. */
+  const awalDet = idx.indexOf('function repDetailHtml(picName,tasks)');
+  const det = idx.slice(awalDet, idx.indexOf('function ', awalDet + 30));
+  ok('drill-down mengerti kunci peran', det.indexOf("String(picName).charAt(0)==='@'") >= 0);
+  ok('judulnya dibaca manusia, bukan kunci mentah', det.indexOf('repLabelPeran(picName)') >= 0);
+  /* Avatar tak boleh menampilkan huruf "@" yang tak berarti apa-apa. */
+  ok('avatar memakai identitas pemilik laporan', det.indexOf('const namaAvatar=') >= 0
+    && det.indexOf('initials(namaAvatar)') >= 0);
+
+  /* Penanda peran di tiap baris detail — pertanyaan kedua yang memicu perubahan ini. */
+  ok('tiap baris detail diberi penanda peran', idx.indexOf('${repPeranChip(t)}') >= 0);
+  /* Di laporan TIM penanda itu justru menyesatkan: ia menandai peran PEMBACA pada task
+     orang lain, sementara PIC sudah punya kolomnya sendiri. */
+  ok('penanda itu hanya untuk laporan sendiri',
+    idx.indexOf("function repPeranChip(t){ return repPakaiPeran() ? roleChip(t) : ''; }") >= 0);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);
