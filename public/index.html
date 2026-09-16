@@ -180,6 +180,9 @@
           <button onclick="switchView('extdash')" id="nav-extdash" class="nav-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left font-medium text-sm text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800">
             <span class="material-icons-round text-[20px]">dashboard_customize</span> Dashboard Lain
           </button>
+          <button onclick="switchView('report')" id="nav-report" class="nav-item hide w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left font-medium text-sm text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800">
+            <span class="material-icons-round text-[20px]">summarize</span> Laporan
+          </button>
         </div>
 
         <div id="navgrp-task" class="nav-group space-y-1 mt-4 first:mt-0">
@@ -224,9 +227,6 @@
 
         <div id="navgrp-manajer" class="nav-group space-y-1 mt-4 first:mt-0">
           <div class="nav-group-title px-3 pb-1 text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest select-none">Manajer</div>
-          <button onclick="switchView('report')" id="nav-report" class="nav-item hide w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left font-medium text-sm text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800">
-            <span class="material-icons-round text-[20px]">summarize</span> Laporan
-          </button>
           <button onclick="switchView('activity')" id="nav-activity" class="nav-item hide w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left font-medium text-sm text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800">
             <span class="material-icons-round text-[20px]">history_edu</span> Riwayat Aktivitas
           </button>
@@ -866,7 +866,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.104.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.105.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1417,7 +1417,9 @@ function applyRoleUI(){
   if(fLbl) fLbl.textContent = isDevReal() ? 'Lihat sebagai' : 'Fokus PIC';
   document.getElementById('nav-activity').classList.toggle('hide',!mgr || vo);
   const navSettings=document.getElementById('nav-settings'); if(navSettings) navSettings.classList.toggle('hide',!mgr || vo);
-  const navReport=document.getElementById('nav-report'); if(navReport) navReport.classList.toggle('hide',!mgr || vo); // Laporan: manager/dev
+  /* Laporan terbuka untuk semua peran; yang membatasi bukan tabnya melainkan isinya
+     (lihat repTaskCakupan). Tamu tetap dikecualikan — ia tak punya identitas untuk dilaporkan. */
+  const navReport=document.getElementById('nav-report'); if(navReport) navReport.classList.toggle('hide', vo);
   // Mode lihat-saja: sembunyikan tab pribadi & manajemen. Komunikasi TETAP tampil (bisa kirim chat).
   /* nav-collab TIDAK lagi disembunyikan dari Lintas Divisi: mereka boleh melihat task
      kolaborasi yang sengaja dibagikan. Isinya disaring di filteredCollabs(), dan seluruh
@@ -1915,6 +1917,11 @@ function switchView(view){
   };
   document.getElementById('pageTitle').textContent=meta[view][0];
   document.getElementById('pageSubtitle').textContent=meta[view][1];
+  /* Laporan menampilkan hal berbeda untuk peran berbeda, jadi keterangannya harus ikut
+     berbeda — kalau tidak, Staff mengira angkanya angka tim. */
+  if(view==='report' && !repBolehSemua()){
+    document.getElementById('pageSubtitle').textContent='Rekap pekerjaan Anda sendiri — task biasa + proses task kolaborasi. Filter rentang, sumber, & stage.';
+  }
   document.querySelector('#pageIcon .material-icons-round').textContent=meta[view][2];
   renderAll();
   refreshData();   // ambil data terbaru dari Spreadsheet saat pindah tab (throttle 5s)
@@ -5518,9 +5525,30 @@ function repDateOf(t){ return state.repFilters.field==='due' ? t.dueDate : (t.cr
    Tombol Sumber memakai fungsi ini juga, supaya angka & daftar opsi selalu sepadan. */
 const REP_SRC=[['all','Task + Kolaborasi'],['task','Task biasa saja'],['collab','Kolaborasi saja']];
 function repSrcLabel(v){ const h=REP_SRC.find(x=>x[0]===(v||'all')); return h?h[1]:REP_SRC[0][1]; }
+/* ---------- Cakupan Laporan ----------
+
+   Laporan dulu hanya untuk Manager, jadi sumbernya state.tasks apa adanya — seluruh task
+   semua orang. Sekarang tabnya terbuka untuk semua peran, dan angka itu tak boleh ikut
+   terbuka: yang tak berhak melihat pekerjaan orang lain hanya melihat miliknya sendiri.
+
+   Yang boleh melihat semua (Manager, Leader, Dev) tetap mendapat laporan tim persis seperti
+   sebelumnya — termasuk tetap mengabaikan Fokus PIC, karena Laporan sudah punya saringan
+   PIC-nya sendiri dan menumpuk dua mekanisme hanya membingungkan. */
+function repBolehSemua(){ return canSeeAllTasks(state.currentUser); }
+function repTaskCakupan(){
+  if(repBolehSemua()) return [...state.tasks];
+  return state.tasks.filter(t=>ownsTask(t, state.currentUser));
+}
+/* Satu baris per PROSES (bukan per kartu seperti collabScopedTasks), karena Laporan memang
+   menghitung proses beruntun satu per satu. */
+function repStepCakupan(){
+  const semua=allCollabStepRows();
+  if(repBolehSemua()) return semua;
+  return semua.filter(r=>same(r._stepOwner, state.currentUser));
+}
 function repSourceTasks(src){
   const v=src||state.repFilters.src||'all';
-  return (v==='collab'?[]:[...state.tasks]).concat(v==='task'?[]:allCollabStepRows());
+  return (v==='collab'?[]:repTaskCakupan()).concat(v==='task'?[]:repStepCakupan());
 }
 function repSrcToggle(f,fn){
   const b=(v,l)=>`<button onclick="${fn}('${v}')" class="px-3 text-[13px] font-medium ${(f.src||'all')===v?'bg-violet-600 text-white':'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'}">${l}</button>`;

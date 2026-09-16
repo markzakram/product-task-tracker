@@ -1447,7 +1447,8 @@ ok('hanya Kanban & List yang menyisipkan collab', commHtml.indexOf("function vie
 ok('ekspor collab hormati filter cepat', commHtml.indexOf("if(state.quickFilter==='mine' && !stepBelongsTo(st, state.currentUser)) return;") >= 0);
 ok('ekspor collab hormati fokus deadline', commHtml.indexOf("if(state.deadlineFocus && !(telat || (!st.done && sisa===0))) return;") >= 0);
 // Laporan manager ikut menghitung kerja kolaborasi, bukan cuma task biasa.
-ok('sumber baris Laporan = task + proses kolaborasi', commHtml.indexOf("return (v==='collab'?[]:[...state.tasks]).concat(v==='task'?[]:allCollabStepRows());") >= 0);
+ok('sumber baris Laporan = task + proses kolaborasi',
+  commHtml.indexOf("return (v==='collab'?[]:repTaskCakupan()).concat(v==='task'?[]:repStepCakupan());") >= 0);
 // Satuan baris Laporan adalah PROSES, bukan kolaborasi. collabPseudo (dipakai Kanban &
 // Task List) melebur semua proses seseorang jadi satu baris; peleburan itu membuang
 // stage & deadline proses lain, jadi Laporan tak boleh memakainya.
@@ -2786,6 +2787,42 @@ console.log('=== 16m. Isi ke bawah & ubah nama paket ===');
   /* Nama yang sama persis tak perlu perjalanan ke server. */
   ok('tanpa perubahan tak menyimpan', ub.indexOf('if(bersih===lama.trim()) return;') >= 0);
   ok('judul ikut segar bila paketnya sedang terbuka', ub.indexOf('if(state._paketId===id) segarkanJudulPaket(id);') >= 0);
+}
+
+console.log('=== 16n. Laporan per pengguna ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Laporan dulu hanya untuk Manager, jadi sumbernya state.tasks apa adanya. Begitu tabnya
+     dibuka untuk semua peran, angka itu tak boleh ikut terbuka — tab yang terlihat tapi
+     berisi pekerjaan orang lain adalah kebocoran, bukan fitur. */
+  ok('ada pembatas cakupan', idx.indexOf('function repTaskCakupan()') >= 0
+    && idx.indexOf('function repStepCakupan()') >= 0);
+  const tc = idx.slice(idx.indexOf('function repTaskCakupan()'), idx.indexOf('function repSourceTasks(src)'));
+  ok('yang tak boleh lihat semua disaring ke miliknya', tc.indexOf('ownsTask(t, state.currentUser)') >= 0);
+  ok('proses kolaborasi ikut disaring', tc.indexOf('same(r._stepOwner, state.currentUser)') >= 0);
+  /* Manager/Leader/Dev tetap mendapat laporan tim persis seperti sebelumnya. */
+  ok('yang boleh lihat semua tak berubah', tc.indexOf('if(repBolehSemua()) return [...state.tasks];') >= 0
+    && tc.indexOf('if(repBolehSemua()) return semua;') >= 0);
+  ok('penjaganya memakai aturan yang sudah ada',
+    idx.indexOf('function repBolehSemua(){ return canSeeAllTasks(state.currentUser); }') >= 0);
+
+  /* Tamu dikecualikan: ia tak punya identitas untuk dilaporkan. */
+  ok('nav Laporan hanya ditutup untuk tamu',
+    idx.indexOf("navReport.classList.toggle('hide', vo);") >= 0);
+  /* Grup yang seluruh isinya tersembunyi ikut hilang (syncNavGroups). Selama Laporan
+     manager-only ia aman di grup MANAJER; begitu Staff melihatnya, judul "MANAJER" akan
+     muncul di sidebar mereka. Karena itu tombolnya pindah ke grup Ringkasan. */
+  const ring = idx.slice(idx.indexOf('id="navgrp-ringkasan"'), idx.indexOf('id="navgrp-task"'));
+  ok('tombol Laporan ada di grup Ringkasan', ring.indexOf('id="nav-report"') >= 0);
+  const mgr = idx.slice(idx.indexOf('id="navgrp-manajer"'), idx.indexOf('id="navgrp-manajer"') + 1200);
+  ok('dan tak lagi di grup Manajer', mgr.indexOf('id="nav-report"') < 0);
+
+  /* Isinya berbeda per peran, jadi keterangannya harus ikut berbeda — kalau tidak, Staff
+     mengira angka yang dilihatnya angka tim. */
+  ok('keterangan halaman menyesuaikan peran',
+    idx.indexOf("if(view==='report' && !repBolehSemua())") >= 0
+    && idx.indexOf('Rekap pekerjaan Anda sendiri') >= 0);
 }
 
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

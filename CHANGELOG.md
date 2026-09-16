@@ -31,6 +31,43 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.105.0 — Laporan untuk semua peran, berisi pekerjaannya sendiri
+
+Laporan dulu hanya ada untuk Manager. Sekarang setiap peran punya tabnya — tapi isinya
+dipersempit ke pekerjaan orang itu sendiri.
+
+| Peran | Yang dilihat |
+| --- | --- |
+| Manager · Dev | Laporan tim, **persis seperti sebelumnya** |
+| Leader · Staff · Magang | Rekap pekerjaannya sendiri — task biasa + proses kolaborasi |
+| Lihat Saja | Tidak ada — tak punya identitas untuk dilaporkan |
+
+### Yang paling penting: tabnya dibuka, datanya tidak
+
+Sumber Laporan selama ini `state.tasks` apa adanya — seluruh task semua orang. Itu aman
+selama hanya Manager yang bisa membukanya, tapi membuka tabnya begitu saja akan mengubah
+laporan jadi kebocoran. Karena itu sumbernya lewat pembatas cakupan dulu, memakai aturan
+"milik saya" yang sudah dipakai seluruh aplikasi: PIC **atau** Support pada task biasa, dan
+pemilik proses pada kolaborasi.
+
+Diuji dengan menghitung, bukan melihat: untuk Ali, Uma, dan Alya, **nol** baris yang bukan
+miliknya. Untuk Nynda sebagai Manager, seluruh 475 task tetap utuh.
+
+Satu baris di laporan Ali menyebut nama Dhea, dan itu benar: TSK-407 ber-PIC Dhea dengan Ali
+sebagai Support. Task itu memang pekerjaan Ali juga, dan laporannya wajar menunjukkan siapa
+yang memimpinnya.
+
+### Dua penyesuaian kecil yang menyertainya
+
+**Tombolnya pindah ke grup Ringkasan.** Grup yang seluruh isinya tersembunyi ikut hilang
+dari sidebar, jadi selama Laporan manager-only ia aman berada di grup MANAJER. Begitu Staff
+ikut melihatnya, judul "MANAJER" akan muncul di sidebar mereka — dan itu salah. Laporan
+memang sebuah ringkasan, jadi tempatnya memang di sana.
+
+**Keterangan halamannya menyesuaikan peran.** Untuk yang bukan Manager berbunyi *"Rekap
+pekerjaan Anda sendiri"* — kalau tidak, orang mudah mengira angka yang dilihatnya angka tim.
+
+---
 ## 1.104.0 — Isi ke bawah, dan tombol ubah nama paket di daftar
 
 ### Isi ke bawah
