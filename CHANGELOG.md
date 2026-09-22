@@ -64,19 +64,24 @@ kontrol di tujuh tab dihitung tingginya, lalu diurutkan dari yang paling sering 
 | Saringan, toolbar, pengalih Grid/Kanban | 27–35px | 44px |
 | Baris dropdown multi-pilih | 32px | 44px |
 | Ruas isian di modal task | 36–40px | 44px |
-| Ikon di dalam kartu | 15–24px | 36px |
+| Ikon di dalam kartu | 15–24px | 44px |
 | Kotak pilih paket | 16px | 24px |
 
 Hasilnya: dari tujuh tab yang diperiksa, tak ada lagi kontrol di bawah 32px kecuali 41
 kotak pilih paket yang memang sengaja berhenti di 24px.
 
-**Kenapa ikon di dalam kartu berhenti di 36px, bukan 44px.** Ada enam: mirror ke Lintas
-Divisi (di kartu task, kolaborasi, dan paket), duplikat task, ubah nama paket, dan tandai
-selesai. Semuanya duduk di dalam kartu yang kartunya sendiri bisa ditekan, dan semuanya
-memanggil `stopPropagation`. Zona 44px di dalam kartu tidak menghilangkan salah tekan —
-ia **menukar arahnya**: dari "meleset dari tombol kecil, kartunya yang terbuka" (tak
-apa-apa) jadi "tak sengaja menerbitkan task ke Lintas Divisi" (tak terlihat sampai ada
-yang menyadarinya). 36px sudah 2,25x luas semula tanpa menukar risiko itu.
+**Catatan soal ikon di dalam kartu.** Ada enam: duplikat task, mirror ke Lintas Divisi (di
+kartu task, kolaborasi, dan paket), ubah nama paket, dan tandai selesai. Semuanya duduk di
+dalam kartu yang kartunya sendiri bisa ditekan, dan semuanya memanggil `stopPropagation`.
+Zona 44px di sini tidak menghilangkan salah tekan — ia **menukar arahnya**: dulu orang
+meleset dari tombol kecil lalu kartunya yang terbuka (tak apa-apa), sekarang tekanan di
+dekat ikon mengenai ikonnya. Untuk mirror, akibatnya tak terlihat sampai ada yang menyadari
+task itu muncul di Lintas Divisi.
+
+Zonanya sudah diperiksa tidak saling berebut: dari 171 titik yang diuji di Kanban, Rancangan
+Paket, dan Task Kolaborasi, tak satu pun zona 44px direbut elemen lain. Kalau nanti ternyata
+ada laporan salah tekan, yang dibutuhkan konfirmasi pada toggle mirror-nya — bukan tombol
+yang dikecilkan lagi.
 
 **Yang sengaja dibiarkan.** Kisi rancangan di modal Rancangan Paket punya 92 kotak isian
 dan 22 dropdown, rapat seperti spreadsheet. Menaikkannya ke 44px membuat kisi itu dua kali

@@ -3093,11 +3093,12 @@ console.log('=== 16t. Tampilan ponsel, tahap 3 ===');
   /* Kotak centangnya sendiri 16px, tapi yang ditekan seluruh barisnya. */
   ok('baris dropdown multi-pilih 44px', idx.indexOf('.ms label{min-height:44px}') >= 0);
 
-  /* Ikon DI DALAM kartu sengaja berhenti di 36px. Kartunya sendiri bisa ditekan dan tiap
-     ikon ini memanggil stopPropagation, jadi zona 44px di dalam kartu justru menukar
-     "meleset dari tombol kecil" (kartunya yang terbuka — tak apa-apa) dengan "tak sengaja
-     menerbitkan task ke Lintas Divisi" (tak terlihat sampai ada yang menyadarinya). */
-  ok('ikon di kartu 36px, bukan 44px', idx.indexOf('.tt-tap-kartu{min-height:36px;min-width:36px}') >= 0);
+  /* Ikon di dalam kartu ikut 44px seperti kontrol lain. Yang perlu diingat kalau nanti ada
+     laporan salah tekan: kartunya sendiri bisa ditekan dan tiap ikon memanggil
+     stopPropagation, jadi zona 44px di sini tidak menghilangkan salah tekan — ia menukar
+     arahnya. Kalau itu jadi masalah, yang dibutuhkan konfirmasi pada toggle mirror-nya,
+     bukan tombol yang dikecilkan lagi. */
+  ok('ikon di kartu 44px', idx.indexOf('.tt-tap-kartu{min-height:44px;min-width:44px}') >= 0);
   /* Enam tombol ikon di dalam kartu: duplikat, mirror task, mirror kolaborasi, mirror
      paket, ubah nama paket, tandai selesai. Kalau satu terlewat ia tetap 15-24px. */
   ok('enam ikon kartu memakainya', (idx.match(/tt-tap-kartu /g) || []).length >= 6);

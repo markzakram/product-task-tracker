@@ -119,7 +119,7 @@
        Yang dinaikkan ke 44px hanya kontrol chrome & saringan: di sana ruangnya lega,
        kontrolnya berdiri sendiri, dan tak ada yang bisa salah tekan.
 
-       Ikon DI DALAM kartu sengaja berhenti di 36px — alasannya di .tt-tap-kartu.
+       Ikon DI DALAM kartu ikut 44px — catatan risikonya di .tt-tap-kartu.
 
        767.98px, bukan 767px: lebar pecahan (mis. 767,5px pada layar ber-DPI ganjil)
        akan jatuh di celah antara aturan ini dan md: milik Tailwind. */
@@ -140,13 +140,17 @@
          dua kali lebih panjang demi pekerjaan yang memang dilakukan di depan komputer. */
       #taskModal input,#taskModal select,#taskModal button{min-height:44px}
 
-      /* Ikon di dalam kartu: mirror ke Lintas Divisi, ubah nama paket, tandai selesai.
-         Sengaja 36px dan BUKAN 44px. Kartunya sendiri bisa ditekan dan tiap ikon ini
-         memanggil stopPropagation, jadi zona 44px di dalam kartu justru mengubah
-         "meleset dari tombol kecil" (tak apa-apa, kartunya yang terbuka) menjadi "tak
-         sengaja menerbitkan task ke Lintas Divisi" (tak terlihat sampai ada yang
-         menyadarinya). 36px sudah 2,25x luas semula tanpa menukar risiko itu. */
-      .tt-tap-kartu{min-height:36px;min-width:36px}
+      /* Ikon di dalam kartu: duplikat task, mirror ke Lintas Divisi (task/kolaborasi/paket),
+         ubah nama paket, tandai selesai. Ukurannya sama dengan yang lain, 44px.
+
+         Yang perlu diingat kalau nanti ada laporan salah tekan: kartunya sendiri bisa
+         ditekan dan tiap ikon ini memanggil stopPropagation, jadi zona 44px di sini tidak
+         menghilangkan salah tekan — ia menukar arahnya. Dulu orang meleset dari tombol
+         kecil lalu kartunya yang terbuka (tak apa-apa); sekarang tekanan di dekat ikon
+         mengenai ikonnya. Untuk mirror, akibatnya tak terlihat sampai ada yang menyadari
+         task itu muncul di Lintas Divisi — kalau itu jadi masalah, yang dibutuhkan
+         konfirmasi pada toggle-nya, bukan tombol yang dikecilkan lagi. */
+      .tt-tap-kartu{min-height:44px;min-width:44px}
     }
   </style>
 </head>
