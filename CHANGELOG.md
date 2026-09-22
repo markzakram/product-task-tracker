@@ -31,6 +31,77 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.109.0 — Tampilan ponsel, tahap 2: bisa dipasang ke layar utama
+
+Tahap 1 membuat isinya terbaca di ponsel. Tahap 2 membuatnya terasa seperti aplikasi:
+ikon sendiri di layar utama, tanpa bilah alamat, dan navigasi di tempat jempol berada.
+
+### Navigasi bawah menggantikan laci
+
+Sebelumnya tiap perpindahan tab butuh tiga ketukan: buka laci di pojok kiri **atas**
+(sudut yang paling jauh dari jempol), cari tab-nya, tutup lagi. Sekarang empat tab teratas
+ada di bilah bawah, dan sisanya tetap di laci lewat tombol **Lainnya**.
+
+Tab mana yang dapat tempat tidak ditulis di daftar terpisah — **diambil dari tombol sidebar
+yang sudah ada**. Kalau sebuah tab disembunyikan untuk suatu peran, ia otomatis tak muncul
+di bilah bawah, dan tab yang tadinya di urutan kelima naik menggantikannya. Satu sumber
+kebenaran, bukan dua daftar yang harus dijaga sinkron: menambah tab baru nanti tak akan
+diam-diam membocorkannya ke peran yang tak berhak.
+
+Hasilnya berbeda per peran, dan memang seharusnya begitu:
+
+| Peran | Isi bilah |
+| --- | --- |
+| Manager / Member | Hari Ini · Dashboard · Task · Kolab · Lainnya |
+| Mode lihat-saja | Dashboard · Task · Kanban · Paket · Lainnya |
+
+Dua hal kecil yang menentukan bilah ini kepakai atau tidak:
+
+**Penanda angka tidak hilang saat tab-nya tak muat.** Giliran kolaborasi dan pesan belum
+dibaca punya angka merah. Kalau tab-nya kebetulan ada di laci, angkanya berubah jadi titik
+merah di "Lainnya" — jadi tak ada giliran yang menunggu tanpa terlihat.
+
+**"Lainnya" ikut menyala** saat tab yang sedang dibuka ada di dalam laci. Tanpa itu, membuka
+Dropdown Master membuat seluruh bilah tampak mati dan tak jelas kita sedang di mana.
+
+### Bisa dipasang ke layar utama
+
+Ditambahkan manifest, ikon 512px, ikon **maskable** (tanpa ini peluncur Android menaruh logo
+di kotak putih kecil di tengah ikon — tampak seperti aplikasi yang ikonnya gagal dimuat),
+dan service worker.
+
+Service worker-nya ada untuk **satu** alasan: Chrome hanya menawarkan "Pasang aplikasi" kalau
+situsnya punya service worker dengan penangan fetch. Tanpa itu, "Tambahkan ke layar utama"
+cuma membuat pintasan yang tetap membuka browser lengkap dengan bilah alamatnya.
+
+Yang **sengaja tidak** dilakukannya: menyimpan halaman ke cache. `index.html` adalah satu
+berkas yang di-deploy ulang hampir tiap hari; kalau ia disajikan dari cache, orang bisa
+memakai versi lama berhari-hari tanpa sadar — memanggil aksi yang sudah tak ada di backend,
+atau tak melihat kolom yang baru ditambahkan. Itu kelas bug yang jauh lebih mahal daripada
+memuat ulang 500 KB. Jadi dokumen **selalu** dari jaringan, dan `/api/` tak disentuh sama
+sekali.
+
+Saat benar-benar tak ada koneksi, yang tampil halaman "Tidak ada koneksi" — bukan salinan
+lama aplikasi yang akan gagal di panggilan pertamanya. Halaman itu ditulis langsung di dalam
+`sw.js`, bukan jadi berkas tersendiri: `cleanUrls` mengalihkan `/luring.html` ke `/luring`
+dengan 308, dan `cache.put()` menolak respons hasil pengalihan — pemasangannya akan gagal
+diam-diam.
+
+Warna bilah status ikut mode gelap. Orientasi sengaja **tidak** dikunci: Timeline dan Calendar
+justru lebih terbaca sambil ponselnya dimiringkan.
+
+> **Catatan untuk iOS:** aplikasi yang dipasang ke layar utama punya penyimpanan terpisah dari
+> Safari, jadi PIN dan pilihan identitas perlu dimasukkan sekali lagi di dalamnya. Di Android
+> penyimpanannya sama, jadi tak perlu.
+
+### Sisa ungu yang terlewat di 1.107.0
+
+Tab yang sedang aktif di mode gelap masih berlatar ungu lama. Pemeriksaan otomatis di 1.107.0
+mencari nilai heksadesimal, sedangkan yang satu ini ditulis `rgba(67,56,202,.25)` — bentuk
+yang tak pernah dilihatnya. Warnanya kini ikut palet, dan pemeriksaannya diperluas: triplet
+RGB-nya ikut diperiksa, bukan cuma hex-nya.
+
+---
 ## 1.108.0 — Tampilan ponsel, tahap 1
 
 Aplikasi ini selama ini adalah tampilan desktop yang dipaksakan ke layar 375 piksel. Tiga

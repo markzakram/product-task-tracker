@@ -2885,6 +2885,23 @@ console.log('=== 16p. Logo & palet warna ===');
     ok('tak ada sisa ' + h, idx.toLowerCase().indexOf(h) < 0);
   });
 
+  /* Bentuk rgba() lolos dari pemeriksaan hex di atas — persis yang terjadi pada
+     .dark .nav-active, yang tetap ungu sampai 1.109.0 padahal 1.107.0 mengaku sudah
+     menyapu seluruh palet. Jadi tripletnya ikut diperiksa. */
+  const UNGU_LAMA = [[79,70,229],[99,102,241],[67,56,202],[238,242,255],[224,231,255]];
+  const triplet = (idx.match(/rgba?\([^)]*\)/g) || [])
+    .map(s => (s.match(/\d+/g) || []).slice(0, 3).map(Number));
+  UNGU_LAMA.forEach(u => {
+    ok('tak ada rgb(' + u.join(',') + ')',
+      !triplet.some(t => t[0] === u[0] && t[1] === u[1] && t[2] === u[2]));
+  });
+
+  /* Tombol nav membawa kelas Tailwind text-gray-600 / dark:text-slate-300, yang
+     kekhususannya sama dan disuntik BELAKANGAN oleh CDN. Tanpa .nav-item ikut disebut,
+     deklarasi color di .nav-active jadi kode mati dan tab aktif cuma dibedakan latarnya. */
+  ok('warna teks tab aktif tidak kalah dari Tailwind',
+    idx.indexOf('.nav-item.nav-active{') >= 0 && idx.indexOf('.dark .nav-item.nav-active{') >= 0);
+
   /* Logo disematkan sebagai data URI, bukan path berkas: berkas ini juga disajikan Apps
      Script sebagai HTML tunggal tanpa folder pendamping, jadi path relatif akan jadi
      gambar rusak di sana. */
@@ -2932,6 +2949,116 @@ console.log('=== 16q. Tampilan ponsel (tahap 1) ===');
   ok('tombolnya sembunyi di layar lebar', idx.indexOf('onclick="toggleSaringLipat()" class="md:hidden') >= 0);
   ok('jumlah saringan aktif ditampilkan di tombolnya', idx.indexOf('tombolLipatSaring(totalSel)') >= 0);
   ok('Dashboard ikut dilipat', idx.indexOf('tombolLipatSaring(n)') >= 0);
+}
+
+console.log('=== 16r. Bisa dipasang ke layar utama (PWA) ===');
+{
+  const PUB = path.join(__dirname, '..', 'public');
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+  const mf = JSON.parse(fs.readFileSync(path.join(PUB, 'manifest.json'), 'utf8'));
+  const sw = fs.readFileSync(path.join(PUB, 'sw.js'), 'utf8');
+
+  /* Syarat Chrome menawarkan "Pasang aplikasi". Kurang satu saja, yang muncul cuma
+     pintasan biasa yang tetap membuka browser lengkap dengan bilah alamatnya. */
+  ok('manifest punya name', !!mf.name);
+  ok('manifest punya short_name', !!mf.short_name);
+  ok('start_url ke akar', mf.start_url === '/');
+  ok('display standalone', mf.display === 'standalone');
+  ok('ada ikon 192', mf.icons.some(i => i.sizes === '192x192'));
+  ok('ada ikon 512', mf.icons.some(i => i.sizes === '512x512'));
+  /* Tanpa maskable, peluncur Android menaruh logonya di kotak putih kecil di tengah
+     ikon — tampak seperti aplikasi yang ikonnya gagal dimuat. */
+  ok('ada ikon maskable', mf.icons.some(i => String(i.purpose || '').indexOf('maskable') >= 0));
+  /* Orientasi sengaja TIDAK dikunci: Timeline (Gantt) dan Calendar justru lebih
+     terbaca sambil ponselnya dimiringkan. */
+  ok('orientasi tidak dikunci', !mf.orientation);
+
+  /* Ukuran yang DIKLAIM harus sama dengan ukuran sebenarnya. Chrome membaca header
+     PNG-nya dan diam-diam mengabaikan ikon yang tak cocok. */
+  mf.icons.forEach(i => {
+    const p = path.join(PUB, i.src);
+    ok('ikon ada: ' + i.src, fs.existsSync(p));
+    const b = fs.readFileSync(p);
+    ok(i.src + ' benar-benar ' + i.sizes,
+      b.readUInt32BE(16) + 'x' + b.readUInt32BE(20) === i.sizes);
+  });
+
+  /* cache.addAll() menolak SELURUH pemasangan kalau satu berkas saja 404, dan gagalnya
+     diam-diam: yang tampak cuma 'Pasang aplikasi' tak pernah muncul. */
+  const awalAset = sw.indexOf('const ASET');
+  const aset = sw.slice(awalAset, sw.indexOf('];', awalAset));
+  const daftar = (aset.match(/'([^']+)'/g) || []).map(s => s.slice(1, -1));
+  ok('daftar prapasang tak kosong', daftar.length > 0);
+  daftar.forEach(f => ok('aset prapasang ada: ' + f, fs.existsSync(path.join(PUB, f))));
+
+  /* Halamannya SENGAJA tak pernah disimpan ke cache: satu berkas ini di-deploy ulang
+     hampir tiap hari, dan menyajikan salinan lama jauh lebih mahal daripada memuat
+     ulang 500 KB. Jaringan dulu, selalu. */
+  ok('dokumen selalu dari jaringan', sw.indexOf('fetch(req).catch(') >= 0);
+  /* Komentar di sw.js ikut menyebut cache.put(), jadi yang diperiksa kodenya saja. */
+  const swKode = sw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  ok('tak pernah menyimpan respons ke cache', swKode.indexOf('.put(') < 0);
+  ok('data (/api/) tak pernah disentuh', sw.indexOf("url.pathname.indexOf('/api/') === 0) return") >= 0);
+  ok('aksi tulis dilewatkan', sw.indexOf("req.method !== 'GET') return") >= 0);
+  /* Halaman luring justru dipakai saat tak ada jaringan — satu tautan CDN saja
+     membuatnya tampil tanpa gaya. */
+  ok('halaman luring tak bergantung CDN', sw.indexOf('cdn.') < 0);
+
+  /* Di Apps Script halaman ini ada di iframe origin googleusercontent.com, jadi /sw.js
+     memang tak ada di sana dan pendaftarannya harus dilewati. */
+  ok('pendaftaran dilewati di Apps Script',
+    idx.indexOf("if(!GAS_NATIVE && 'serviceWorker' in navigator && window.isSecureContext)") >= 0);
+  ok('manifest ditaut', idx.indexOf('<link rel="manifest" href="manifest.json">') >= 0);
+  ok('viewport ikut area aman', idx.indexOf('viewport-fit=cover') >= 0);
+  ok('ada theme-color', idx.indexOf('<meta name="theme-color"') >= 0);
+  /* Mode gelapnya dikendalikan kelas dari localStorage, bukan prefers-color-scheme,
+     jadi <meta media=...> tak akan pernah cocok — JS yang harus menyetelnya. */
+  ok('theme-color ikut tema lewat JS',
+    idx.indexOf("tc.setAttribute('content', dark ? '#0f172a' : '#ffffff')") >= 0);
+}
+
+console.log('=== 16s. Navigasi bawah (ponsel) ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  ok('bilahnya ada', idx.indexOf('id="bottomNav" class="md:hidden fixed bottom-0') >= 0);
+  /* env(safe-area-inset-bottom) hanya berisi nilai kalau viewport-fit=cover dipasang;
+     tanpa keduanya bilahnya tertimpa garis home iPhone. */
+  ok('menghindari garis home iPhone', idx.indexOf('padding-bottom:env(safe-area-inset-bottom)') >= 0);
+  /* z-[60] disengaja: di bawah backdrop laci (70) supaya laci yang terbuka
+     meredupkannya, dan di bawah modal (90). */
+  ok('bilah di bawah backdrop laci', idx.indexOf('fixed bottom-0 inset-x-0 z-[60]') >= 0);
+
+  const awal = idx.indexOf('function renderBottomNav()');
+  const rb = idx.slice(awal, idx.indexOf('/* ---------- View switching', awal));
+  ok('irisannya kena', rb.length > 200);
+  /* Visibilitasnya dibaca dari tombol sidebar yang sudah ada, bukan dari daftar peran
+     kedua. Itu yang membuat tab terlarang mustahil bocor ke bilah bawah, dan tab baru
+     tak menuntut pembaruan di dua tempat. */
+  ok('visibilitas dibaca dari nav sidebar',
+    rb.indexOf("document.getElementById('nav-'+v); return b && !b.classList.contains('hide')") >= 0);
+  ok('empat slot lalu Lainnya',
+    rb.indexOf('tampil.slice(0,4)') >= 0 && rb.indexOf("'more_horiz','Lainnya'") >= 0);
+  /* Kalau tak ada yang menyala, bilahnya tampak mati dan tak jelas kita sedang di mana. */
+  ok('Lainnya menyala saat tab aktif ada di laci',
+    rb.indexOf('const diLaci=utama.indexOf(state.activeView)<0;') >= 0);
+  /* Giliran yang menunggu tak boleh hilang cuma karena tab-nya tak muat di bilah. */
+  ok('penanda yang tak muat jadi titik di Lainnya',
+    rb.indexOf('adaSisaBadge=sisa.some(v=>jumlahBadge(v)>0)') >= 0);
+
+  /* Empat pemanggil: ganti tab, ganti peran, dan dua penanda angka. Kalau salah satu
+     hilang, bilahnya membeku menunjuk tab yang sudah ditinggalkan. */
+  ok('digambar ulang dari lima tempat',
+    (idx.match(/renderBottomNav\(\);/g) || []).length >= 4);
+  ok('ikut ganti peran', idx.indexOf('renderBottomNav();   // tab mana yang muat bergantung peran') >= 0);
+  ok('ikut penanda giliran', idx.indexOf("b.classList.toggle('hide', n===0); } renderBottomNav(); }") >= 0);
+
+  /* Bilahnya melayang di atas konten, jadi area gulirnya butuh ruang bawah — dan
+     ruang itu harus kembali normal di layar lebar tempat bilahnya tak ada. */
+  ok('ruang bawah untuk bilah', idx.indexOf('p-4 md:p-6 pb-24 md:pb-6') >= 0);
+  /* showToast() menulis ulang className-nya utuh tiap kali dipanggil, jadi mengubah
+     posisinya di markah saja tak cukup — panggilan pertama akan menimpanya balik. */
+  ok('toast naik di atas bilah', idx.indexOf("el.className='fixed right-5 bottom-[76px] md:bottom-5") >= 0);
 }
 
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

@@ -3,11 +3,23 @@
 <head>
   <base target="_top">
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Product Task Tracker</title>
   <link rel="icon" type="image/png" sizes="32x32" href="logo/icon-32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="logo/icon-192.png">
   <link rel="apple-touch-icon" href="logo/icon-192.png">
+  <!-- Bisa dipasang ke layar utama. Di Apps Script berkas-berkas ini tak ada dan
+       tautannya 404 tanpa efek apa pun — beda dengan <img>, tak ada yang tampak rusak. -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="ProductTrack">
+  <!-- Sengaja "default", bukan "black-translucent": yang terakhir menaruh konten di
+       bawah bilah status iOS, dan seluruh header harus digeser sendiri. -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <!-- Nilai awalnya saja. Mode gelap aplikasi ini dikendalikan kelas dari localStorage,
+       bukan prefers-color-scheme, jadi applyTheme() yang menyetelnya setelah itu. -->
+  <meta name="theme-color" content="#ffffff">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -92,11 +104,15 @@
     .dark .form-control,.dark .filter-input,.dark .filter-select{color:#e2e8f0}
     .scrollbar-thin::-webkit-scrollbar{width:6px;height:6px}
     .card-drag-ghost{opacity:.4}
-    .card-drag-chosen{box-shadow:0 8px 24px -8px rgba(79,70,229,.45)}
+    .card-drag-chosen{box-shadow:0 8px 24px -8px rgba(0,104,180,.45)}
     .tt-card{transition:box-shadow .15s ease, transform .15s ease}
     .tt-card:hover{transform:translateY(-1px)}
-    .nav-active{background:#EBF6FE;color:#004F94}
-    .dark .nav-active{background:rgba(67,56,202,.25);color:#c7d2fe}
+    /* .nav-item ikut disebut demi kekhususan, bukan demi gaya: tombolnya membawa kelas
+       Tailwind text-gray-600 / dark:text-slate-300, yang kekhususannya sama dan disuntik
+       BELAKANGAN oleh CDN — jadi tanpa ini seluruh deklarasi color di bawah jadi kode mati
+       dan tab aktif cuma dibedakan latarnya. */
+    .nav-item.nav-active{background:#EBF6FE;color:#004F94}
+    .dark .nav-item.nav-active{background:rgba(0,79,148,.35);color:#A9DBFA}
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800 dark:bg-slate-950 dark:text-slate-100 h-screen overflow-hidden">
@@ -107,7 +123,7 @@
     <div class="text-xs text-gray-400 mt-1">Mengambil data dari Spreadsheet</div>
   </div>
 
-  <div id="toast" class="fixed right-5 bottom-5 z-[120] hide px-4 py-2.5 rounded-xl shadow-lg text-white text-sm font-medium"></div>
+  <div id="toast" class="fixed right-5 bottom-[76px] md:bottom-5 z-[120] hide px-4 py-2.5 rounded-xl shadow-lg text-white text-sm font-medium"></div>
 
   <!-- Login gate (aktif hanya jika env APP_PASSWORD diisi di server) -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -332,7 +348,9 @@
         <button onclick="exitPreview()" class="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold"><span class="material-icons-round text-[14px]">logout</span>Kembali jadi Dev</button>
       </div>
 
-      <section class="flex-1 overflow-y-auto p-4 md:p-6">
+      <!-- pb-24 memberi ruang untuk #bottomNav yang melayang. Ditulis terpisah dari p-4
+           supaya md:pb-6 bisa mengembalikannya di layar lebar. -->
+      <section class="flex-1 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6">
         <div id="deadlineReminder" class="hide max-w-[1700px] mx-auto mb-4"></div>
         <div id="deadlineFocusBar" class="hide max-w-[1700px] mx-auto mb-4"></div>
         <div id="viewOnlyNotice" class="hide max-w-[1700px] mx-auto mb-4"></div>
@@ -646,6 +664,11 @@
         </div>
       </section>
     </main>
+
+    <!-- Navigasi bawah (hanya ponsel). Isinya digambar renderBottomNav() karena tab mana
+         yang boleh tampil bergantung peran. z-[60] disengaja: di bawah backdrop laci (70)
+         supaya laci yang terbuka meredupkannya, dan di bawah modal (90). -->
+    <nav id="bottomNav" class="md:hidden fixed bottom-0 inset-x-0 z-[60] flex bg-white/95 dark:bg-slate-900/95 backdrop-blur border-t border-gray-200 dark:border-slate-800" style="padding-bottom:env(safe-area-inset-bottom)"></nav>
   </div>
 
   <!-- Dashboard Modal (manager/dev) -->
@@ -890,7 +913,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.108.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.109.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1231,6 +1254,14 @@ function renderStagingMark(){
          melewati 768px — ponsel diputar, jendela ditarik — yang sedang tampil harus
          digambar ulang, kalau tidak layarnya jadi kosong sama sekali. */
       window.addEventListener('resize', ()=>{ const k=pakaiKartuTask(); if(k!==state._kartuTask){ state._kartuTask=k; if(state.activeView==='list') renderTable(); } });
+      /* Service worker-nya ada supaya Chrome mau menawarkan "Pasang aplikasi"; ia sengaja
+         TIDAK menyimpan halaman ke cache (alasan lengkapnya di public/sw.js).
+         Dilewati di Apps Script: di sana halaman ini disajikan dalam iframe di origin
+         googleusercontent.com, jadi /sw.js memang tak ada.
+         isSecureContext, bukan protocol==="https:", supaya localhost ikut terpakai. */
+      if(!GAS_NATIVE && 'serviceWorker' in navigator && window.isSecureContext){
+        navigator.serviceWorker.register('sw.js').catch(e=>console.warn('[ProductTrack] service worker tak terpasang:', e && e.message));
+      }
       window.addEventListener('resize', ()=>{ if(window.innerWidth>=768) closeMobileSidebar(); }); document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.activeView==='communication' && state.selectedTaskId && document.getElementById('taskModal').classList.contains('hide')){ closeCommChat(); } });}
   } catch(e) {
     try{ console.error('[ProductTrack] afterLoad gagal:', e); }catch(_){ }
@@ -1500,6 +1531,7 @@ function applyRoleUI(){
   if(el) el.textContent = vo ? `Mode lihat saja • semua task (${state.tasks.length})` : (mgr ? `Melihat semua task (${state.tasks.length})` : `${mineActive.length} task aktif Anda • ${mine.length} total`);
   updateCollabTurnBadge();
   syncNavGroups();
+  renderBottomNav();   // tab mana yang muat bergantung peran, jadi ikut digambar ulang
 }
 // Judul grup nav ikut sembunyi bila SEMUA tab di dalamnya tersembunyi untuk peran ini
 // (mis. grup "Manajer" untuk Member, atau "Ruang Saya" saat mode lihat-saja).
@@ -1516,6 +1548,10 @@ function applyTheme(){
   document.documentElement.classList.toggle('dark', dark);
   document.body.classList.toggle('bg-gray-50', !dark);
   const icon = document.getElementById('themeIcon'); if(icon) icon.textContent = dark ? 'light_mode' : 'dark_mode';
+  /* Bilah status Android mengambil warnanya dari sini. Tanpa ini, aplikasi mode gelap
+     yang dipasang ke layar utama tetap berbilah putih di atasnya. */
+  const tc = document.querySelector('meta[name="theme-color"]');
+  if(tc) tc.setAttribute('content', dark ? '#0f172a' : '#ffffff');
 }
 function toggleTheme(){LS.set('theme', document.documentElement.classList.contains('dark')?'light':'dark'); applyTheme(); renderAll();}
 function openMobileSidebar(){const s=document.getElementById('sidebar'); s.classList.remove('hidden'); s.classList.add('absolute','z-[80]','h-full','top-0','left-0','shadow-2xl'); const bd=document.getElementById('mobileBackdrop'); if(bd) bd.classList.remove('hide');}
@@ -1542,7 +1578,10 @@ function toggleSidebar(){
   try{ renderAll(); }catch(e){}
 }
 function toggleMobileSidebar(){const s=document.getElementById('sidebar'); if(s.classList.contains('hidden')) openMobileSidebar(); else closeMobileSidebar();}
-function showToast(msg, ok=true){const el=document.getElementById('toast');el.textContent=msg;el.className='fixed right-5 bottom-5 z-[120] px-4 py-2.5 rounded-xl shadow-lg text-white text-sm font-medium '+(ok?'bg-emerald-600':'bg-rose-600');setTimeout(()=>el.classList.add('hide'),3000);}
+/* Kelasnya ditulis ulang utuh tiap kali, jadi posisinya harus ikut disebut di sini —
+   mengubahnya di markah saja tak cukup, panggilan pertama akan menimpanya kembali.
+   bottom-[76px] di ponsel supaya toast tak tertimbun navigasi bawah. */
+function showToast(msg, ok=true){const el=document.getElementById('toast');el.textContent=msg;el.className='fixed right-5 bottom-[76px] md:bottom-5 z-[120] px-4 py-2.5 rounded-xl shadow-lg text-white text-sm font-medium '+(ok?'bg-emerald-600':'bg-rose-600');setTimeout(()=>el.classList.add('hide'),3000);}
 function renderDeadlineReminder(){
   const box=document.getElementById('deadlineReminder'); if(!box) return;
   if(isViewOnly()){ box.classList.add('hide'); box.innerHTML=''; return; }
@@ -1918,6 +1957,74 @@ function fillSelect(id, values=[], placeholder=null, defaultValue=''){
   if(old && values.includes(old)) el.value=old; else if(defaultValue) el.value=defaultValue;
 }
 
+/* ---------- Navigasi bawah (ponsel) ----------
+
+   Urutan kunci di bawah ini PREFERENSI, bukan daftar pasti: yang dipakai empat pertama
+   yang tidak tersembunyi untuk peran ini, sisanya masuk ke "Lainnya". Menukar urutan
+   objeknya = menukar isi bilah.
+
+   Visibilitasnya dibaca dari tombol sidebar yang sudah ada (#nav-xxx), bukan dari daftar
+   peran kedua. Jadi tab yang tak boleh diakses peran ini mustahil bocor ke sini, dan
+   menambah tab baru tak menuntut pembaruan di dua tempat.
+
+   Labelnya sengaja lebih pendek daripada di sidebar ("Kolab", bukan "Task Kolaborasi"):
+   lima slot di layar 375px berarti 75 piksel per tombol. */
+const TAB_BAWAH = {
+  hariini:      ['wb_sunny','Hari Ini'],
+  dashboard:    ['space_dashboard','Dashboard'],
+  list:         ['table_rows','Task'],
+  collab:       ['account_tree','Kolab'],
+  kanban:       ['view_kanban','Kanban'],
+  communication:['forum','Chat'],
+  paket:        ['inventory_2','Paket'],
+  calendar:     ['calendar_month','Kalender'],
+  timeline:     ['view_timeline','Timeline'],
+  report:       ['summarize','Laporan'],
+  mylinks:      ['bookmark','Link'],
+  mynotes:      ['sticky_note_2','Catatan'],
+  extdash:      ['dashboard_customize','Dasbor Lain'],
+  settings:     ['tune','Dropdown'],
+  activity:     ['history_edu','Riwayat'],
+};
+/* Dua tab yang punya penanda angka. Kalau tab-nya tak muat di bilah, angkanya tak hilang
+   — ia berubah jadi titik merah di "Lainnya", supaya giliran yang menunggu tetap terlihat. */
+function jumlahBadge(v){
+  try{
+    if(v==='collab') return myTurnSteps().length;
+    if(v==='communication') return totalUnreadTasks();
+  }catch(_){ }
+  return 0;
+}
+function tombolBawah(ikon,label,aktif,jumlah,aksi,titik){
+  const warna = aktif ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-400 dark:text-slate-500';
+  const tanda = jumlah>0
+    ? `<span class="absolute -top-1.5 -right-2 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-rose-500 text-white text-[9px] font-bold">${jumlah>9?'9+':jumlah}</span>`
+    : (titik ? `<span class="absolute -top-0.5 -right-1.5 w-2 h-2 rounded-full bg-rose-500"></span>` : '');
+  return `<button onclick="${aksi}" class="flex-1 min-w-0 flex flex-col items-center justify-center gap-1 pt-2 pb-1.5 min-h-[56px] ${warna} active:bg-gray-50 dark:active:bg-slate-800">
+    <span class="relative inline-flex">
+      <span class="material-icons-round text-[22px]">${ikon}</span>
+      ${tanda}
+    </span>
+    <span class="text-[10px] font-semibold leading-none truncate max-w-full px-0.5">${label}</span>
+  </button>`;
+}
+function renderBottomNav(){
+  const bar=document.getElementById('bottomNav'); if(!bar) return;
+  const tampil=Object.keys(TAB_BAWAH).filter(v=>{
+    const b=document.getElementById('nav-'+v); return b && !b.classList.contains('hide');
+  });
+  const utama=tampil.slice(0,4), sisa=tampil.slice(4);
+  const adaSisaBadge=sisa.some(v=>jumlahBadge(v)>0);
+  /* "Lainnya" ikut menyala saat tab yang aktif ada di dalam laci — kalau tidak, seluruh
+     bilah tampak mati dan tak jelas kita sedang di mana. */
+  const diLaci=utama.indexOf(state.activeView)<0;
+  bar.innerHTML = utama.map(v=>{
+    const t=TAB_BAWAH[v];
+    return tombolBawah(t[0], t[1], state.activeView===v, jumlahBadge(v), "switchView('" + v + "')");
+  }).join('')
+    + tombolBawah('more_horiz','Lainnya', diLaci, 0, 'openMobileSidebar()', adaSisaBadge);
+}
+
 /* ---------- View switching ---------- */
 function switchView(view){
   state.activeView=view;
@@ -1927,6 +2034,7 @@ function switchView(view){
   document.getElementById(view+'View').classList.remove('hide');
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('nav-active'));
   const nav=document.getElementById('nav-'+view); if(nav) nav.classList.add('nav-active');
+  renderBottomNav();
   const meta={
     hariini:['Hari Ini','Fokus harian Anda: overdue, jatuh tempo hari ini, dan yang sedang dikerjakan.','wb_sunny'],
     mynotes:['Catatan Saya','Catatan pribadi Anda (hanya Anda yang bisa lihat).','sticky_note_2'],
@@ -2625,7 +2733,7 @@ function renderTrenChart(){
   state.chartTren=new Chart(ctx,{type:'line',data:{
     labels:s.hari.map(h=>h.slice(8,10)+'/'+h.slice(5,7)),
     datasets:[
-      {label:'Personal',data:s.personal,borderColor:'#0090DC',backgroundColor:'rgba(99,102,241,.12)',fill:true,tension:.3,pointRadius:0,borderWidth:2},
+      {label:'Personal',data:s.personal,borderColor:'#0090DC',backgroundColor:'rgba(0,144,220,.12)',fill:true,tension:.3,pointRadius:0,borderWidth:2},
       {label:'Kolaborasi',data:s.kolab,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.12)',fill:true,tension:.3,pointRadius:0,borderWidth:2}
     ]},options:{responsive:true,maintainAspectRatio:false,
     interaction:{mode:'index',intersect:false},
@@ -3147,6 +3255,7 @@ function updateCommNavBadge(){
   if(!badge){ badge=document.createElement('span'); badge.id='commNavBadge'; badge.className='ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold'; nav.appendChild(badge); }
   const n=totalUnreadTasks();
   badge.textContent=n; badge.style.display=n>0?'inline-flex':'none';
+  renderBottomNav();
 }
 function markTaskCommReadFromComments(taskId, comments){
   if(!taskId) return;
@@ -3541,7 +3650,7 @@ function isMyTurnStep(c,s){
   return !prev || prev.done;
 }
 function myTurnSteps(){ const out=[]; (state.collabs||[]).forEach(c=>(c.steps||[]).forEach(s=>{ if(isMyTurnStep(c,s)) out.push({collab:c,step:s}); })); return out; }
-function updateCollabTurnBadge(){ const n=myTurnSteps().length; const b=document.getElementById('collabTurnBadge'); if(b){ b.textContent=n; b.classList.toggle('hide', n===0); } }
+function updateCollabTurnBadge(){ const n=myTurnSteps().length; const b=document.getElementById('collabTurnBadge'); if(b){ b.textContent=n; b.classList.toggle('hide', n===0); } renderBottomNav(); }
 function currentCollab(){ return (state.collabs||[]).find(c=>c.id===state._collabId)||null; }
 function collabPicOptions(sel){ return '<option value="">(pilih PIC)</option>'+picOptionsHtml(state.options.pic, sel, true); }
 /* Stage per proses — OPSIONAL, memakai daftar stage yang sama dengan task biasa.
