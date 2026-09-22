@@ -5,11 +5,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Product Task Tracker</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="logo/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="logo/icon-192.png">
+  <link rel="apple-touch-icon" href="logo/icon-192.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
-      theme: { extend: { fontFamily: { sans: ['Inter','ui-sans-serif','system-ui'] } } }
+      theme: { extend: {
+        fontFamily: { sans: ['Inter','ui-sans-serif','system-ui'] },
+        /* Dua warna logo jadi jangkarnya: #003078 (navy) di 800 dan #00A8F0 (biru
+           langit) di 400. Sisanya tangga di antara keduanya. 600 dipakai tombol &
+           tautan — #0068B4 punya rasio kontras 5,8:1 dengan teks putih, jadi tetap
+           terbaca. Nama "indigo" dipertahankan supaya 363 kelas yang sudah ada tak
+           perlu disentuh sama sekali. */
+        colors: { indigo: {
+          50:'#EBF6FE', 100:'#D2ECFD', 200:'#A9DBFA', 300:'#5CC6F7', 400:'#00A8F0',
+          500:'#0090DC', 600:'#0068B4', 700:'#004F94', 800:'#003078', 900:'#00214F'
+        } }
+      } }
     };
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,7 +43,7 @@
     #ganttWrap .gantt .row-line{stroke:#eef2f7}
     #ganttWrap .gantt .tick{stroke:#eef2f7}
     #ganttWrap .gantt .tick.thick{stroke:#e2e8f0}
-    #ganttWrap .gantt .today-highlight{fill:#eef2ff;opacity:.8}
+    #ganttWrap .gantt .today-highlight{fill:#EBF6FE;opacity:.8}
     #ganttWrap .gantt .upper-text,#ganttWrap .gantt .lower-text{fill:#64748b;font-size:11px}
     #ganttWrap .gantt .bar{stroke:none}
     #ganttWrap .gantt .bar-label{fill:#ffffff;font-weight:600}
@@ -47,20 +61,20 @@
     .dark #ganttWrap .gantt .bar-label.big{fill:#cbd5e1}
     .dark #ganttWrap .gantt .handle{fill:#e2e8f0;opacity:.55}
     /* ---- FullCalendar theming ---- */
-    #calendarRoot{--fc-border-color:#e5e7eb;--fc-page-bg-color:transparent;--fc-neutral-bg-color:#f8fafc;--fc-today-bg-color:#eef2ff;--fc-now-indicator-color:#4f46e5}
+    #calendarRoot{--fc-border-color:#e5e7eb;--fc-page-bg-color:transparent;--fc-neutral-bg-color:#f8fafc;--fc-today-bg-color:#EBF6FE;--fc-now-indicator-color:#0068B4}
     #calendarRoot .fc{font-size:13px}
     #calendarRoot .fc .fc-toolbar-title{font-size:1.05rem;font-weight:700;color:#111827}
     #calendarRoot .fc .fc-button{font-weight:600;text-transform:capitalize;box-shadow:none!important;border-radius:8px}
-    #calendarRoot .fc .fc-button-primary{background:#4f46e5;border-color:#4f46e5}
-    #calendarRoot .fc .fc-button-primary:hover{background:#4338ca;border-color:#4338ca}
+    #calendarRoot .fc .fc-button-primary{background:#0068B4;border-color:#0068B4}
+    #calendarRoot .fc .fc-button-primary:hover{background:#004F94;border-color:#004F94}
     #calendarRoot .fc .fc-button-primary:disabled{background:#c7d2fe;border-color:#c7d2fe}
     #calendarRoot .fc .fc-button-primary:not(:disabled).fc-button-active{background:#3730a3;border-color:#3730a3}
     #calendarRoot .fc .fc-col-header-cell-cushion{color:#64748b;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.04em;padding:8px 4px}
     #calendarRoot .fc .fc-daygrid-day-number{color:#334155;font-weight:500;padding:6px}
-    #calendarRoot .fc .fc-day-today .fc-daygrid-day-number{color:#4f46e5;font-weight:700}
+    #calendarRoot .fc .fc-day-today .fc-daygrid-day-number{color:#0068B4;font-weight:700}
     #calendarRoot .fc .fc-daygrid-day.fc-day-other{background:#f8fafc}
     #calendarRoot .fc-event{cursor:pointer;border:none;border-radius:6px;padding:1px 5px;font-weight:500;font-size:11px}
-    #calendarRoot .fc .fc-daygrid-more-link{color:#4f46e5;font-weight:600}
+    #calendarRoot .fc .fc-daygrid-more-link{color:#0068B4;font-weight:600}
     .dark #calendarRoot{--fc-border-color:#1e293b;--fc-neutral-bg-color:#0f172a;--fc-today-bg-color:#1e293b;--fc-page-bg-color:transparent}
     .dark #calendarRoot .fc .fc-toolbar-title{color:#f1f5f9}
     .dark #calendarRoot .fc .fc-col-header-cell-cushion{color:#94a3b8}
@@ -81,7 +95,7 @@
     .card-drag-chosen{box-shadow:0 8px 24px -8px rgba(79,70,229,.45)}
     .tt-card{transition:box-shadow .15s ease, transform .15s ease}
     .tt-card:hover{transform:translateY(-1px)}
-    .nav-active{background:#eef2ff;color:#4338ca}
+    .nav-active{background:#EBF6FE;color:#004F94}
     .dark .nav-active{background:rgba(67,56,202,.25);color:#c7d2fe}
   </style>
 </head>
@@ -157,8 +171,14 @@
     <!-- Sidebar -->
     <aside id="sidebar" class="w-[260px] bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 hidden md:flex flex-col shrink-0">
       <div class="h-16 px-5 flex items-center border-b border-gray-100 dark:border-slate-800">
-        <div id="brandLogo" class="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center mr-2.5" title="ProductTrack">
-          <span class="material-icons-round text-[20px]">task_alt</span>
+        <!-- Alas putih dipasang di KEDUA mode, bukan cuma gelap: navy logonya (#003078) nyaris
+             lenyap di sidebar gelap, dan logo ini memang dirancang untuk latar terang. Di mode
+             terang alasnya tak terlihat karena sidebar-nya memang putih. -->
+        <div id="brandLogo" class="w-9 h-9 rounded-lg bg-white flex items-center justify-center mr-2.5 shrink-0" title="ProductTrack">
+          <!-- Disematkan sebagai data URI, bukan path berkas: berkas ini juga disajikan Apps
+               Script sebagai HTML tunggal tanpa folder pendamping, jadi path relatif akan jadi
+               gambar rusak di sana. 3 KB, dan gambarnya ikut ke mana pun berkas ini dibawa. -->
+          <img src="data:image/png;base64,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" alt="ProductTrack" class="w-9 h-9 object-contain" draggable="false">
         </div>
         <div>
           <div class="text-[15px] font-bold tracking-tight text-gray-900 dark:text-white">Product<span class="text-indigo-600">Track</span> <span id="appVersion" class="text-[9px] font-semibold text-gray-400 align-top"></span></div>
@@ -866,7 +886,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.106.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.107.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1171,8 +1191,8 @@ function renderStagingMark(){
     /* WAJIB bisa dicabut: penanda bisa terlanjur terpasang oleh cadangan hostname sebelum
        server memberi tahu environment-nya. Kalau tak pernah dicabut, produksi tetap
        terlihat seperti staging — dan penanda yang salah lebih buruk daripada tak ada. */
-    if(logo && logo.classList.contains('bg-amber-500')){
-      logo.classList.remove('bg-amber-500'); logo.classList.add('bg-indigo-600'); logo.title='ProductTrack';
+    if(logo && logo.classList.contains('ring-amber-500')){
+      logo.classList.remove('ring-2','ring-amber-500','ring-offset-1'); logo.title='ProductTrack';
     }
     const merek=document.querySelector('#sidebar .text-amber-600');
     if(merek){ merek.classList.remove('text-amber-600'); merek.classList.add('text-indigo-600'); }
@@ -1181,7 +1201,7 @@ function renderStagingMark(){
     document.title=document.title.split('[STAGING] ').join('');
     return;
   }
-  if(logo){ logo.classList.remove('bg-indigo-600'); logo.classList.add('bg-amber-500'); logo.title='ProductTrack — STAGING'; }
+  if(logo){ logo.classList.add('ring-2','ring-amber-500','ring-offset-1'); logo.title='ProductTrack — STAGING'; }
   const merek=document.querySelector('#sidebar .text-indigo-600');
   if(merek){ merek.classList.remove('text-indigo-600'); merek.classList.add('text-amber-600'); }
   if(sub){ sub.innerHTML='<span class="text-amber-600 dark:text-amber-400">STAGING</span> · Divisi Produk'; }
@@ -2578,7 +2598,7 @@ function renderTrenChart(){
   state.chartTren=new Chart(ctx,{type:'line',data:{
     labels:s.hari.map(h=>h.slice(8,10)+'/'+h.slice(5,7)),
     datasets:[
-      {label:'Personal',data:s.personal,borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,.12)',fill:true,tension:.3,pointRadius:0,borderWidth:2},
+      {label:'Personal',data:s.personal,borderColor:'#0090DC',backgroundColor:'rgba(99,102,241,.12)',fill:true,tension:.3,pointRadius:0,borderWidth:2},
       {label:'Kolaborasi',data:s.kolab,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.12)',fill:true,tension:.3,pointRadius:0,borderWidth:2}
     ]},options:{responsive:true,maintainAspectRatio:false,
     interaction:{mode:'index',intersect:false},
@@ -2602,7 +2622,7 @@ function renderCharts(){
   const priColor=p=>{const k=String(p||'').toLowerCase().trim(); return /* Merah -> hijau, bukan tangga urgensi: yang diukur sekarang KESULITAN. Nilai lama
          dipertahankan di peta supaya data yang belum dimigrasi tetap punya warna sendiri
          dan tak menyamar jadi Normal. */
-      ({sulit:'#dc2626',normal:'#4f46e5',mudah:'#059669',urgent:'#ef4444',high:'#f97316',low:'#94a3b8'})[k]||'#94a3b8';};
+      ({sulit:'#dc2626',normal:'#0068B4',mudah:'#059669',urgent:'#ef4444',high:'#f97316',low:'#94a3b8'})[k]||'#94a3b8';};
   const picCtx=document.getElementById('chartPic');
   if(picCtx){
     if(state.chartPic) state.chartPic.destroy();
@@ -2621,7 +2641,7 @@ function renderCharts(){
       const picData=stList.map(st=>tasks.filter(t=>same(t.status,st)&&isPicOf(t,me)).length);
       const supData=stList.map(st=>tasks.filter(t=>same(t.status,st)&&isSupportOnly(t,me)).length);
       cfg={type:'bar',data:{labels:stList,datasets:[
-        {label:'Sebagai PIC',data:picData,backgroundColor:'#6366f1',borderRadius:6,stack:'beban'},
+        {label:'Sebagai PIC',data:picData,backgroundColor:'#0090DC',borderRadius:6,stack:'beban'},
         {label:'Sebagai Support',data:supData,backgroundColor:'#f59e0b',borderRadius:6,stack:'beban'}
       ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{boxWidth:10,boxHeight:10,padding:12}}},scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,beginAtZero:true,ticks:{precision:0}}}}};
     }
@@ -3476,7 +3496,7 @@ function collabStageOptions(sel){
 const COLLAB_TYPES=['Course','Tryout/Latsol','Liveclass','Drilling','Journey'];
 const COLLAB_COLORS=[
   {n:'Merah',h:'#ef4444'},{n:'Oranye',h:'#f97316'},{n:'Kuning',h:'#f59e0b'},{n:'Hijau',h:'#10b981'},
-  {n:'Toska',h:'#14b8a6'},{n:'Biru',h:'#3b82f6'},{n:'Navy',h:'#1e3a8a'},{n:'Indigo',h:'#6366f1'},
+  {n:'Toska',h:'#14b8a6'},{n:'Biru',h:'#3b82f6'},{n:'Navy',h:'#1e3a8a'},{n:'Indigo',h:'#0090DC'},
   {n:'Ungu',h:'#8b5cf6'},{n:'Pink',h:'#ec4899'},{n:'Cokelat',h:'#92400e'},{n:'Abu',h:'#6b7280'},
 ];
 function safeColor(c){ return /^#[0-9a-fA-F]{3,8}$/.test(String(c||'')) ? String(c) : ''; }
@@ -6148,7 +6168,7 @@ function countBy(arr,key){return arr.reduce((a,t)=>{const k=t[key]||'Tanpa Data'
 
 // SATU sumber warna status untuk kanban, list, chart, timeline, & calendar.
 const STATUS_PALETTE={
-  'todo':'#6366f1','to do':'#6366f1','backlog':'#6366f1',
+  'todo':'#0090DC','to do':'#0090DC','backlog':'#0090DC',
   'in progress':'#3b82f6','in-progress':'#3b82f6','progress':'#3b82f6',
   'review pm':'#f59e0b','review':'#f59e0b','in review':'#f59e0b',
   'revisi':'#fb7185','revision':'#fb7185','revise':'#fb7185',
@@ -6195,7 +6215,7 @@ function tombolSelesai(t){
 function taskMiniCard(t,showDue){if(t._collab) return collabMiniCard(t); return `<div onclick="openTaskModal('${escapeAttr(t.id)}')" class="p-2.5 rounded-lg bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 cursor-pointer hover:bg-gray-100"><div class="flex justify-between gap-3 items-start"><div class="font-medium text-sm leading-snug line-clamp-2 text-gray-800 dark:text-slate-100">${escapeHtml(t.taskName||'-')}</div><span class="flex items-center gap-1 shrink-0">${statusChip(t.status)}${tombolSelesai(t)}</span></div><div class="mt-1.5 text-[11px] text-gray-500 font-medium flex justify-between items-center"><span class="flex items-center gap-1.5 min-w-0 truncate">${avatar(t.pic)} ${escapeHtml(t.platform||'-')}${t.createdBy?' • dari '+escapeHtml(t.createdBy):''}</span><span class="shrink-0 ${isLate(t)?'text-rose-600':''}">${showDue?formatDateHuman(t.dueDate):escapeHtml(t.lastUpdate||'-')}</span></div></div>`;}
 function emptyState(text){return `<div class="h-full min-h-[120px] flex items-center justify-center text-center text-gray-400 font-medium text-sm p-6">${escapeHtml(text)}</div>`;}
 
-const AV_PALETTE=[['#e0e7ff','#4338ca'],['#fee2e2','#b91c1c'],['#ffedd5','#c2410c'],['#fef9c3','#a16207'],['#dcfce7','#15803d'],['#cffafe','#0e7490'],['#f3e8ff','#7e22ce'],['#fce7f3','#be185d']];
+const AV_PALETTE=[['#D2ECFD','#004F94'],['#fee2e2','#b91c1c'],['#ffedd5','#c2410c'],['#fef9c3','#a16207'],['#dcfce7','#15803d'],['#cffafe','#0e7490'],['#f3e8ff','#7e22ce'],['#fce7f3','#be185d']];
 function avHash(name){let h=0;const s=String(name||'');for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return h%AV_PALETTE.length;}
 function avatarBg(name){return AV_PALETTE[avHash(name)][0];}
 function avatarFg(name){return AV_PALETTE[avHash(name)][1];}

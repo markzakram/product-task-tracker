@@ -31,6 +31,58 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.107.0 — Logo ProductTrack, dan seluruh warna disetel ke paletnya
+
+Logo ProductTrack masuk ke kepala sidebar dan jadi favicon. Tapi memasang logo saja akan
+membuatnya tampak menempel dari luar: logonya **navy + biru langit**, sementara seluruh
+aplikasi memakai **indigo** — beda rona 27°, cukup untuk terbaca sebagai "biru" lawan
+"ungu" saat berdampingan. Jadi yang disesuaikan bukan logonya, melainkan webnya.
+
+### Satu blok, 363 rujukan
+
+Warna indigo muncul **363 kali** di seluruh berkas. Menggantinya satu per satu adalah 363
+kesempatan meleset. Alih-alih begitu, paletnya ditimpa sekali di `tailwind.config`:
+
+| Langkah | Warna | |
+| --- | --- | --- |
+| 400 | `#00A8F0` | biru langit logo, apa adanya |
+| 600 | `#0068B4` | warna utama tombol & tautan |
+| 800 | `#003078` | navy logo, apa adanya |
+
+Kedua warna logo jadi jangkarnya; sisanya tangga di antara keduanya. Nama kelasnya sengaja
+tetap `indigo` — yang berganti warnanya, bukan sebutannya — jadi tak ada satu pun kelas yang
+perlu disentuh, dan membatalkannya cukup dengan menghapus satu blok.
+
+Dua puluh nilai hex yang ditulis tangan di CSS Gantt dan warna grafik ada di luar jangkauan
+`tailwind.config`, jadi dipetakan sendiri. Ada pemeriksaan otomatis yang memastikan tak ada
+satu pun sisa ungu lama yang menyelinap balik.
+
+Kontras ikut diperiksa: `#0068B4` dengan teks putih berasio **5,8:1** — lebih baik dari
+indigo yang digantikannya.
+
+### Tiga hal yang ketahuan saat mengerjakannya
+
+**Berkas logonya 427 KB** untuk ikon selebar 36 piksel — ukuran yang dibayar tiap kali
+aplikasi dibuka. Dikecilkan jadi 2,4 KB dengan perataan kotak, bukan piksel terdekat, supaya
+tepinya tak bergerigi.
+
+**Path relatif tak bekerja di Apps Script.** Berkas yang sama juga disajikan Apps Script
+sebagai HTML tunggal tanpa folder pendamping, jadi `src="logo/icon-64.png"` akan jadi gambar
+rusak di sana. Logonya disematkan sebagai data URI — 3 KB, dan ikut ke mana pun berkas ini
+dibawa.
+
+**Navy logonya nyaris lenyap di mode gelap.** Ia dirancang untuk latar terang. Kotaknya
+diberi alas putih di kedua mode — di mode terang alasnya tak terlihat karena sidebar-nya
+memang putih.
+
+### Penanda staging berganti bentuk
+
+Dulu kotak logo berganti warna latar jadi kuning. Kotaknya kini berisi gambar, jadi latarnya
+tak terlihat lagi — penandanya jadi **cincin kuning** di sekelilingnya. Yang tak berubah:
+penanda itu tetap harus bisa dicabut, supaya produksi tak pernah tampil bergaris STAGING
+karena sisa dari sesi sebelumnya.
+
+---
 ## 1.106.0 — Laporan sendiri dikelompokkan per peran, bukan per PIC
 
 Lanjutan 1.105.0, dari dua pertanyaan Ali setelah memakainya.

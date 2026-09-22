@@ -1995,7 +1995,11 @@ eq('bootstrap melaporkan environment', call('getBootstrapData', {}).meta.env, 'p
 ok('penanda memakai kabar server lebih dulu', commHtml.indexOf("if(env) return env!=='production';") >= 0);
 ok('hostname tinggal jadi cadangan', commHtml.indexOf('return !HOST_PRODUKSI.includes(h);') >= 0);
 ok('environment dari server disimpan', commHtml.indexOf('state.env = String(data.meta.env);') >= 0);
-ok('penanda bisa DICABUT lagi', commHtml.indexOf("logo.classList.remove('bg-amber-500'); logo.classList.add('bg-indigo-600');") >= 0);
+/* Kotak logo kini berisi gambar, jadi warna latarnya tak terlihat lagi — penandanya
+   berupa cincin kuning. Yang diuji tetap sama: penanda itu harus bisa DICABUT, supaya
+   produksi tak pernah tampil bergaris STAGING karena sisa dari sesi sebelumnya. */
+ok('penanda bisa DICABUT lagi', commHtml.indexOf("logo.classList.remove('ring-2','ring-amber-500','ring-offset-1');") >= 0);
+ok('dan dipasang sebagai cincin, bukan latar', commHtml.indexOf("logo.classList.add('ring-2','ring-amber-500','ring-offset-1');") >= 0);
 ok('garis kuning ikut dicabut', commHtml.indexOf('if(strip) strip.remove();') >= 0);
 ok('judul halaman ikut dibersihkan', commHtml.indexOf("document.title.split('[STAGING] ').join('')") >= 0);
 /* Nama target sering berulang antar kategori ("Verbal" ada di Latsol, Materi, dan Tryout).
@@ -2859,6 +2863,35 @@ console.log('=== 16o. Laporan sendiri: dikelompokkan per peran ===');
      orang lain, sementara PIC sudah punya kolomnya sendiri. */
   ok('penanda itu hanya untuk laporan sendiri',
     idx.indexOf("function repPeranChip(t){ return repPakaiPeran() ? roleChip(t) : ''; }") >= 0);
+}
+
+console.log('=== 16p. Logo & palet warna ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Palet: dua warna logo jadi jangkarnya, dan seluruh 363 kelas "indigo" yang sudah ada
+     ikut berubah tanpa disentuh satu pun. Nama kelasnya sengaja tetap "indigo" — yang
+     berganti warnanya, bukan sebutannya. */
+  ok('palet ditimpa di tailwind.config', idx.indexOf('colors: { indigo: {') >= 0);
+  ok('navy logo jadi jangkar 800', idx.indexOf("800:'#003078'") >= 0);
+  ok('biru langit logo jadi jangkar 400', idx.indexOf("400:'#00A8F0'") >= 0);
+  /* 600 dipakai tombol & tautan; kontrasnya dengan teks putih 5,8:1. */
+  ok('600 dipakai sebagai warna utama', idx.indexOf("600:'#0068B4'") >= 0);
+
+  /* Hex yang ditulis tangan di CSS Gantt dan warna grafik ada di luar jangkauan
+     tailwind.config. Kalau tertinggal, mereka jadi satu-satunya sisa ungu di tengah
+     aplikasi yang sudah biru. */
+  ['#4f46e5', '#6366f1', '#4338ca', '#eef2ff', '#e0e7ff'].forEach(h => {
+    ok('tak ada sisa ' + h, idx.toLowerCase().indexOf(h) < 0);
+  });
+
+  /* Logo disematkan sebagai data URI, bukan path berkas: berkas ini juga disajikan Apps
+     Script sebagai HTML tunggal tanpa folder pendamping, jadi path relatif akan jadi
+     gambar rusak di sana. */
+  ok('logo disematkan, bukan ditaut', idx.indexOf('<img src="data:image/png;base64,') >= 0);
+  ok('tak ada lagi path berkas untuk logo kepala', idx.indexOf('src="logo/icon-64.png"') < 0);
+  /* Navy logonya nyaris lenyap di sidebar gelap — logo ini dirancang untuk latar terang. */
+  ok('logo diberi alas putih', idx.indexOf('id="brandLogo" class="w-9 h-9 rounded-lg bg-white') >= 0);
 }
 
 console.log(`\n✅ Semua ${passed} assertion lulus.`);
