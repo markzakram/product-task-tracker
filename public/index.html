@@ -138,7 +138,9 @@
          yang memang punya ruang. Modal RANCANGAN PAKET sengaja TIDAK ikut: isinya kisi
          rapat 92 kotak isian ala spreadsheet, dan menaikkannya ke 44px membuat kisi itu
          dua kali lebih panjang demi pekerjaan yang memang dilakukan di depan komputer. */
-      #taskModal input,#taskModal select,#taskModal button{min-height:44px}
+      /* Kotak centang dikecualikan: ia dibungkus <label> 44px sendiri, dan min-height di
+         sini justru melarkannya jadi persegi panjang 20x44. */
+      #taskModal input:not([type=checkbox]),#taskModal select,#taskModal button{min-height:44px}
       /* Tab yang isinya memang cuma daftar + beberapa tombol: semuanya boleh 44px tanpa
          risiko merusak tata letak, karena tak ada kisi rapat di dalamnya. */
       #mylinksView button,#mylinksView select,#mylinksView input,
@@ -986,7 +988,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.113.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.114.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1127,6 +1129,15 @@ const PONSEL_BOLEH = {
   getChecklist:1, getCollabs:1, getNotifications:1, getUsers:1, listPinUsers:1,
   getPackages:1, verifyPin:1,
   addComment:1, setCollabStepDone:1, markNotificationsRead:1,
+  /* Mencentang proses induk TERKUNCI sampai sub-ceklisnya tuntas. Tanpa aksi ini, proses
+     yang punya sub-ceklis mustahil diselesaikan dari ponsel — sub-ceklisnya tak bisa
+     dicentang, jadi induknya tak pernah terbuka. Saat ditulis ada 23 sub-ceklis yang
+     belum tuntas, jadi ini bukan kasus teoretis.
+
+     Yang ikut terbuka: mencentang checklist di task biasa. Itu diterima — kelasnya sama,
+     sekali ketuk dan mudah dibatalkan. Yang TETAP tertutup: addChecklistItem dan
+     deleteChecklistItem, karena menambah/menghapus butir itu entri data, bukan centang. */
+  setChecklistDone:1,
 };
 
 const PREVIEW_BOLEH = { getBootstrapData:1, getTasks:1, getOptions:1, getActivityLog:1,
@@ -3778,7 +3789,8 @@ function renderChecklist(){
     const key=isNew?String(i):String(c.row);
     const meta=(c.done&&c.checkedBy)?`<span class="text-[10px] text-gray-400 shrink-0">${escapeHtml(c.checkedBy)}</span>`:'';
     return `<div class="group flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800">
-      <input type="checkbox" ${c.done?'checked':''} ${editable?'':'disabled'} onchange="toggleChecklist('${escapeAttr(key)}',this.checked)" class="w-4 h-4 shrink-0 accent-emerald-600 cursor-pointer">
+      <label class="shrink-0 inline-flex items-center justify-center w-11 h-11 -my-1 md:w-auto md:h-auto md:my-0 cursor-pointer">
+      <input type="checkbox" ${c.done?'checked':''} ${editable?'':'disabled'} onchange="toggleChecklist('${escapeAttr(key)}',this.checked)" class="w-5 h-5 md:w-4 md:h-4 shrink-0 accent-emerald-600 cursor-pointer"></label>
       <span class="flex-1 text-sm ${c.done?'line-through text-gray-400':'text-gray-700 dark:text-slate-200'}">${escapeHtml(c.item)}</span>
       ${meta}
       ${c.link?linkIcon(c.link,'Buka hasil item ini'):''}
@@ -5300,7 +5312,8 @@ function renderCollabSteps(c){
     const editNote=canEditStepNote(s);
     return `<div class="rounded-lg bg-white dark:bg-slate-900 border ${turn?'border-rose-200 dark:border-rose-900/50':'border-gray-100 dark:border-slate-800'}">
       <div class="flex items-center gap-2 p-2">
-        <input type="checkbox" data-step-main="${s.order}" ${s.done?'checked':''} ${(canChk&&!locked)?'':'disabled'} title="${locked?('Selesaikan semua sub-ceklis dulu ('+sc.done+'/'+sc.total+')'):''}" onchange="toggleCollabStep(${s.order},this.checked)" class="w-4 h-4 shrink-0 accent-indigo-600 ${(canChk&&!locked)?'cursor-pointer':'opacity-50'}">
+        <label class="shrink-0 inline-flex items-center justify-center w-11 h-11 -my-1 md:w-auto md:h-auto md:my-0 cursor-pointer">
+        <input type="checkbox" data-step-main="${s.order}" ${s.done?'checked':''} ${(canChk&&!locked)?'':'disabled'} title="${locked?('Selesaikan semua sub-ceklis dulu ('+sc.done+'/'+sc.total+')'):''}" onchange="toggleCollabStep(${s.order},this.checked)" class="w-5 h-5 md:w-4 md:h-4 shrink-0 accent-indigo-600 ${(canChk&&!locked)?'cursor-pointer':'opacity-50'}"></label>
         <span class="w-5 text-center text-[10px] font-mono text-gray-400 shrink-0">${s.order}</span>
         <div class="flex-1 min-w-0">
           <div class="text-sm ${s.done?'line-through text-gray-400':'text-gray-700 dark:text-slate-200'}">${escapeHtml(s.name)}</div>
@@ -5433,7 +5446,8 @@ function renderStepChecklist(order, items){
   const editable=stepChecklistEditable(order);
   const done=(items||[]).filter(i=>i.done).length, total=(items||[]).length;
   const rows=(items||[]).map(it=>`<div class="flex items-center gap-1.5 group">
-    <input type="checkbox" ${it.done?'checked':''} ${editable?'':'disabled'} onchange="toggleStepChecklist(${order},${it.row},this.checked)" class="w-3.5 h-3.5 shrink-0 accent-indigo-600 ${editable?'cursor-pointer':'opacity-50'}">
+    <label class="shrink-0 inline-flex items-center justify-center w-11 h-11 -my-1 md:w-auto md:h-auto md:my-0 cursor-pointer">
+    <input type="checkbox" ${it.done?'checked':''} ${editable?'':'disabled'} onchange="toggleStepChecklist(${order},${it.row},this.checked)" class="w-5 h-5 md:w-3.5 md:h-3.5 shrink-0 accent-indigo-600 ${editable?'cursor-pointer':'opacity-50'}"></label>
     <span class="flex-1 text-xs ${it.done?'line-through text-gray-400':'text-gray-600 dark:text-slate-300'}">${escapeHtml(it.item)}</span>
     ${it.link?linkIcon(it.link,'Buka hasil sub-item ini'):''}
     ${editable?`<button type="button" onclick="promptSubLink(${order},${it.row})" title="${it.link?'Ubah/hapus link hasil':'Lampirkan link hasil (opsional)'}" class="${it.link?'text-indigo-400 hover:text-indigo-600':'opacity-0 group-hover:opacity-100 text-gray-300 hover:text-indigo-600'}"><span class="material-icons-round text-[13px]">link</span></button>`:''}

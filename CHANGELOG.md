@@ -31,6 +31,51 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.114.0 — Mencentang dari ponsel benar-benar bisa dipakai
+
+Susulan untuk 1.113.0. Di sana aksi tulis dari ponsel ditutup kecuali membalas komentar
+dan mencentang proses beruntun. Begitu keduanya diukur di layar 375px, ketahuan bahwa
+yang tersisa itu **tidak benar-benar bisa dipakai**.
+
+### Target 14–16px untuk aksi harian
+
+Tiga kotak centang memegang semua yang tersisa, dan ketiganya termasuk yang terkecil di
+seluruh aplikasi:
+
+| Kotak | Semula | Area ketuk sekarang |
+| --- | --- | --- |
+| Proses beruntun | 16px | **44×44** (kotak 20px) |
+| Sub-ceklis proses | **14px** | **44×44** (kotak 20px) |
+| Checklist task | 16px | **44×44** (kotak 20px) |
+
+Ketiganya dibungkus `<label>` selebar 44px, **bukan** dibesarkan jadi 44px. Mengeklik
+label ikut mencentang isinya, jadi area ketuknya penuh tanpa kotak centang raksasa yang
+tak proporsional di dalam baris. Di layar lebar label-nya menciut kembali dan tak ada yang
+berubah — kotaknya tetap 14/16px seperti semula.
+
+### Satu izin yang terpaksa ikut
+
+Mencentang proses induk **terkunci** sampai semua sub-ceklisnya tuntas — aturan yang sudah
+ada sejak dulu. Tapi sub-ceklis disimpan lewat `setChecklistDone`, dan aksi itu tidak
+masuk daftar putih ponsel di 1.113.0. Akibatnya proses yang punya sub-ceklis **mustahil**
+diselesaikan dari ponsel: sub-ceklisnya tak bisa dicentang, jadi induknya tak pernah
+terbuka. Saat ini ditulis ada **23 sub-ceklis yang belum tuntas**, jadi bukan kasus
+teoretis — itu 23 proses yang menolak diselesaikan tanpa penjelasan apa pun di layar.
+
+Jadi `setChecklistDone` ikut diizinkan. Konsekuensinya mencentang checklist di task biasa
+juga terbuka, dan itu diterima: kelasnya sama — sekali ketuk, mudah dibatalkan.
+
+Garis batasnya tetap tegas, dan diuji otomatis: **mencentang** butir boleh;
+`addChecklistItem`, `deleteChecklistItem`, dan `copyChecklist` tetap tertutup, karena
+menambah, menghapus, atau menyalin butir itu entri data — bukan centang.
+
+### Satu bentrokan yang ketahuan saat mengukur
+
+Aturan `#taskModal input{min-height:44px}` dari 1.111.0 bertabrakan dengan pembungkus baru:
+kotak centang di modal task jadi **20×44** — persegi panjang, bukan kotak. Ia sudah punya
+area ketuk 44px sendiri dari label-nya, jadi kini dikecualikan dari aturan itu.
+
+---
 ## 1.113.0 — Ponsel jadi lihat-saja, dengan dua pengecualian
 
 Lima tahap sebelumnya membuat aplikasi ini enak dipakai dari ponsel. Versi ini justru

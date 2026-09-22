@@ -3292,6 +3292,15 @@ console.log('=== 16x. Ponsel: lihat saja, dua pengecualian ===');
   /* Kebersihan tampilan, bukan perubahan data — menutupnya membuat lencana merah tak
      pernah bisa padam dari ponsel. */
   ok('menandai notifikasi terbaca tetap boleh', !!boleh.markNotificationsRead);
+  /* Mencentang proses induk TERKUNCI sampai sub-ceklisnya tuntas. Tanpa aksi ini, proses
+     yang punya sub-ceklis mustahil diselesaikan dari ponsel: sub-ceklisnya tak bisa
+     dicentang, jadi induknya tak pernah terbuka. Saat ditulis ada 23 yang belum tuntas. */
+  ok('mencentang sub-ceklis tetap boleh', !!boleh.setChecklistDone);
+  /* Garis batasnya: MENCENTANG butir boleh, MENAMBAH/MENGHAPUS butir tidak — yang kedua
+     itu entri data, bukan centang. */
+  ok('menambah butir ceklis tetap tertutup', !boleh.addChecklistItem);
+  ok('menghapus butir ceklis tetap tertutup', !boleh.deleteChecklistItem);
+  ok('menyalin ceklis tetap tertutup', !boleh.copyChecklist);
 
   /* Yang HARUS tertutup. Kalau salah satu bocor, aksi paling merusak justru yang paling
      gampang keliru ditekan dari jempol. */
@@ -3325,6 +3334,32 @@ console.log('=== 16x. Ponsel: lihat saja, dua pengecualian ===');
   ok('wadahnya ada', idx.indexOf('id="mobileReadNotice"') >= 0);
   /* Lihat-saja (tamu) lebih membatasi, jadi ia yang menang kalau keduanya berlaku. */
   ok('tak bertabrakan dengan mode tamu', idx.indexOf('const tampil = kunciTulisPonsel() && !isViewOnly();') >= 0);
+
+  /* Satu-satunya aksi tulis yang tersisa di ponsel dipegang oleh target 16px — yang
+     terkecil di seluruh aplikasi. Dibungkus <label>, BUKAN dibesarkan jadi 44px:
+     mengeklik label ikut mencentang isinya, jadi area ketuknya 44px tanpa kotak centang
+     raksasa yang tak proporsional di dalam baris proses. Di layar lebar label-nya
+     menciut kembali dan tak ada yang berubah. */
+  ok('area ketuk centang proses 44px di ponsel',
+    idx.indexOf('<label class="shrink-0 inline-flex items-center justify-center w-11 h-11 -my-1 md:w-auto md:h-auto md:my-0 cursor-pointer">') >= 0);
+  ok('kotaknya sendiri tetap proporsional',
+    idx.indexOf('class="w-5 h-5 md:w-4 md:h-4 shrink-0 accent-indigo-600') >= 0);
+  /* Dua kotak lain yang ikut hidup begitu setChecklistDone dibuka: sub-ceklis proses
+     (semula 14px, terkecil di aplikasi) dan checklist task (16px). */
+  ok('area ketuk sub-ceklis proses 44px',
+    idx.indexOf('class="w-5 h-5 md:w-3.5 md:h-3.5 shrink-0 accent-indigo-600') >= 0);
+  ok('area ketuk checklist task 44px',
+    idx.indexOf('class="w-5 h-5 md:w-4 md:h-4 shrink-0 accent-emerald-600 cursor-pointer"></label>') >= 0);
+  ok('tiga kotak centang memakai pembungkus yang sama',
+    (idx.match(/<label class="shrink-0 inline-flex items-center justify-center w-11 h-11/g) || []).length === 3);
+  /* min-height:44px dari aturan modal task melarkan kotak centang jadi 20x44. Ia sudah
+     punya pembungkus 44px sendiri, jadi dikecualikan. */
+  ok('kotak centang dikecualikan dari min-height modal task',
+    idx.indexOf('#taskModal input:not([type=checkbox]),#taskModal select,#taskModal button{min-height:44px}') >= 0);
+  /* Keduanya memakai isViewOnly(), BUKAN kunciTulisPonsel() — kalau ikut terkunci, aksi
+     yang baru saja diizinkan justru mati di UI-nya. */
+  ok('ceklis tetap bisa disunting di ponsel',
+    idx.indexOf('function stepChecklistEditable(order){ return !isViewOnly(); }') >= 0);
 }
 
 console.log(`\n✅ Semua ${passed} assertion lulus.`);
