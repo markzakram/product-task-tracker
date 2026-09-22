@@ -31,6 +31,49 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.108.0 — Tampilan ponsel, tahap 1
+
+Aplikasi ini selama ini adalah tampilan desktop yang dipaksakan ke layar 375 piksel. Tiga
+hal yang paling menghambat dibereskan lebih dulu; sisanya menyusul di tahap berikutnya.
+
+### Task List jadi kartu
+
+Tabelnya delapan kolom. Di 375px itu berarti menggeser ke samping untuk membaca satu baris,
+lalu menggeser balik untuk membaca baris berikutnya. Di bawah 768px yang digambar sekarang
+**satu kartu per task**: nama di atas, status dan peran di kanannya, lalu PIC/stage/platform,
+lalu deadline di kanan bawah — merah kalau telat.
+
+Isinya sama dengan tabel, cuma disusun ulang. Yang sengaja tidak ikut: dropdown suntingan
+sebaris. Di jempol, kotak setinggi 27 piksel lebih sering meleset daripada kena, dan modalnya
+toh sejauh satu ketukan.
+
+Hanya **salah satu** yang diisi, tak pernah keduanya — daftar ini bisa mencapai ratusan baris,
+dan menggambar dua-duanya melipatgandakan simpul DOM tanpa ada yang melihatnya.
+
+Ambang 768px-nya sengaja disamakan persis dengan `md:` milik Tailwind. Kalau meleset sedikit
+saja, ada rentang lebar di mana kartu dan tabel sama-sama tersembunyi dan halamannya tampak
+kosong. Memutar ponsel melewati ambang itu menggambar ulang, supaya yang tampil bukan wadah
+kosong.
+
+### Tombol modal tak lagi terpotong
+
+"Simpan" — tombol paling penting di form yang paling sering dipakai — sebelumnya keluar dari
+tepi layar 375px. Kaki modalnya kini boleh membungkus: di ponsel Tutup dan Simpan jadi selebar
+layar, di layar lebar tetap sebaris di kanan seperti biasa.
+
+### Saringan dilipat
+
+Lima dropdown dan dua kotak tanggal memakan hampir satu layar penuh sebelum satu baris data
+pun terlihat. Semuanya kini di balik satu tombol **Saringan**, lengkap dengan angka berapa
+yang sedang aktif — supaya saringan yang tertinggal dari sesi sebelumnya tak jadi "kok
+datanya hilang".
+
+Yang tetap tampil: pil cepat (Semua, Tugas Saya, Overdue) di Task List dan pil rentang
+(Hari ini, 7 hari, 30 hari) di Dashboard. Justru itu yang paling sering ditekan — melipatnya
+akan menambah satu ketukan pada jalur yang paling ramai. Di layar lebar tak ada yang berubah:
+tombolnya tersembunyi dan semua saringan tetap terbentang.
+
+---
 ## 1.107.0 — Logo ProductTrack, dan seluruh warna disetel ke paletnya
 
 Logo ProductTrack masuk ke kepala sidebar dan jadi favicon. Tapi memasang logo saja akan

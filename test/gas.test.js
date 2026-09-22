@@ -2894,4 +2894,44 @@ console.log('=== 16p. Logo & palet warna ===');
   ok('logo diberi alas putih', idx.indexOf('id="brandLogo" class="w-9 h-9 rounded-lg bg-white') >= 0);
 }
 
+console.log('=== 16q. Tampilan ponsel (tahap 1) ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Di 375px tabel delapan kolom hanya bisa dibaca dengan menggeser ke samping — itu
+     pengalaman desktop yang dipaksakan ke ponsel. Di bawah 768px yang digambar kartu. */
+  ok('wadah kartu ada', idx.indexOf('id="taskCards" class="md:hidden') >= 0);
+  ok('panel tabel sembunyi di ponsel', idx.indexOf('class="hidden md:block bg-white dark:bg-slate-900 rounded-xl') >= 0);
+  ok('pembuat kartunya ada', idx.indexOf('function taskKartuHp(t)') >= 0);
+  /* Ambangnya harus sama persis dengan md: milik Tailwind, kalau tidak ada lebar di mana
+     kartu dan tabel sama-sama kosong — atau sama-sama tampil. */
+  ok('ambangnya sama dengan md: Tailwind', idx.indexOf('function pakaiKartuTask(){ return window.innerWidth < 768; }') >= 0);
+  /* Hanya SALAH SATU yang diisi: daftar ini bisa mencapai ratusan baris, dan menggambar
+     keduanya melipatgandakan simpul DOM tanpa ada yang melihatnya. */
+  const awal = idx.indexOf('function renderTable()');
+  const rt = idx.slice(awal, idx.indexOf('function ', awal + 10));
+  ok('kartu dan baris tak pernah digambar bersamaan',
+    rt.indexOf("document.getElementById('taskTable').innerHTML='';") >= 0
+    && rt.indexOf("if(kotakKartu) kotakKartu.innerHTML='';") >= 0);
+  /* Memutar ponsel melewati 768px harus menggambar ulang — kalau tidak, yang tampil
+     adalah wadah kosong. */
+  ok('lebar yang berubah menggambar ulang',
+    idx.indexOf('const k=pakaiKartuTask(); if(k!==state._kartuTask)') >= 0);
+
+  /* "Simpan" — tombol paling penting di form paling sering dipakai — keluar dari tepi
+     layar 375px sebelum ini. */
+  ok('kaki modal boleh membungkus', idx.indexOf('border-t border-gray-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2') >= 0);
+  ok('Simpan melebar di ponsel, biasa di layar lebar',
+    idx.indexOf('id="saveBtn" onclick="saveTaskFromModal()" class="flex-1 sm:flex-none') >= 0);
+
+  /* Lima dropdown dan dua kotak tanggal memakan hampir satu layar penuh sebelum satu
+     baris data pun terlihat. Pil cepat tetap tampil — itu yang paling sering ditekan. */
+  ok('pelipatnya ada', idx.indexOf('function toggleSaringLipat()') >= 0);
+  ok('hanya berlaku di layar kecil',
+    idx.indexOf("return (state.saringBuka ? 'flex' : 'hidden') + ' md:flex'") >= 0);
+  ok('tombolnya sembunyi di layar lebar', idx.indexOf('onclick="toggleSaringLipat()" class="md:hidden') >= 0);
+  ok('jumlah saringan aktif ditampilkan di tombolnya', idx.indexOf('tombolLipatSaring(totalSel)') >= 0);
+  ok('Dashboard ikut dilipat', idx.indexOf('tombolLipatSaring(n)') >= 0);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

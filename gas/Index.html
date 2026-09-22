@@ -389,7 +389,11 @@
 
         <!-- LIST -->
         <div id="listView" class="view hide space-y-4 max-w-[1600px] mx-auto">
-          <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden">
+          <!-- Di bawah 768px tabel delapan kolom hanya bisa dibaca dengan menggeser ke
+               samping. Wadah kartu di bawah menggantikannya; hanya SALAH SATU yang diisi,
+               supaya jumlah simpul DOM tak berlipat pada daftar ratusan baris. -->
+          <div id="taskCards" class="md:hidden space-y-2"></div>
+          <div class="hidden md:block bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden">
             <div class="overflow-auto max-h-[calc(100vh-215px)] scrollbar-thin">
               <table class="w-full text-left text-sm">
                 <!-- sticky: kepala kolom ikut turun saat digulir. Latarnya wajib pekat,
@@ -775,14 +779,14 @@
         </div>
       </div>
 
-      <div class="px-5 py-4 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between">
+      <div class="px-5 py-4 border-t border-gray-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
         <div class="flex gap-2">
           <button id="deleteBtn" onclick="deleteTaskFromModal()" class="hide px-3 py-2 rounded-lg border border-rose-200 text-rose-600 dark:border-rose-900/50 dark:text-rose-400 font-semibold text-sm hover:bg-rose-50">Hapus</button>
           <button id="duplicateBtn" onclick="duplicateTaskFromModal()" title="Buat task baru memakai task ini sebagai template" class="hide px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-semibold text-sm hover:bg-gray-50 flex items-center gap-1.5"><span class="material-icons-round text-[16px]">content_copy</span>Duplikat</button>
         </div>
-        <div class="ml-auto flex gap-2">
-          <button onclick="closeTaskModal()" class="px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-semibold text-sm hover:bg-gray-50">Tutup</button>
-          <button id="saveBtn" onclick="saveTaskFromModal()" class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm">Simpan</button>
+        <div class="ml-auto flex gap-2 w-full sm:w-auto">
+          <button onclick="closeTaskModal()" class="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-semibold text-sm hover:bg-gray-50">Tutup</button>
+          <button id="saveBtn" onclick="saveTaskFromModal()" class="flex-1 sm:flex-none px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm">Simpan</button>
         </div>
       </div>
     </div>
@@ -886,7 +890,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.107.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.108.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1041,6 +1045,7 @@ let state = {
   kanbanSelect:false, selected:[],
   dashFilters: {preset:'all', start:'', end:'', field:'due', status:[], pic:[], priority:[]}, openDashFilter:'',
   repFilters: {preset:'all', start:'', end:'', field:'created', pic:[], stage:[], src:'all'}, openRepFilter:'', repPic:'',
+  saringBuka: false,   // hanya berpengaruh di bawah 768px; lihat tombolLipatSaring()
   selectedTaskId: null, comments: [], commentsSummary: [], checklist: [], checklistSummary: {}, _pendingChecklist: [], collabs: [], _collabId: null, _collabEdit: false, _collabDraft: [], _collabDirty: false, _collabViz: 'grid', _collabFilter: {q:'',type:'',pic:'',status:'',mine:false}, notifications: [], _lastRefresh: 0, pinUsers: [], links: [], dashboards: [], notes: [], commFilters: {unreadOnly:false, pic:'', status:''}, deadlineFocus: false, chartPic: null, chartStatus: null, sortables: [],
   gantt: null, calendar: null, ganttMode: 'Day'
 };
@@ -1221,7 +1226,12 @@ function renderStagingMark(){
   try {
     renderAppVersion(); applySidebar(); renderPreviewBar();
     populateUserSelect(); populateManagerFocus(); populateModalDropdowns(); applyRoleUI(); renderAll(); updateCommNavBadge(); renderDeadlineReminder(); notifyUnreadOnLoad(); loadNotifications(); loadPackages(()=>{ if(state.activeView==='paket') renderPaket(); if(state.activeView==='collab') renderCollab(); }); if(needIdentityPick()) showIdentityGate();
-    if(!state._msBound){state._msBound=true; document.addEventListener('click', msOutsideClose); document.addEventListener('click', notifOutsideClose); document.addEventListener('keydown', e=>{ if(e.key==='Escape' && tutupLapisanAtas()) e.preventDefault(); }); document.addEventListener('keydown', pintasFormat); window.addEventListener('resize', ()=>{ if(window.innerWidth>=768) closeMobileSidebar(); }); document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.activeView==='communication' && state.selectedTaskId && document.getElementById('taskModal').classList.contains('hide')){ closeCommChat(); } });}
+    if(!state._msBound){state._msBound=true; document.addEventListener('click', msOutsideClose); document.addEventListener('click', notifOutsideClose); document.addEventListener('keydown', e=>{ if(e.key==='Escape' && tutupLapisanAtas()) e.preventDefault(); }); document.addEventListener('keydown', pintasFormat); state._kartuTask=pakaiKartuTask();
+      /* Task List menggambar kartu ATAU baris, tak pernah keduanya. Saat lebar layar
+         melewati 768px — ponsel diputar, jendela ditarik — yang sedang tampil harus
+         digambar ulang, kalau tidak layarnya jadi kosong sama sekali. */
+      window.addEventListener('resize', ()=>{ const k=pakaiKartuTask(); if(k!==state._kartuTask){ state._kartuTask=k; if(state.activeView==='list') renderTable(); } });
+      window.addEventListener('resize', ()=>{ if(window.innerWidth>=768) closeMobileSidebar(); }); document.addEventListener('keydown', e=>{ if(e.key==='Escape' && state.activeView==='communication' && state.selectedTaskId && document.getElementById('taskModal').classList.contains('hide')){ closeCommChat(); } });}
   } catch(e) {
     try{ console.error('[ProductTrack] afterLoad gagal:', e); }catch(_){ }
     showToast('Sebagian tampilan gagal dimuat: ' + ((e && e.message) || e), false);
@@ -2017,6 +2027,19 @@ function fieldFilterDropdown(field,label){
     <div class="ms-panel ${open?'':'hide'} absolute left-0 top-full mt-1 z-40 w-56 max-h-72 overflow-y-auto rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl py-1 scrollbar-thin">${items}</div>
   </div>`;
 }
+/* ---------- Saringan yang bisa dilipat di ponsel ----------
+
+   Di layar 375px, lima dropdown dan dua kotak tanggal memakan hampir satu layar penuh
+   sebelum satu baris data pun terlihat. Yang dilipat hanya bagian itu; pil cepat (Semua,
+   Tugas Saya, Overdue) tetap tampil karena justru itu yang paling sering ditekan.
+
+   Hanya berlaku di bawah 768px — di layar lebar semuanya tetap terbentang seperti biasa,
+   jadi kelas "md:flex" selalu menang atas "hidden". */
+function toggleSaringLipat(){ state.saringBuka=!state.saringBuka; renderFilterBar(); renderDashFilters(); }
+function kelasLipatSaring(){ return (state.saringBuka ? 'flex' : 'hidden') + ' md:flex'; }
+function tombolLipatSaring(jumlah){
+  return `<button onclick="toggleSaringLipat()" class="md:hidden h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-gray-600 dark:text-slate-300 inline-flex items-center gap-1.5"><span class="material-icons-round text-[16px]">tune</span>Saringan${jumlah?`<span class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold">${jumlah}</span>`:''}<span class="material-icons-round text-[16px]">${state.saringBuka?'expand_less':'expand_more'}</span></button>`;
+}
 function renderFilterBar(){
   const bar=document.getElementById('filterBar'); if(!bar) return;
   const show=FILTER_VIEWS.includes(state.activeView);
@@ -2036,7 +2059,8 @@ function renderFilterBar(){
   bar.innerHTML=`
     <div class="flex items-center gap-1.5 flex-wrap">${pills}</div>
     <span class="w-px h-6 bg-gray-200 dark:bg-slate-700 mx-1 hidden md:inline-block"></span>
-    <div class="flex items-center gap-1.5 flex-wrap">${ms}
+    ${tombolLipatSaring(totalSel)}
+    <div class="${kelasLipatSaring()} items-center gap-1.5 flex-wrap w-full md:w-auto">${ms}
       <input type="date" value="${state.filters.dueStart}" onchange="setDueFilter('dueStart',this.value)" title="Due dari" class="h-9 px-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-gray-600 dark:text-slate-300">
       <input type="date" value="${state.filters.dueEnd}" onchange="setDueFilter('dueEnd',this.value)" title="Due sampai" class="h-9 px-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-gray-600 dark:text-slate-300">
       ${totalSel?`<button onclick="resetFilters()" class="h-9 px-3 rounded-lg border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-1"><span class="material-icons-round text-[15px]">filter_alt_off</span>Reset</button>`:''}
@@ -2474,12 +2498,15 @@ function renderDashFilters(){
     <span class="material-icons-round text-[18px] text-indigo-500">filter_alt</span>
     ${fieldToggle(f,'setDashField')}
     <div class="flex items-center gap-1.5 flex-wrap">${rangePills(f,'setDashPreset')}</div>
+    ${tombolLipatSaring(n)}
+    <div class="${kelasLipatSaring()} items-center gap-1.5 flex-wrap w-full md:w-auto">
     ${dateInputs(f,'setDashDate')}
     <span class="w-px h-6 bg-gray-200 dark:bg-slate-700 mx-1 hidden lg:inline-block"></span>
     ${msDropdown({key:'pic',label:'Beban Kerja',options:dashPicOptions(),selected:f.pic,open:state.openDashFilter==='pic',onToggle:'toggleDashFilter',onOpen:'toggleDashPanel'})}
     ${msDropdown({key:'status',label:'Status',options:(state.options.status||[]),selected:f.status,open:state.openDashFilter==='status',onToggle:'toggleDashFilter',onOpen:'toggleDashPanel'})}
     ${bisaLihatKesulitan()?msDropdown({key:'priority',label:'Kesulitan',options:(state.options.priority||[]),selected:f.priority,open:state.openDashFilter==='priority',onToggle:'toggleDashFilter',onOpen:'toggleDashPanel'}):''}
     ${n?`<button onclick="resetDashFilters()" class="h-9 px-3 rounded-lg border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20 flex items-center gap-1"><span class="material-icons-round text-[15px]">filter_alt_off</span>Reset</button>`:''}
+    </div>
     <span class="ml-auto text-xs text-gray-400 font-medium whitespace-nowrap">${shown} dari ${total} task • ${escapeHtml(rangeLabel(f))}</span>
   </div>`;
 }
@@ -2946,9 +2973,43 @@ function renderKepalaTabel(){
     if(th) th.classList.toggle('text-indigo-600', aktif);
   });
 }
+/* ---------- Task List di ponsel: satu kartu per baris ----------
+
+   Isinya yang sama dengan tabel, disusun ulang: nama di atas, lalu status & peran, lalu
+   PIC/stage/platform, lalu deadline. Yang tak ikut cuma dropdown suntingan sebaris — di
+   jempol, kotak setinggi 27 piksel lebih sering meleset daripada kena, dan modalnya toh
+   sejauh satu ketukan. */
+function taskKartuHp(t){
+  const telat=isLate(t), hariIni=!isDone(t)&&daysToDue(t)===0;
+  const tepi=telat?'border-l-[3px] border-rose-500':(hariIni?'border-l-[3px] border-pink-500':'border-l-[3px] border-transparent');
+  const buka=t._collab?`openCollabModal('${escapeAttr(t.collabId)}')`:`openTaskModal('${escapeAttr(t.id)}')`;
+  return `<div onclick="${buka}" class="${tepi} bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-3 active:bg-gray-50 dark:active:bg-slate-800">
+    <div class="flex items-start justify-between gap-2">
+      <div class="font-medium text-sm text-gray-900 dark:text-white leading-snug break-words min-w-0">${escapeHtml(t.taskName||'-')}</div>
+      <span class="shrink-0 flex items-center gap-1">${roleChip(t)}${statusChip(t.status)}</span>
+    </div>
+    <div class="mt-2 flex items-center gap-2 flex-wrap text-[11px] text-gray-500 dark:text-slate-400">
+      <span class="font-mono text-gray-400">${escapeHtml(t.id)}</span>
+      ${t.pic?`<span class="flex items-center gap-1">${avatar(t.pic)}${escapeHtml(t.pic)}</span>`:''}
+      ${t.stage?`<span>· ${escapeHtml(t.stage)}</span>`:''}
+      ${t.platform?`<span>· ${escapeHtml(t.platform)}</span>`:''}
+      <span class="ml-auto font-medium ${telat?'text-rose-600':(hariIni?'text-pink-600':'')}">${t.dueDate?formatDateHuman(t.dueDate):'—'}${telat?' • telat':''}</span>
+    </div>
+  </div>`;
+}
+/* Ambang yang sama dengan md: milik Tailwind, supaya kartu dan tabel tak pernah tampil
+   bersamaan atau sama-sama kosong di lebar peralihan. */
+function pakaiKartuTask(){ return window.innerWidth < 768; }
 function renderTable(){
   const tasks=urutkanTabel(viewTasksAll());
   renderKepalaTabel();
+  const kotakKartu=document.getElementById('taskCards');
+  if(pakaiKartuTask()){
+    document.getElementById('taskTable').innerHTML='';
+    if(kotakKartu) kotakKartu.innerHTML = tasks.length ? tasks.map(taskKartuHp).join('') : `<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 px-4 py-14 text-center text-gray-400 font-medium">Tidak ada task sesuai filter.</div>`;
+    return;
+  }
+  if(kotakKartu) kotakKartu.innerHTML='';
   const rows=tasks.map(t=>{
     if(t._collab) return collabTableRow(t);
     const overdue=isLate(t); const today=!isDone(t)&&daysToDue(t)===0;
