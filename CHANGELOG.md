@@ -31,6 +31,58 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.113.0 — Ponsel jadi lihat-saja, dengan dua pengecualian
+
+Lima tahap sebelumnya membuat aplikasi ini enak dipakai dari ponsel. Versi ini justru
+mempersempitnya: **mengubah data dari genggaman ditutup**. Alasannya sederhana — target
+kecil, jempol, sambil jalan. Salah tekan di sana lebih mahal daripada ketidaknyamanan
+membuka laptop.
+
+Dua hal tetap hidup, karena justru itu yang masuk akal dari ponsel dan memang didorong
+oleh notifikasi:
+
+- **Membalas komentar** di tab Komunikasi
+- **Mencentang proses beruntun** yang jadi giliran Anda
+
+Tanpa keduanya, lencana merah "Giliran Anda: 3 proses siap dicentang" jadi dorongan buntu —
+aplikasi memanggil orang ke ponselnya lalu menyuruhnya cari komputer.
+
+### Satu gerbang, bukan dua puluh tombol
+
+Penguncian dipasang di `guardPreview()` — satu tempat yang dilewati **semua** aksi, dengan
+daftar putih aksi yang boleh. Menyembunyikan tombol satu per satu tak pernah cukup: selalu
+ada jalur yang terlewat (pintasan papan ketik, seretan kartu, aksi massal), dan justru yang
+terlewat itu yang tak pernah diuji.
+
+Tombolnya tetap disembunyikan juga, tapi itu soal kesopanan — supaya tak ada yang menekan
+sesuatu yang pasti ditolak. Modal task kini menyebut dirinya **"Detail Task (lihat saja)"**
+dan tak menyodorkan tombol Simpan. Seret-kartu di Kanban tak dipasang sama sekali.
+
+Ada pemeriksaan otomatis yang memastikan **setiap** aksi baca (`get*`) ada di daftar putih.
+Kalau nanti ada aksi baca baru dan daftarnya lupa diperbarui, aplikasi akan tampak kosong
+di ponsel — gejala yang letaknya jauh dari sebabnya.
+
+### Ini pagar, bukan kunci
+
+Perlu ditulis terang-terangan supaya tak ada yang salah mengira ini kontrol keamanan:
+**penguncian ini tidak dipaksakan dari server.** Backend memberi izin berdasarkan PIN,
+bukan perangkat (lihat `level` di `api/rpc.js`), dan tak punya cara andal tahu sesuatu
+itu ponsel. Satu ketukan **"Situs desktop"** di menu Chrome atau Safari membuka semuanya
+lagi.
+
+Itu diterima sebagai konsekuensi: tujuannya mencegah salah tekan, bukan menahan orang yang
+sengaja. Kalau suatu saat perlu benar-benar dipaksakan, tuasnya `VIEW_PIN` — per-orang,
+dipaksakan server, dan ikut mencabut delapan tab.
+
+### Catatan teknis
+
+Mode lihat-saja milik tamu (`isViewOnly()`) **tidak** dipakai ulang untuk ini, walau
+namanya mirip. Ia juga menyembunyikan delapan tab — Manager yang membuka dari ponsel akan
+kehilangan Hari Ini, Laporan, Task Kolaborasi, dan Catatan, bukan cuma tombol simpannya.
+Jadi ini gerbang terpisah. Kalau keduanya berlaku sekaligus, yang tamu menang, sebab ia
+yang lebih membatasi.
+
+---
 ## 1.112.0 — Tampilan ponsel, tahap 5: Timeline jadi daftar
 
 Tahap terakhir. Dari tiga hal yang tersisa di 1.111.0, satu dikerjakan dan dua sengaja

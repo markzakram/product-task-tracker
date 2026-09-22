@@ -3272,4 +3272,59 @@ console.log('=== 16w. Tampilan ponsel, tahap 5: Timeline jadi daftar ===');
     idx.indexOf('function barisJadwalHp(t)') >= 0 && idx.indexOf('on_click: task=>openTaskModal(task.id)') >= 0);
 }
 
+console.log('=== 16x. Ponsel: lihat saja, dua pengecualian ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Gerbangnya di guardPreview, SATU tempat yang dilewati semua aksi. Menyembunyikan tombol
+     saja tak pernah cukup — selalu ada jalur yang terlewat (pintasan papan ketik, seretan,
+     aksi massal), dan justru yang terlewat itu yang tak pernah diuji. */
+  ok('gerbangnya di satu tempat', idx.indexOf('if(kunciTulisPonsel() && !PONSEL_BOLEH[name]){') >= 0);
+  ok('ambangnya satu sumber', idx.indexOf('function kunciTulisPonsel(){ return pakaiKartuTask(); }') >= 0);
+
+  /* Dua pengecualian yang membuat notifikasi tetap ada gunanya: tanpa keduanya, lencana
+     "Giliran Anda: 3 proses siap dicentang" jadi dorongan buntu. */
+  const bolehBlok = (idx.match(/const PONSEL_BOLEH = \{([\s\S]*?)\};/) || [])[1] || "";
+  const boleh = {};
+  (bolehBlok.match(/[a-zA-Z]+\s*:\s*1/g) || []).forEach(p => { boleh[p.split(":")[0].trim()] = 1; });
+  ok('membalas komentar tetap boleh', !!boleh.addComment);
+  ok('mencentang proses tetap boleh', !!boleh.setCollabStepDone);
+  /* Kebersihan tampilan, bukan perubahan data — menutupnya membuat lencana merah tak
+     pernah bisa padam dari ponsel. */
+  ok('menandai notifikasi terbaca tetap boleh', !!boleh.markNotificationsRead);
+
+  /* Yang HARUS tertutup. Kalau salah satu bocor, aksi paling merusak justru yang paling
+     gampang keliru ditekan dari jempol. */
+  ['saveTask','deleteTask','savePackage','deletePackage','saveCollab','deleteCollab',
+   'setCollabMirror','saveOption','deleteOption','reorderOptions','saveUser','deleteUser',
+   'quickUpdateField','addChecklistItem','addNote','addUserLink'].forEach(a => {
+    ok('aksi tulis ' + a + ' tertutup di ponsel', !boleh[a]);
+  });
+
+  /* Setiap aksi BACA harus ada di daftar putih. Kalau nanti ada get* baru dan daftarnya
+     lupa diperbarui, aplikasi jadi kosong di ponsel — gejalanya jauh dari sebabnya. */
+  const daftar = (idx.match(/var BACKEND_ACTIONS = \[([^\]]*)\]/) || [])[1] || "";
+  const aksi = daftar.split(",").map(x => x.trim().replace(/^'|'$/g, "")).filter(Boolean);
+  ok('daftar aksi terbaca', aksi.length > 40);
+  aksi.filter(n => n.indexOf('get') === 0).forEach(n => {
+    ok('baca ' + n + ' tetap boleh di ponsel', !!boleh[n]);
+  });
+
+  /* Modalnya harus jujur menyebut dirinya lihat-saja, bukan menyodorkan tombol Simpan yang
+     pasti ditolak. Satu baris ini mengatur judul, Simpan, Hapus, Duplikat sekaligus. */
+  ok('modal task ikut mode lihat-saja',
+    idx.indexOf('const ro = kunciTulisPonsel() || (t ? !canEditTask(t) : isViewOnly());') >= 0);
+  ok('tombol tambah task ditutup', idx.indexOf("addBtn.classList.toggle('hide', vo || kunciTulisPonsel());") >= 0);
+  /* Menyeret kartu antar-kolom mustahil di ponsel (satu kolom yang terlihat) dan hasilnya
+     pun akan ditolak gerbang — lebih baik tak dipasang sama sekali. */
+  ok('seret kanban dimatikan', idx.indexOf('if(window.Sortable && !isViewOnly() && !kunciTulisPonsel()){') >= 0);
+  ok('seret kanban kolaborasi dimatikan', idx.indexOf('if(window.Sortable && canManageCollab() && !kunciTulisPonsel()){') >= 0);
+
+  /* Tanpa keterangan, menekan sesuatu lalu ditolak toast terasa seperti aplikasi rusak. */
+  ok('ada keterangan modenya', idx.indexOf('function renderCatatanPonsel()') >= 0);
+  ok('wadahnya ada', idx.indexOf('id="mobileReadNotice"') >= 0);
+  /* Lihat-saja (tamu) lebih membatasi, jadi ia yang menang kalau keduanya berlaku. */
+  ok('tak bertabrakan dengan mode tamu', idx.indexOf('const tampil = kunciTulisPonsel() && !isViewOnly();') >= 0);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

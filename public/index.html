@@ -410,6 +410,7 @@
         <div id="deadlineReminder" class="hide max-w-[1700px] mx-auto mb-4"></div>
         <div id="deadlineFocusBar" class="hide max-w-[1700px] mx-auto mb-4"></div>
         <div id="viewOnlyNotice" class="hide max-w-[1700px] mx-auto mb-4"></div>
+        <div id="mobileReadNotice" class="hide md:hidden max-w-[1700px] mx-auto mb-4"></div>
         <div id="filterBar" class="hide max-w-[1700px] mx-auto mb-4 flex flex-wrap items-center gap-2"></div>
         <!-- HARI INI -->
         <div id="hariiniView" class="view hide max-w-[1200px] mx-auto space-y-4"><div id="hariiniContent" class="space-y-4"></div></div>
@@ -873,7 +874,8 @@
         </div>
       </div>
 
-      <div class="px-5 py-4 border-t border-gray-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+      <!-- id dipakai openTaskModal untuk menutupnya di ponsel (kunciTulisPonsel). -->
+      <div id="taskModalFooter" class="px-5 py-4 border-t border-gray-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
         <div class="flex gap-2">
           <button id="deleteBtn" onclick="deleteTaskFromModal()" class="hide px-3 py-2 rounded-lg border border-rose-200 text-rose-600 dark:border-rose-900/50 dark:text-rose-400 font-semibold text-sm hover:bg-rose-50">Hapus</button>
           <button id="duplicateBtn" onclick="duplicateTaskFromModal()" title="Buat task baru memakai task ini sebagai template" class="hide px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-semibold text-sm hover:bg-gray-50 flex items-center gap-1.5"><span class="material-icons-round text-[16px]">content_copy</span>Duplikat</button>
@@ -984,7 +986,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.112.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.113.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1101,6 +1103,32 @@ function makeRunner(){
    tampilannya jujur, tapi tindakannya dicegat di sini — satu pintu untuk kedua jalur
    (Apps Script native maupun API Vercel). Tanpa ini, Dev bisa tak sengaja mencentang atau
    menutup task ATAS NAMA orang yang sedang ia intip. */
+/* ---------- Ponsel: lihat saja, dengan dua pengecualian ----------
+
+   Mengubah data dari genggaman gampang keliru: target kecil, jempol, sambil jalan. Jadi
+   di bawah 768px seluruh aksi tulis ditutup — KECUALI dua yang justru paling masuk akal
+   dari ponsel, dan yang memang didorong oleh notifikasi:
+     - addComment        : membalas diskusi task
+     - setCollabStepDone : mencentang proses yang jadi giliran Anda
+   Tanpa dua itu, lencana "Giliran Anda: 3 proses siap dicentang" jadi dorongan buntu.
+
+   markNotificationsRead ikut diizinkan: itu kebersihan tampilan, bukan perubahan data —
+   menutupnya membuat lencana merah tak pernah bisa padam dari ponsel.
+
+   PENTING, ini PAGAR, BUKAN KUNCI. Server memberi izin berdasarkan PIN, bukan perangkat
+   (lihat level di api/rpc.js), jadi satu ketukan "Situs desktop" di menu browser membuka
+   semuanya lagi. Tujuannya mencegah salah tekan, bukan menahan orang yang sengaja. Kalau
+   suatu saat perlu benar-benar dipaksakan, tuasnya VIEW_PIN — bukan berkas ini.
+
+   Ambangnya memanggil pakaiKartuTask(), bukan menyalin angka 768 lagi. */
+function kunciTulisPonsel(){ return pakaiKartuTask(); }
+const PONSEL_BOLEH = {
+  getBootstrapData:1, getTasks:1, getOptions:1, getActivityLog:1, getComments:1,
+  getChecklist:1, getCollabs:1, getNotifications:1, getUsers:1, listPinUsers:1,
+  getPackages:1, verifyPin:1,
+  addComment:1, setCollabStepDone:1, markNotificationsRead:1,
+};
+
 const PREVIEW_BOLEH = { getBootstrapData:1, getTasks:1, getOptions:1, getActivityLog:1,
   getComments:1, getChecklist:1, getCollabs:1, getNotifications:1, getUsers:1, listPinUsers:1,
   getPackages:1 };
@@ -1115,6 +1143,14 @@ function guardPreview(inner){
       if(state.previewAs && !PREVIEW_BOLEH[name]){
         showToast('Mode "Lihat sebagai": tampilan saja, tindakan tidak dijalankan.', false);
         if(o) o({ success:false, message:'Mode lihat-sebagai: tindakan tidak dijalankan.' });
+        return g;
+      }
+      /* Satu gerbang untuk SEMUA jalur tulis. Menyembunyikan tombol saja tak cukup —
+         selalu ada jalur yang terlewat (pintasan papan ketik, seretan, aksi massal),
+         dan yang terlewat itu justru yang tak pernah diuji. */
+      if(kunciTulisPonsel() && !PONSEL_BOLEH[name]){
+        showToast('Dari ponsel hanya bisa melihat, membalas komentar, dan mencentang proses. Buka dari komputer untuk mengubah data.', false);
+        if(o) o({ success:false, message:'Ponsel: mode lihat saja.' });
         return g;
       }
       let chain=inner;
@@ -1584,7 +1620,8 @@ function applyRoleUI(){
   if(kpi){ kpi.classList.toggle('xl:grid-cols-7', bisaKes); kpi.classList.toggle('xl:grid-cols-6', !bisaKes); }
   const navComm=document.getElementById('nav-communication'); if(navComm) navComm.classList.toggle('hide', vo);
   if(vo && state.activeView==='communication') switchView('dashboard');
-  const addBtn=document.getElementById('btnAddTask'); if(addBtn) addBtn.classList.toggle('hide',vo);
+  /* Ditutup juga di ponsel — lihat kunciTulisPonsel(). */
+  const addBtn=document.getElementById('btnAddTask'); if(addBtn) addBtn.classList.toggle('hide', vo || kunciTulisPonsel());
   // Kunci switcher mode bila diakses lewat link berbagi (?view=lintas) ATAU tamu tanpa PIN.
   const guest=!!state.guestMode;
   // Mode magang: kotaknya TETAP tampil (biar tahu masuk sebagai siapa), yang dikunci hanya
@@ -3036,7 +3073,7 @@ function renderBoard(){
       </div>
     </div>`;
   }).join('');
-  if(window.Sortable && !isViewOnly()){
+  if(window.Sortable && !isViewOnly() && !kunciTulisPonsel()){
     board.querySelectorAll('.kanban-col').forEach(colEl=>{
       const s=Sortable.create(colEl,{group:'tasks',draggable:'[data-task-id]',filter:'.nodrag',animation:150,ghostClass:'card-drag-ghost',chosenClass:'card-drag-chosen',
         onEnd:(evt)=>{
@@ -3561,7 +3598,7 @@ function openTaskModal(id='', dupSrc=null){
   const srcId = isDup ? String(dupSrc.id||'') : '';
   const t = existing || (isDup ? duplicateTemplate(dupSrc) : null);
   const external=isExternalTask(t);
-  const ro = t ? !canEditTask(t) : isViewOnly();
+  const ro = kunciTulisPonsel() || (t ? !canEditTask(t) : isViewOnly());   // ponsel: lihat saja
   document.getElementById('taskModal').classList.remove('hide');
   document.getElementById('modalTitle').textContent= ro ? 'Detail Task (lihat saja)' : (isDup?'Duplikat Task':(existing?'Edit Task':'Tambah Task'));
   const _sub=document.getElementById('modalSub');
@@ -3985,7 +4022,7 @@ function renderCollabKanban(){
     </div>`;
   }).join('');
   // Drag antar kolom -> ubah tipe (manager/Dev saja).
-  if(window.Sortable && canManageCollab()){
+  if(window.Sortable && canManageCollab() && !kunciTulisPonsel()){
     board.querySelectorAll('.collab-col-body').forEach(colEl=>{
       const s=Sortable.create(colEl,{group:'collab-type',draggable:'[data-collab-id]',animation:150,ghostClass:'card-drag-ghost',chosenClass:'card-drag-chosen',
         onEnd:(evt)=>{ if(evt.from===evt.to) return; const id=evt.item.dataset.collabId; setCollabTypeUI(id, evt.to.dataset.type||''); }});
@@ -5788,7 +5825,18 @@ function deleteDashboardConfirm(row){
   if(!confirm('Hapus dashboard "'+(d.title||'')+'"?')) return;
   GAS.withSuccessHandler(res=>{ if(!res||!res.success){ showToast((res&&res.message)||'Gagal menghapus dashboard', false); return; } state.dashboards=res.dashboards||state.dashboards; showToast(res.message||'Dashboard dihapus.'); renderExternalDashboards(); }).withFailureHandler(err=>showToast(err.message||err,false)).deleteDashboard(row);
 }
+/* Tanpa keterangan ini, menekan Simpan lalu ditolak toast terasa seperti aplikasi rusak.
+   Ditaruh di tempat yang sama dengan pemberitahuan lihat-saja, dan yang lihat-saja menang
+   kalau keduanya berlaku — sebab itu yang lebih membatasi. */
+function renderCatatanPonsel(){
+  const b=document.getElementById('mobileReadNotice'); if(!b) return;
+  const tampil = kunciTulisPonsel() && !isViewOnly();
+  b.classList.toggle('hide', !tampil);
+  if(!tampil){ b.innerHTML=''; return; }
+  b.innerHTML=`<div class="flex items-start gap-2.5 p-3 rounded-xl bg-sky-50 border border-sky-200 dark:bg-sky-900/20 dark:border-sky-900/40"><span class="material-icons-round text-[18px] text-sky-600 dark:text-sky-300 shrink-0">smartphone</span><p class="text-[12px] leading-snug text-sky-800 dark:text-sky-200"><b>Mode ponsel: lihat saja.</b> Yang tetap bisa: membalas komentar dan mencentang proses yang jadi giliran Anda. Untuk menambah atau mengubah data, buka dari komputer.</p></div>`;
+}
 function renderViewOnlyNotice(){
+  renderCatatanPonsel();
   const b=document.getElementById('viewOnlyNotice'); if(!b) return;
   if(!isViewOnly()){ b.classList.add('hide'); b.innerHTML=''; return; }
   const total=state.tasks.length;
