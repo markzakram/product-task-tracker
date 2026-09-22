@@ -31,6 +31,69 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.110.0 — Tampilan ponsel, tahap 3: kanban satu kolom & target ketukan
+
+Tahap 1 membuat isinya terbaca, tahap 2 membuatnya terasa seperti aplikasi. Tahap 3
+membereskan dua hal terakhir yang membuatnya masih terasa seperti layar desktop yang
+diperkecil: papan kanban dan tombol-tombol yang terlalu kecil untuk jempol.
+
+### Kanban satu kolom
+
+Enam status x 170px = papan selebar 1.000px yang digeser di layar 375px. Yang terlihat dua
+kolom terpotong, dengan kartu yang diperas jadi 170px. Sekarang satu kolom mengisi **86%
+lebar layar** dan geserannya berhenti rapi di tiap kolom — sisanya jadi intipan kolom
+sebelah, yang sekaligus jadi petunjuk bahwa papannya masih bisa digeser.
+
+Kalimat kolom kosong ikut berubah. "Tarik kartu ke sini" tak masuk akal kalau hanya satu
+kolom yang terlihat, jadi di ponsel yang tertulis "Belum ada task di sini".
+
+Sempat dicoba membiarkan kolomnya setinggi isinya supaya tak ada gulungan di dalam
+gulungan. Hasilnya papan setinggi **92.000 piksel** — kolom "Done" berisi 436 kartu.
+Jadi kolomnya tetap menggulir sendiri seperti di desktop; yang berubah cuma batasnya:
+**70% tinggi layar**, bukan `calc(100vh - 290px)` yang harus menebak setinggi apa spanduk
+dan toolbar di atasnya. Praktis hanya "Done" yang benar-benar menggulir di dalam.
+
+### Target ketukan
+
+Pedoman Apple dan Android sama-sama menyebut 44px. Yang diukur bukan tebakan — seluruh
+kontrol di tujuh tab dihitung tingginya, lalu diurutkan dari yang paling sering muncul.
+
+| Yang dinaikkan | Dari | Jadi |
+| --- | --- | --- |
+| Tombol ikon di header | 36px | 44px |
+| Saringan, toolbar, pengalih Grid/Kanban | 27–35px | 44px |
+| Baris dropdown multi-pilih | 32px | 44px |
+| Ruas isian di modal task | 36–40px | 44px |
+| Ikon di dalam kartu | 15–24px | 36px |
+| Kotak pilih paket | 16px | 24px |
+
+Hasilnya: dari tujuh tab yang diperiksa, tak ada lagi kontrol di bawah 32px kecuali 41
+kotak pilih paket yang memang sengaja berhenti di 24px.
+
+**Kenapa ikon di dalam kartu berhenti di 36px, bukan 44px.** Ada enam: mirror ke Lintas
+Divisi (di kartu task, kolaborasi, dan paket), duplikat task, ubah nama paket, dan tandai
+selesai. Semuanya duduk di dalam kartu yang kartunya sendiri bisa ditekan, dan semuanya
+memanggil `stopPropagation`. Zona 44px di dalam kartu tidak menghilangkan salah tekan —
+ia **menukar arahnya**: dari "meleset dari tombol kecil, kartunya yang terbuka" (tak
+apa-apa) jadi "tak sengaja menerbitkan task ke Lintas Divisi" (tak terlihat sampai ada
+yang menyadarinya). 36px sudah 2,25x luas semula tanpa menukar risiko itu.
+
+**Yang sengaja dibiarkan.** Kisi rancangan di modal Rancangan Paket punya 92 kotak isian
+dan 22 dropdown, rapat seperti spreadsheet. Menaikkannya ke 44px membuat kisi itu dua kali
+lebih panjang — demi pekerjaan yang memang dilakukan di depan komputer. Kalau nanti
+ternyata dipakai dari ponsel juga, yang dibutuhkan bukan tombol lebih besar melainkan
+tata letak yang berbeda.
+
+### Saringan Task Kolaborasi ikut dilipat
+
+Tahap 1 melipat saringan di Task List dan Dashboard, tapi Task Kolaborasi terlewat — empat
+dropdown-nya masih makan empat baris sebelum kartu pertama terlihat. Sekarang ikut di balik
+tombol **Saringan** yang sama, lengkap dengan angka berapa yang sedang aktif.
+
+Yang tetap tampil: kotak pencarian, "Task Saya", dan "Task Aktif" — sama alasannya seperti
+pil cepat di Task List, justru itu yang paling sering ditekan.
+
+---
 ## 1.109.0 — Tampilan ponsel, tahap 2: bisa dipasang ke layar utama
 
 Tahap 1 membuat isinya terbaca di ponsel. Tahap 2 membuatnya terasa seperti aplikasi:

@@ -3061,4 +3061,66 @@ console.log('=== 16s. Navigasi bawah (ponsel) ===');
   ok('toast naik di atas bilah', idx.indexOf("el.className='fixed right-5 bottom-[76px] md:bottom-5") >= 0);
 }
 
+console.log('=== 16t. Tampilan ponsel, tahap 3 ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* ---- Kanban satu kolom ----
+     Enam status x 170px = papan selebar 1000px yang digeser di layar 375px: yang terlihat
+     dua kolom terpotong dengan kartu yang diperas. */
+  ok('kolom kanban selebar layar di ponsel',
+    idx.indexOf('snap-center shrink-0 w-[86vw] md:shrink md:w-auto md:flex-1 md:min-w-[170px]') >= 0);
+  /* Tanpa snap-mandatory, geseran berhenti di tengah dua kolom dan keduanya terpotong. */
+  ok('papan berhenti rapi di satu kolom', idx.indexOf('snap-x snap-mandatory md:snap-none') >= 0);
+  /* Kolom "Done" berisi 436 kartu. Dibiarkan setinggi isinya, papannya jadi 92.000px —
+     halaman yang mustahil digulir. Jadi batasnya 70% layar dan kolomnya menggulir sendiri,
+     persis seperti di desktop. */
+  ok('tinggi kolom dibatasi supaya halaman tak meledak',
+    idx.indexOf('max-h-[70vh] md:max-h-[calc(100vh-200px)]') >= 0);
+  ok('kolom tetap menggulir sendiri', idx.indexOf('kanban-col space-y-2 rounded-lg p-1 flex-1 overflow-y-auto') >= 0);
+  /* Di ponsel hanya satu kolom yang terlihat — tak ada ke mana kartu bisa diseret. */
+  ok('kalimat kolom kosong ikut lebar layar',
+    idx.indexOf('<span class="md:hidden">Belum ada task di sini</span>') >= 0
+    && idx.indexOf('<span class="hidden md:inline">Tarik kartu ke sini</span>') >= 0);
+
+  /* ---- Target ketukan ----
+     767.98px dan bukan 767px: lebar pecahan pada layar ber-DPI ganjil akan jatuh di celah
+     antara aturan ini dan md: milik Tailwind, dan di situ tak ada satu pun yang berlaku. */
+  ok('ambangnya tak meninggalkan celah', idx.indexOf('@media (max-width: 767.98px)') >= 0);
+  ok('tombol header 44px', idx.indexOf('header button{min-height:44px;min-width:44px}') >= 0);
+  ok('deretan kontrol 44px',
+    idx.indexOf('.tt-tap-bar select,.tt-tap-bar input,.tt-tap-bar button,.tt-tap-bar a{min-height:44px}') >= 0);
+  /* Kotak centangnya sendiri 16px, tapi yang ditekan seluruh barisnya. */
+  ok('baris dropdown multi-pilih 44px', idx.indexOf('.ms label{min-height:44px}') >= 0);
+
+  /* Ikon DI DALAM kartu sengaja berhenti di 36px. Kartunya sendiri bisa ditekan dan tiap
+     ikon ini memanggil stopPropagation, jadi zona 44px di dalam kartu justru menukar
+     "meleset dari tombol kecil" (kartunya yang terbuka — tak apa-apa) dengan "tak sengaja
+     menerbitkan task ke Lintas Divisi" (tak terlihat sampai ada yang menyadarinya). */
+  ok('ikon di kartu 36px, bukan 44px', idx.indexOf('.tt-tap-kartu{min-height:36px;min-width:36px}') >= 0);
+  /* Enam tombol ikon di dalam kartu: duplikat, mirror task, mirror kolaborasi, mirror
+     paket, ubah nama paket, tandai selesai. Kalau satu terlewat ia tetap 15-24px. */
+  ok('enam ikon kartu memakainya', (idx.match(/tt-tap-kartu /g) || []).length >= 6);
+
+  /* Kotak pilih paket berdiri sendiri — tak ada baris yang bisa ditekan di sekelilingnya.
+     Berhenti di 24px supaya deretan kartunya tak dipenuhi kotak raksasa demi pekerjaan
+     massal yang praktis hanya dilakukan di depan komputer. */
+  ok('kotak pilih paket 24px', idx.indexOf('.pkg-pilih{min-width:24px;min-height:24px}') >= 0);
+
+  /* ---- Saringan Task Kolaborasi ikut dilipat ----
+     Markahnya statis, jadi kelasnya tak bisa memakai kelasLipatSaring() langsung seperti
+     Task List & Dashboard yang memang digambar fungsi. */
+  ok('kotak lipatnya ada', idx.indexOf('id="collabSaringLipat"') >= 0);
+  ok('tempat tombolnya ada', idx.indexOf('id="collabSaringTombol"') >= 0);
+  ok('penyegarnya ada', idx.indexOf('function segarkanSaringCollab()') >= 0);
+  ok('ikut tombol lipat yang sama',
+    idx.indexOf('renderFilterBar(); renderDashFilters(); segarkanSaringCollab();') >= 0);
+  /* Angkanya harus ikut berubah tiap kali saringannya diubah, bukan cuma saat dilipat. */
+  ok('angkanya disegarkan tiap render', idx.indexOf('populateCollabFilters();' + String.fromCharCode(10) + '  segarkanSaringCollab();') >= 0);
+  /* Pencarian dan dua pil di sebelahnya TETAP kelihatan, jadi memasukkannya ke angka itu
+     akan menghitung saringan yang sudah terlihat sendiri. */
+  ok('yang dihitung hanya yang ada di dalam lipatan',
+    idx.indexOf("['type','platform','pic','status'].filter(k=>f[k]).length") >= 0);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

@@ -113,6 +113,41 @@
        dan tab aktif cuma dibedakan latarnya. */
     .nav-item.nav-active{background:#EBF6FE;color:#004F94}
     .dark .nav-item.nav-active{background:rgba(0,79,148,.35);color:#A9DBFA}
+
+    /* ---- Target ketukan di ponsel (pedoman Apple/Android: 44px) ----
+
+       Yang dinaikkan ke 44px hanya kontrol chrome & saringan: di sana ruangnya lega,
+       kontrolnya berdiri sendiri, dan tak ada yang bisa salah tekan.
+
+       Ikon DI DALAM kartu sengaja berhenti di 36px — alasannya di .tt-tap-kartu.
+
+       767.98px, bukan 767px: lebar pecahan (mis. 767,5px pada layar ber-DPI ganjil)
+       akan jatuh di celah antara aturan ini dan md: milik Tailwind. */
+    @media (max-width: 767.98px) {
+      header button{min-height:44px;min-width:44px}
+      #filterBar select,#filterBar input,#filterBar button,
+      #dashFilterBar select,#dashFilterBar input,#dashFilterBar button,
+      .tt-tap-bar select,.tt-tap-bar input,.tt-tap-bar button,.tt-tap-bar a{min-height:44px}
+      /* Kotak centangnya sendiri 16px, tapi yang ditekan seluruh barisnya. */
+      .ms label{min-height:44px}
+      /* Kotak pilih paket berdiri sendiri — tak ada baris yang bisa ditekan di sekelilingnya.
+         Berhenti di 24px dan bukan 44px supaya deretan kartunya tak dipenuhi kotak raksasa
+         demi pekerjaan massal yang praktis hanya dilakukan di depan komputer. */
+      .pkg-pilih{min-width:24px;min-height:24px}
+      /* Modal task: tiap suntingan task lewat sini, dan isinya ruas form bertumpuk biasa
+         yang memang punya ruang. Modal RANCANGAN PAKET sengaja TIDAK ikut: isinya kisi
+         rapat 92 kotak isian ala spreadsheet, dan menaikkannya ke 44px membuat kisi itu
+         dua kali lebih panjang demi pekerjaan yang memang dilakukan di depan komputer. */
+      #taskModal input,#taskModal select,#taskModal button{min-height:44px}
+
+      /* Ikon di dalam kartu: mirror ke Lintas Divisi, ubah nama paket, tandai selesai.
+         Sengaja 36px dan BUKAN 44px. Kartunya sendiri bisa ditekan dan tiap ikon ini
+         memanggil stopPropagation, jadi zona 44px di dalam kartu justru mengubah
+         "meleset dari tombol kecil" (tak apa-apa, kartunya yang terbuka) menjadi "tak
+         sengaja menerbitkan task ke Lintas Divisi" (tak terlihat sampai ada yang
+         menyadarinya). 36px sudah 2,25x luas semula tanpa menukar risiko itu. */
+      .tt-tap-kartu{min-height:36px;min-width:36px}
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800 dark:bg-slate-950 dark:text-slate-100 h-screen overflow-hidden">
@@ -402,7 +437,8 @@
         <!-- KANBAN -->
         <div id="kanbanView" class="view hide space-y-3 h-full max-w-[1700px] mx-auto">
           <div id="kanbanToolbar" class="flex items-center gap-2 px-1 flex-wrap"></div>
-          <div id="kanbanBoard" class="flex gap-3 overflow-x-auto pb-4 min-h-[calc(100vh-210px)]"></div>
+          <!-- snap-mandatory: geseran berhenti rapi di satu kolom, bukan di tengah dua. -->
+          <div id="kanbanBoard" class="flex gap-3 overflow-x-auto snap-x snap-mandatory md:snap-none pb-4 min-h-[calc(100vh-210px)]"></div>
         </div>
 
         <!-- LIST -->
@@ -456,7 +492,7 @@
           <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-4 lg:col-span-1 h-[calc(100vh-150px)] flex flex-col">
             <h2 class="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-1.5 text-sm"><span class="material-icons-round text-[18px] text-indigo-600">forum</span>Pilih Task</h2>
             <input id="commSearch" oninput="renderCommunicationTasks()" placeholder="Cari task untuk diskusi…" class="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-slate-800 outline-none text-sm mb-2 focus:ring-2 focus:ring-indigo-300">
-            <div class="flex flex-wrap gap-1.5 mb-3">
+            <div class="tt-tap-bar flex flex-wrap gap-1.5 mb-3">
               <button id="commUnreadToggle" onclick="toggleCommUnread()" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">mark_chat_unread</span> Belum dibaca</button>
               <select id="commFilterPic" onchange="setCommFilterPic(this.value)" class="px-2 py-1.5 rounded-lg text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 outline-none"><option value="">Semua PIC</option></select>
               <select id="commFilterStatus" onchange="setCommFilterStatus(this.value)" class="px-2 py-1.5 rounded-lg text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 outline-none"><option value="">Semua Status</option></select>
@@ -485,7 +521,7 @@
               <button id="paketAddBtn" onclick="createPackageBaru()" class="hide px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm flex items-center gap-1.5"><span class="material-icons-round text-[18px]">add</span>Rancangan Paket</button>
             </div>
           </div>
-          <div class="flex items-center gap-2 flex-wrap">
+          <div class="tt-tap-bar flex items-center gap-2 flex-wrap">
             <div class="relative flex-1 min-w-[180px] max-w-sm">
               <span class="material-icons-round absolute left-2.5 top-2 text-gray-400 text-[18px]">search</span>
               <input id="paketSearch" oninput="renderPaket()" placeholder="Cari nomor, nama paket, program…" class="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-slate-800 border-0 outline-none focus:ring-2 focus:ring-indigo-300 text-sm">
@@ -496,7 +532,7 @@
             <button id="paketSelectAllBtn" onclick="paketPilihSemua()" class="hide px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">select_all</span>Pilih semua</button>
           </div>
           <!-- Bilah aksi massal: hanya muncul saat ada yang dipilih -->
-          <div id="paketBulkBar" class="hide flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/25 border border-indigo-200 dark:border-indigo-900/50">
+          <div id="paketBulkBar" class="tt-tap-bar hide flex items-center gap-2 flex-wrap px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/25 border border-indigo-200 dark:border-indigo-900/50">
             <span class="material-icons-round text-[18px] text-indigo-600 dark:text-indigo-300">checklist</span>
             <span id="paketBulkCount" class="text-sm font-semibold text-indigo-700 dark:text-indigo-300">0 paket terpilih</span>
             <button id="paketBulkAll" onclick="paketPilihSemua()" class="text-xs font-semibold text-indigo-600 dark:text-indigo-300 hover:underline">Pilih semua yang tampil</button>
@@ -512,22 +548,27 @@
           <div class="flex items-center justify-between gap-3 flex-wrap">
             <div class="text-sm text-gray-500 dark:text-slate-400 min-w-0">Task dengan proses beruntun: tiap proses punya PIC & deadline sendiri. Hanya PIC proses yang bisa mencentang.</div>
             <div class="flex items-center gap-2 shrink-0">
-              <div class="flex items-center gap-0.5 bg-gray-100 dark:bg-slate-800 rounded-lg p-0.5">
+              <div class="tt-tap-bar flex items-center gap-0.5 bg-gray-100 dark:bg-slate-800 rounded-lg p-0.5">
                 <button id="collabVizGrid" onclick="setCollabViz('grid')" class="px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1 text-gray-500 dark:text-slate-300"><span class="material-icons-round text-[15px]">grid_view</span>Grid</button>
                 <button id="collabVizKanban" onclick="setCollabViz('kanban')" class="px-2.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1 text-gray-500 dark:text-slate-300"><span class="material-icons-round text-[15px]">view_kanban</span>Kanban</button>
               </div>
               <button id="collabAddBtn" onclick="openCollabModal()" class="hide shrink-0 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm flex items-center gap-1.5"><span class="material-icons-round text-[18px]">add</span>Task Kolaborasi</button>
             </div>
           </div>
-          <div class="flex items-center gap-2 flex-wrap">
+          <div class="tt-tap-bar flex items-center gap-2 flex-wrap">
             <div class="relative flex-1 min-w-[180px] max-w-sm">
               <span class="material-icons-round absolute left-2.5 top-2 text-gray-400 text-[18px]">search</span>
               <input id="collabSearch" oninput="setCollabFilter('q',this.value)" placeholder="Cari judul, PIC, proses…" class="w-full pl-9 pr-3 py-2 rounded-lg bg-gray-100 dark:bg-slate-800 border-0 outline-none focus:ring-2 focus:ring-indigo-300 text-sm">
             </div>
+            <span id="collabSaringTombol" class="md:hidden"></span>
+            <!-- Kotak & tombolnya diisi segarkanSaringCollab(); markah ini statis, jadi
+                 kelasnya tak bisa memakai kelasLipatSaring() secara langsung. -->
+            <div id="collabSaringLipat" class="hidden md:flex tt-tap-bar items-center gap-2 flex-wrap w-full md:w-auto">
             <select id="collabFilterType" onchange="setCollabFilter('type',this.value)" class="px-2.5 py-2 rounded-lg text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 outline-none"><option value="">Semua Tipe</option></select>
             <select id="collabFilterPlatform" onchange="setCollabFilter('platform',this.value)" class="px-2.5 py-2 rounded-lg text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 outline-none"><option value="">Semua Platform</option></select>
             <select id="collabFilterPic" onchange="setCollabFilter('pic',this.value)" class="px-2.5 py-2 rounded-lg text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 outline-none"><option value="">Semua PIC</option></select>
             <select id="collabFilterStatus" onchange="setCollabFilter('status',this.value)" class="px-2.5 py-2 rounded-lg text-xs bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 outline-none"><option value="">Semua Status</option><option value="Aktif">Aktif</option><option value="Selesai">Selesai</option></select>
+            </div>
             <button id="collabFilterMine" onclick="setCollabFilter('mine',null)" title="Tampilkan hanya kolaborasi yang ada proses milik Anda" class="px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">assignment_ind</span>Task Saya</button>
             <button id="collabFilterAktif" onclick="setCollabFilter('aktif',null)" title="Tampilkan hanya task yang belum Selesai" class="px-2.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 flex items-center gap-1"><span class="material-icons-round text-[14px]">bolt</span>Task Aktif</button>
             <button id="collabFilterReset" onclick="resetCollabFilter()" class="hide px-2 py-2 rounded-lg text-xs text-gray-400 hover:text-rose-500">Reset</button>
@@ -913,7 +954,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.109.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.110.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -2143,7 +2184,19 @@ function fieldFilterDropdown(field,label){
 
    Hanya berlaku di bawah 768px — di layar lebar semuanya tetap terbentang seperti biasa,
    jadi kelas "md:flex" selalu menang atas "hidden". */
-function toggleSaringLipat(){ state.saringBuka=!state.saringBuka; renderFilterBar(); renderDashFilters(); }
+function toggleSaringLipat(){ state.saringBuka=!state.saringBuka; renderFilterBar(); renderDashFilters(); segarkanSaringCollab(); }
+/* Yang dihitung hanya yang ADA DI DALAM lipatan. Pencarian dan dua pil di sebelahnya
+   tetap kelihatan, jadi memasukkannya ke angka itu akan menghitung dua kali. */
+function jumlahSaringCollab(){
+  const f=(typeof collabFilter==='function') ? collabFilter() : {};
+  return ['type','platform','pic','status'].filter(k=>f[k]).length;
+}
+function segarkanSaringCollab(){
+  const kotak=document.getElementById('collabSaringLipat');
+  if(kotak) kotak.className = kelasLipatSaring()+' tt-tap-bar items-center gap-2 flex-wrap w-full md:w-auto';
+  const t=document.getElementById('collabSaringTombol');
+  if(t) t.innerHTML = tombolLipatSaring(jumlahSaringCollab());
+}
 function kelasLipatSaring(){ return (state.saringBuka ? 'flex' : 'hidden') + ' md:flex'; }
 function tombolLipatSaring(jumlah){
   return `<button onclick="toggleSaringLipat()" class="md:hidden h-9 px-3 rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-gray-600 dark:text-slate-300 inline-flex items-center gap-1.5"><span class="material-icons-round text-[16px]">tune</span>Saringan${jumlah?`<span class="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold">${jumlah}</span>`:''}<span class="material-icons-round text-[16px]">${state.saringBuka?'expand_less':'expand_more'}</span></button>`;
@@ -2930,7 +2983,7 @@ function renderBoard(){
     const m=statusMeta(status);
     const selIds=col.filter(isSelectable).map(t=>t.id);
     const selAll=(state.kanbanSelect && !isViewOnly())?colSelectAllBtn(status, selIds.length, selIds.filter(id=>isSelected(id)).length):'';
-    return `<div class="flex-1 min-w-[170px] flex flex-col rounded-xl p-2 bg-gray-100 dark:bg-slate-900/70 max-h-[calc(100vh-200px)]">
+    return `<div class="snap-center shrink-0 w-[86vw] md:shrink md:w-auto md:flex-1 md:min-w-[170px] flex flex-col rounded-xl p-2 bg-gray-100 dark:bg-slate-900/70 max-h-[70vh] md:max-h-[calc(100vh-200px)]">
       <div class="flex items-center justify-between gap-1 px-2 py-1.5 mb-1 shrink-0">
         <div class="flex items-center gap-2 min-w-0">
           <span class="w-2 h-2 rounded-full shrink-0" style="background:${m.dot}"></span>
@@ -2940,7 +2993,7 @@ function renderBoard(){
         ${selAll}
       </div>
       <div class="kanban-col space-y-2 rounded-lg p-1 flex-1 overflow-y-auto scrollbar-thin min-h-[120px]" data-status="${escapeAttr(status)}">
-        ${col.length?col.map(taskCard).join(''):'<div class="rounded-md border-2 border-dashed border-gray-300 dark:border-slate-700 py-7 text-center"><p class="text-xs text-gray-400 italic">Tarik kartu ke sini</p></div>'}
+        ${col.length?col.map(taskCard).join(''):'<div class="rounded-md border-2 border-dashed border-gray-300 dark:border-slate-700 py-7 text-center"><p class="text-xs text-gray-400 italic"><span class="md:hidden">Belum ada task di sini</span><span class="hidden md:inline">Tarik kartu ke sini</span></p></div>'}
       </div>
     </div>`;
   }).join('');
@@ -2980,7 +3033,7 @@ function checklistChip(t){
 // Tombol duplikat di kartu: di HP selalu tampil, di desktop muncul saat hover.
 function duplicateCardBtn(t){
   if(!canDuplicate(t)) return '';
-  return `<button type="button" title="Duplikat task ini" onclick="duplicateTask('${escapeAttr(t.id)}',event)" class="nodrag shrink-0 text-gray-300 hover:text-indigo-600 transition md:opacity-0 md:group-hover:opacity-100"><span class="material-icons-round text-[15px]">content_copy</span></button>`;
+  return `<button type="button" title="Duplikat task ini" onclick="duplicateTask('${escapeAttr(t.id)}',event)" class="tt-tap-kartu inline-flex items-center justify-center nodrag shrink-0 text-gray-300 hover:text-indigo-600 transition md:opacity-0 md:group-hover:opacity-100"><span class="material-icons-round text-[15px]">content_copy</span></button>`;
 }
 function taskCard(t){
   if(t._collab) return collabInlineCard(t);
@@ -3018,7 +3071,7 @@ function updateTaskStatus(id,newStatus){ quickUpdate(null, id, 'status', newStat
 // Toggle mirror (tampil di Lintas Divisi). Hanya PM/Dev.
 function mirrorChip(t){
   const on=isMirrored(t);
-  if(canMirror()) return `<button onclick="toggleMirror(event,'${escapeAttr(t.id)}')" title="${on?'Tampil di Lintas Divisi — klik untuk sembunyikan':'Klik untuk tampilkan ke Lintas Divisi'}" class="shrink-0 ${on?'text-emerald-600':'text-gray-300 hover:text-gray-500'}"><span class="material-icons-round text-[15px] align-middle">cast</span></button>`;
+  if(canMirror()) return `<button onclick="toggleMirror(event,'${escapeAttr(t.id)}')" title="${on?'Tampil di Lintas Divisi — klik untuk sembunyikan':'Klik untuk tampilkan ke Lintas Divisi'}" class="tt-tap-kartu inline-flex items-center justify-center shrink-0 ${on?'text-emerald-600':'text-gray-300 hover:text-gray-500'}"><span class="material-icons-round text-[15px] align-middle">cast</span></button>`;
   return on ? `<span title="Tampil di Lintas Divisi" class="text-emerald-600 shrink-0"><span class="material-icons-round text-[15px] align-middle">cast</span></span>` : '';
 }
 function toggleMirror(ev, id){
@@ -3726,6 +3779,7 @@ function renderCollab(){
     ? `<div class="p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-900/40 flex items-center gap-2 text-sm text-rose-700 dark:text-rose-200"><span class="material-icons-round text-[18px]">notifications_active</span><span class="flex-1"><b>Giliran Anda:</b> ${mine.length} proses siap dikerjakan/dicentang${mine[0]?` — mis. "${escapeHtml(mine[0].step.name)}" di ${escapeHtml(mine[0].collab.title)}`:''}.</span></div>`
     : '';
   populateCollabFilters();
+  segarkanSaringCollab();   // angkanya harus ikut berubah tiap kali saringannya diubah
   const viz=state._collabViz||'grid';
   ['grid','kanban'].forEach(v=>{ const b=document.getElementById('collabViz'+(v==='grid'?'Grid':'Kanban')); if(!b) return; const on=viz===v; b.classList.toggle('bg-white', on); b.classList.toggle('dark:bg-slate-900', on); b.classList.toggle('shadow-sm', on); b.classList.toggle('text-indigo-600', on); });
   // status tombol "Task Saya" + reset + hitungan
@@ -3810,7 +3864,7 @@ function collabPkgStrip(c){
 function collabPenandaMirror(c){
   const on=!!(c&&c.mirror);
   if(canMirrorCollab()){
-    return `<button type="button" onclick="toggleCollabMirror('${escapeAttr(c.id)}', event)" title="${on?'Tampil di Lintas Divisi — klik untuk berhenti membagikan':'Belum dibagikan — klik untuk tampilkan ke Lintas Divisi'}" class="inline-flex items-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium ${on?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300':'text-gray-300 hover:text-gray-500 dark:text-slate-600'}"><span class="material-icons-round text-[12px]">cast</span>${on?'Lintas Divisi':''}</button>`;
+    return `<button type="button" onclick="toggleCollabMirror('${escapeAttr(c.id)}', event)" title="${on?'Tampil di Lintas Divisi — klik untuk berhenti membagikan':'Belum dibagikan — klik untuk tampilkan ke Lintas Divisi'}" class="tt-tap-kartu inline-flex items-center justify-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium ${on?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300':'text-gray-300 hover:text-gray-500 dark:text-slate-600'}"><span class="material-icons-round text-[12px]">cast</span>${on?'Lintas Divisi':''}</button>`;
   }
   return on?`<span class="inline-flex items-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" title="Tampil di Lintas Divisi"><span class="material-icons-round text-[12px]">cast</span>Lintas Divisi</span>`:'';
 }
@@ -4828,13 +4882,13 @@ function renderPaket(){
             <span class="text-[10px] font-mono text-gray-400">${escapeHtml(p.id)}</span>
             ${p.platform?`<span class="inline-flex items-center h-4 px-1.5 rounded text-[10px] font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300">${escapeHtml(p.platform)}</span>`:''}
             ${canMirrorPaket()
-              ? `<button type="button" onclick="event.stopPropagation(); togglePaketMirror('${escapeAttr(p.id)}')" title="${p.mirror?'Tampil di Lintas Divisi — klik untuk berhenti membagikan':'Belum dibagikan — klik untuk tampilkan ke Lintas Divisi'}" class="inline-flex items-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium ${p.mirror?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300':'text-gray-300 hover:text-gray-500 dark:text-slate-600'}"><span class="material-icons-round text-[12px]">cast</span>${p.mirror?'Lintas Divisi':''}</button>`
+              ? `<button type="button" onclick="event.stopPropagation(); togglePaketMirror('${escapeAttr(p.id)}')" title="${p.mirror?'Tampil di Lintas Divisi — klik untuk berhenti membagikan':'Belum dibagikan — klik untuk tampilkan ke Lintas Divisi'}" class="tt-tap-kartu inline-flex items-center justify-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium ${p.mirror?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300':'text-gray-300 hover:text-gray-500 dark:text-slate-600'}"><span class="material-icons-round text-[12px]">cast</span>${p.mirror?'Lintas Divisi':''}</button>`
               : (p.mirror?`<span class="inline-flex items-center gap-0.5 h-4 px-1.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" title="Tampil di Lintas Divisi"><span class="material-icons-round text-[12px]">cast</span>Lintas Divisi</span>`:'')}
             ${pkgPenandaTautan(p)}
           </div>
           <div class="flex items-start gap-1">
             <div class="font-semibold text-sm text-gray-900 dark:text-white mt-0.5 line-clamp-2 min-w-0">${escapeHtml(p.namaPaket||p.program||'(tanpa nama)')}</div>
-            ${bisaUbahNamaPaket()?`<button type="button" onclick="ubahNamaPaket(&#39;${escapeAttr(p.id)}&#39;, event)" title="Ubah nama paket" class="shrink-0 mt-0.5 text-gray-300 hover:text-indigo-600"><span class="material-icons-round text-[15px]">edit</span></button>`:''}
+            ${bisaUbahNamaPaket()?`<button type="button" onclick="ubahNamaPaket(&#39;${escapeAttr(p.id)}&#39;, event)" title="Ubah nama paket" class="tt-tap-kartu inline-flex items-center justify-center shrink-0 mt-0.5 text-gray-300 hover:text-indigo-600"><span class="material-icons-round text-[15px]">edit</span></button>`:''}
           </div>
         </div>
         <span class="shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${rk.target&&rk.terpenuhi>=rk.target?'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300':'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'}">${rk.done}/${(p.items||[]).length} target</span>
@@ -6380,7 +6434,7 @@ function tombolSelesai(t){
   if(!t || t._collab || isDone(t)) return '';
   if(!canEditTask(t) || !canSetDoneFor(t)) return '';
   const done=(state.options.status||[]).find(isDoneStatus)||'Done';
-  return `<button onclick="quickUpdate(event,'${escapeAttr(t.id)}','status','${escapeAttr(done)}')" title="Tandai selesai" class="shrink-0 w-6 h-6 rounded-full border border-gray-300 dark:border-slate-600 text-gray-400 hover:bg-emerald-600 hover:border-emerald-600 hover:text-white flex items-center justify-center transition-colors"><span class="material-icons-round text-[14px]">check</span></button>`;
+  return `<button onclick="quickUpdate(event,'${escapeAttr(t.id)}','status','${escapeAttr(done)}')" title="Tandai selesai" class="tt-tap-kartu shrink-0 w-6 h-6 rounded-full border border-gray-300 dark:border-slate-600 text-gray-400 hover:bg-emerald-600 hover:border-emerald-600 hover:text-white flex items-center justify-center transition-colors"><span class="material-icons-round text-[14px]">check</span></button>`;
 }
 function taskMiniCard(t,showDue){if(t._collab) return collabMiniCard(t); return `<div onclick="openTaskModal('${escapeAttr(t.id)}')" class="p-2.5 rounded-lg bg-gray-50 dark:bg-slate-800 border border-gray-100 dark:border-slate-700 cursor-pointer hover:bg-gray-100"><div class="flex justify-between gap-3 items-start"><div class="font-medium text-sm leading-snug line-clamp-2 text-gray-800 dark:text-slate-100">${escapeHtml(t.taskName||'-')}</div><span class="flex items-center gap-1 shrink-0">${statusChip(t.status)}${tombolSelesai(t)}</span></div><div class="mt-1.5 text-[11px] text-gray-500 font-medium flex justify-between items-center"><span class="flex items-center gap-1.5 min-w-0 truncate">${avatar(t.pic)} ${escapeHtml(t.platform||'-')}${t.createdBy?' • dari '+escapeHtml(t.createdBy):''}</span><span class="shrink-0 ${isLate(t)?'text-rose-600':''}">${showDue?formatDateHuman(t.dueDate):escapeHtml(t.lastUpdate||'-')}</span></div></div>`;}
 function emptyState(text){return `<div class="h-full min-h-[120px] flex items-center justify-center text-center text-gray-400 font-medium text-sm p-6">${escapeHtml(text)}</div>`;}
