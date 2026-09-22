@@ -139,6 +139,15 @@
          rapat 92 kotak isian ala spreadsheet, dan menaikkannya ke 44px membuat kisi itu
          dua kali lebih panjang demi pekerjaan yang memang dilakukan di depan komputer. */
       #taskModal input,#taskModal select,#taskModal button{min-height:44px}
+      /* Tab yang isinya memang cuma daftar + beberapa tombol: semuanya boleh 44px tanpa
+         risiko merusak tata letak, karena tak ada kisi rapat di dalamnya. */
+      #mylinksView button,#mylinksView select,#mylinksView input,
+      #mynotesView button,#mynotesView select,#mynotesView input,
+      #extdashView button,#extdashView select,#extdashView input,
+      #reportView button,#reportView select,#reportView input,
+      #calendarView .fc button{min-height:44px}
+      /* Tiga tombol yang berdiri sendiri di luar deretan .tt-tap-bar mana pun. */
+      #kanbanToolbar button,#collabAddBtn,#commSearch{min-height:44px}
 
       /* Ikon di dalam kartu: duplikat task, mirror ke Lintas Divisi (task/kolaborasi/paket),
          ubah nama paket, tandai selesai. Ukurannya sama dengan yang lain, 44px.
@@ -154,7 +163,10 @@
     }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-800 dark:bg-slate-950 dark:text-slate-100 h-screen overflow-hidden">
+<!-- h-[100dvh] + overflow-hidden: body-nya TIDAK menggulir, <section> di dalamnya yang
+     menggulir. Karena itu tingginya harus tinggi yang benar-benar terlihat — dengan 100vh,
+     apa pun yang jatuh di bawah chrome browser jadi mustahil dijangkau. -->
+<body class="bg-gray-50 text-gray-800 dark:bg-slate-950 dark:text-slate-100 h-[100dvh] overflow-hidden">
 
   <div id="loading" class="fixed inset-0 z-[100] bg-white/90 dark:bg-slate-950/90 flex flex-col items-center justify-center">
     <div class="w-10 h-10 rounded-full border-[3px] border-indigo-100 border-t-indigo-600 animate-spin mb-4"></div>
@@ -222,7 +234,8 @@
     </div>
   </div>
 
-  <div class="flex h-screen">
+  <!-- 100dvh, bukan 100vh: lihat catatan di CHANGELOG 1.111.0. -->
+  <div class="flex h-[100dvh]">
     <!-- Sidebar -->
     <aside id="sidebar" class="w-[260px] bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 hidden md:flex flex-col shrink-0">
       <div class="h-16 px-5 flex items-center border-b border-gray-100 dark:border-slate-800">
@@ -243,7 +256,10 @@
 
       <!-- Nav dikelompokkan (judul statis). Header grup otomatis disembunyikan
            oleh syncNavGroups() bila semua tab di dalamnya tersembunyi untuk peran ini. -->
-      <nav class="p-3 flex-1 overflow-y-auto">
+      <!-- min-h-0 WAJIB: tanpa itu min-height:auto bawaan flex membuat nav ini menolak
+           menyusut, overflow-y-auto tak pernah jalan, dan kaki sidebar terdorong keluar
+           layar di ponsel pendek — pemilih Mode User jadi tak bisa diraih sama sekali. -->
+      <nav class="p-3 flex-1 min-h-0 overflow-y-auto">
         <div id="navgrp-ringkasan" class="nav-group space-y-1 mt-4 first:mt-0">
           <div class="nav-group-title px-3 pb-1 text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest select-none">Ringkasan</div>
           <button onclick="switchView('hariini')" id="nav-hariini" class="nav-item w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left font-medium text-sm text-gray-600 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-800">
@@ -311,7 +327,8 @@
         </div>
       </nav>
 
-      <div class="p-3 border-t border-gray-100 dark:border-slate-800 space-y-2.5">
+      <!-- shrink-0: kaki ini yang harus utuh; nav di atasnya yang menggulir. -->
+      <div class="p-3 shrink-0 border-t border-gray-100 dark:border-slate-800 space-y-2.5">
         <div id="modeUserBox" class="p-3 rounded-xl bg-gray-50 dark:bg-slate-800/70">
           <div class="flex items-center justify-between mb-2">
             <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mode User</div>
@@ -439,10 +456,13 @@
         </div>
 
         <!-- KANBAN -->
-        <div id="kanbanView" class="view hide space-y-3 h-full max-w-[1700px] mx-auto">
+        <!-- h-full hanya di md+: di ponsel ia mengunci view ini ke tinggi kotak isi <section>
+             (404px) padahal papannya 430px. Luberannya tak ikut terhitung di scrollHeight, jadi
+             35px terakhir tetap tertutup bilah bawah sekalipun sudah digulir mentok. -->
+        <div id="kanbanView" class="view hide space-y-3 md:h-full max-w-[1700px] mx-auto">
           <div id="kanbanToolbar" class="flex items-center gap-2 px-1 flex-wrap"></div>
           <!-- snap-mandatory: geseran berhenti rapi di satu kolom, bukan di tengah dua. -->
-          <div id="kanbanBoard" class="flex gap-3 overflow-x-auto snap-x snap-mandatory md:snap-none pb-4 min-h-[calc(100vh-210px)]"></div>
+          <div id="kanbanBoard" class="flex gap-3 overflow-x-auto snap-x snap-mandatory md:snap-none pb-4 min-h-[calc(100dvh-210px)]"></div>
         </div>
 
         <!-- LIST -->
@@ -493,7 +513,9 @@
 
         <!-- COMMUNICATION -->
         <div id="communicationView" class="view hide max-w-[1200px] mx-auto grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-4 lg:col-span-1 h-[calc(100vh-150px)] flex flex-col">
+          <!-- Di bawah lg hanya SATU dari dua panel ini yang tampil; segarkanTataKomunikasi()
+               yang memilih mana, berdasarkan ada-tidaknya task yang sedang dibuka. -->
+          <div id="commListPanel" class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-4 lg:col-span-1 h-[calc(100dvh-240px)] lg:h-[calc(100vh-150px)] flex lg:flex flex-col">
             <h2 class="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-1.5 text-sm"><span class="material-icons-round text-[18px] text-indigo-600">forum</span>Pilih Task</h2>
             <input id="commSearch" oninput="renderCommunicationTasks()" placeholder="Cari task untuk diskusi…" class="w-full px-3 py-2 rounded-lg bg-gray-100 dark:bg-slate-800 outline-none text-sm mb-2 focus:ring-2 focus:ring-indigo-300">
             <div class="tt-tap-bar flex flex-wrap gap-1.5 mb-3">
@@ -503,7 +525,7 @@
             </div>
             <div id="commTaskList" class="space-y-1.5 overflow-y-auto flex-1 pr-1 scrollbar-thin"></div>
           </div>
-          <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 lg:col-span-2 h-[calc(100vh-150px)] flex flex-col overflow-hidden">
+          <div id="commChatPanel" class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 lg:col-span-2 h-[calc(100dvh-240px)] lg:h-[calc(100vh-150px)] flex lg:flex flex-col overflow-hidden">
             <div id="commHeader" class="p-4 border-b border-gray-100 dark:border-slate-800"></div>
             <div id="commMessages" class="flex-1 overflow-y-auto p-4 space-y-2.5 bg-gray-50/60 dark:bg-slate-950/40 scrollbar-thin"></div>
             <div class="p-3 border-t border-gray-100 dark:border-slate-800 flex gap-2">
@@ -579,7 +601,7 @@
             <span id="collabFilterCount" class="text-[11px] text-gray-400 ml-auto"></span>
           </div>
           <div id="collabList" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
-          <div id="collabBoard" class="hide flex gap-3 overflow-x-auto pb-2"></div>
+          <div id="collabBoard" class="hide flex gap-3 overflow-x-auto snap-x snap-mandatory md:snap-none pb-2"></div>
         </div>
 
         <!-- SETTINGS -->
@@ -958,7 +980,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.110.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.111.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1599,8 +1621,17 @@ function applyTheme(){
   if(tc) tc.setAttribute('content', dark ? '#0f172a' : '#ffffff');
 }
 function toggleTheme(){LS.set('theme', document.documentElement.classList.contains('dark')?'light':'dark'); applyTheme(); renderAll();}
-function openMobileSidebar(){const s=document.getElementById('sidebar'); s.classList.remove('hidden'); s.classList.add('absolute','z-[80]','h-full','top-0','left-0','shadow-2xl'); const bd=document.getElementById('mobileBackdrop'); if(bd) bd.classList.remove('hide');}
-function closeMobileSidebar(){const s=document.getElementById('sidebar'); s.classList.add('hidden'); s.classList.remove('absolute','z-[80]','h-full','top-0','left-0','shadow-2xl'); const bd=document.getElementById('mobileBackdrop'); if(bd) bd.classList.add('hide');}
+/* Sidebar-nya ditulis "hidden md:flex". Di ponsel, begitu "hidden" dilepas, TAK ADA utilitas
+   display yang berlaku (md:flex baru aktif di 768px), jadi <aside> kembali ke display:block —
+   flex-col dan flex-1 di dalamnya diam-diam tak berfungsi. Akibatnya nav memakai tinggi isinya
+   (843px), overflow-y-auto tak pernah aktif, dan kaki sidebar (pemilih Mode User + Ganti
+   identitas) terdorong ke luar layar di SEMUA ukuran ponsel. Karena itu "flex" ikut dipasang
+   di sini dan dicabut lagi saat ditutup.
+
+   h-[100dvh], bukan h-full: laci ini absolute, jadi h-full mengacu ke blok penampungnya —
+   yang di browser dalam aplikasi bisa lebih tinggi daripada yang terlihat. */
+function openMobileSidebar(){const s=document.getElementById('sidebar'); s.classList.remove('hidden'); s.classList.add('flex','absolute','z-[80]','h-[100dvh]','top-0','left-0','shadow-2xl'); const bd=document.getElementById('mobileBackdrop'); if(bd) bd.classList.remove('hide');}
+function closeMobileSidebar(){const s=document.getElementById('sidebar'); s.classList.add('hidden'); s.classList.remove('flex','absolute','z-[80]','h-[100dvh]','top-0','left-0','shadow-2xl'); const bd=document.getElementById('mobileBackdrop'); if(bd) bd.classList.add('hide');}
 /* Sembunyikan menu samping supaya area task jauh lebih lebar (Kanban & Task List paling
    terasa). Hanya untuk layar >= md; di ponsel sidebar memang sudah tersembunyi dan diatur
    toggleMobileSidebar(). Pilihannya diingat lewat localStorage, jadi tidak perlu diulang
@@ -3361,11 +3392,29 @@ function renderCommunicationTasks(){
 }
 function selectCommunicationTask(id){state.selectedTaskId=id;loadComments(id);renderCommunicationPanel();}
 function closeCommChat(){ state.selectedTaskId=null; renderCommunicationPanel(); if(state.activeView==='communication') renderCommunicationTasks(); }
+/* ---------- Komunikasi di ponsel: daftar dulu, baru percakapan ----------
+
+   Di lg keduanya bersebelahan seperti biasa. Di bawah itu grid-nya satu kolom, jadi
+   menampilkan keduanya berarti menumpuk dua panel 662px — kotak tulis pesannya berakhir
+   dua layar di bawah, dan membalas komentar jadi pekerjaan menggulir.
+
+   Polanya sudah setengah ada sebelum ini: state.selectedTaskId sudah menentukan isi
+   percakapan, dan Escape sudah menutupnya. Yang ditambahkan cuma menyembunyikan salah
+   satunya dan tombol kembali. */
+function segarkanTataKomunikasi(){
+  const daftar=document.getElementById('commListPanel');
+  const obrol=document.getElementById('commChatPanel');
+  if(!daftar||!obrol) return;
+  const adaTask=!!state.selectedTaskId;
+  daftar.classList.toggle('hidden', adaTask);
+  obrol.classList.toggle('hidden', !adaTask);
+}
 function renderCommunicationPanel(){
   const t=state.tasks.find(x=>x.id===state.selectedTaskId);
-  if(!t){document.getElementById('commHeader').innerHTML='<div class="font-medium text-gray-400 text-sm">Pilih task terlebih dahulu.</div>';document.getElementById('commMessages').innerHTML='';return;}
-  document.getElementById('commHeader').innerHTML=`<div class="flex items-start justify-between gap-3"><div><div class="text-[11px] font-mono text-gray-400">${escapeHtml(t.id)}</div><div class="font-semibold text-base mt-0.5 text-gray-900 dark:text-white">${escapeHtml(t.taskName)}</div><div class="text-xs text-gray-500 mt-1">PIC: <b>${escapeHtml(t.pic||'-')}</b> • Stage: <b>${escapeHtml(t.stage||'-')}</b> ${roleChip(t)}</div></div>${statusChip(t.status)}</div>`;
+  if(!t){document.getElementById('commHeader').innerHTML='<div class="font-medium text-gray-400 text-sm">Pilih task terlebih dahulu.</div>';document.getElementById('commMessages').innerHTML='';segarkanTataKomunikasi();return;}
+  document.getElementById('commHeader').innerHTML=`<div class="flex items-start justify-between gap-3"><button onclick="closeCommChat()" title="Kembali ke daftar task" class="lg:hidden shrink-0 -ml-1 w-11 h-11 rounded-lg inline-flex items-center justify-center text-gray-500 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800"><span class="material-icons-round text-[20px]">arrow_back</span></button><div><div class="text-[11px] font-mono text-gray-400">${escapeHtml(t.id)}</div><div class="font-semibold text-base mt-0.5 text-gray-900 dark:text-white">${escapeHtml(t.taskName)}</div><div class="text-xs text-gray-500 mt-1">PIC: <b>${escapeHtml(t.pic||'-')}</b> • Stage: <b>${escapeHtml(t.stage||'-')}</b> ${roleChip(t)}</div></div>${statusChip(t.status)}</div>`;
   renderComments('commMessages', state.comments);
+  segarkanTataKomunikasi();
 }
 function loadComments(taskId, cb){
   if(!taskId){state.comments=[];renderCommunicationPanel();return;}
@@ -3812,7 +3861,7 @@ function renderCollabKanban(){
   board.innerHTML=COLLAB_TYPES.concat(['Tanpa Tipe']).map(col=>{
     const items=collabs.filter(c=>collabTypeOf(c)===col);
     const val=(col==='Tanpa Tipe')?'':col;
-    return `<div class="shrink-0 w-[300px] bg-gray-50 dark:bg-slate-900/60 rounded-xl border border-gray-200 dark:border-slate-800 flex flex-col max-h-[calc(100vh-235px)]">
+    return `<div class="snap-center shrink-0 w-[86vw] md:w-[300px] bg-gray-50 dark:bg-slate-900/60 rounded-xl border border-gray-200 dark:border-slate-800 flex flex-col max-h-[70vh] md:max-h-[calc(100vh-235px)]">
       <div class="px-3 py-2.5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between shrink-0">
         <span class="font-semibold text-sm text-gray-800 dark:text-slate-100">${escapeHtml(col)}</span>
         <span class="text-[11px] font-semibold text-gray-400">${items.length}</span>
@@ -5718,6 +5767,30 @@ function deleteNote(row){
 
 /* ---------- Laporan (digest mingguan, manager/dev) ---------- */
 function parseDateLoose(s){ if(!s) return null; const d=new Date(String(s).trim().replace(' ','T')); return isNaN(d.getTime())?null:d; }
+/* ---------- Laporan di ponsel: satu kartu per PIC/peran ----------
+
+   Tabelnya enam kolom dan melebar jadi 475px di wadah selebar 335px — harus digeser ke
+   samping untuk membaca satu baris, lalu digeser balik untuk baris berikutnya. Persis
+   masalah Task List sebelum tahap 1.
+
+   Angkanya sama persis dengan tabelnya, cuma disusun ulang: nama di atas, lima angka
+   berjajar di bawahnya. Label "Baru" tak membawa keterangan rentang seperti di tabel
+   ("Baru mgg ini") karena pada 9px keterangan itu akan terpotong — rentangnya sudah
+   tertulis di bilah saringan tepat di atasnya. */
+function repKartuPic(r, i, aktif){
+  const angka=[['Aktif',r.aktif,''],['Selesai',r.selesai,'text-emerald-600'],
+    ['Overdue',r.overdue,r.overdue?'text-rose-600':''],['Baru',r.baru,''],
+    ['Kolab',r.kolab,r.kolab?'text-violet-600':'text-gray-400']];
+  return `<div onclick="selectReportPic(${i})" class="rounded-lg border ${aktif?'border-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-800':'border-gray-200 dark:border-slate-800'} p-3">
+    <div class="flex items-center gap-1.5 font-medium text-sm text-gray-800 dark:text-slate-200">
+      <span class="material-icons-round text-[16px] ${aktif?'text-indigo-600':'text-gray-300 dark:text-slate-600'}">${aktif?'expand_more':'chevron_right'}</span>
+      <span class="truncate">${escapeHtml(repPakaiPeran()?repLabelPeran(r.pic):r.pic)}</span>
+    </div>
+    <div class="mt-2 grid grid-cols-5 gap-1 text-center">
+      ${angka.map(a=>`<div><div class="text-sm font-semibold ${a[2]}">${a[1]}</div><div class="text-[9px] uppercase tracking-wide text-gray-400 truncate">${a[0]}</div></div>`).join('')}
+    </div>
+  </div>`;
+}
 function renderReport(){
   const box=document.getElementById('reportContent'); if(!box) return;
   const f=state.repFilters;
@@ -5762,7 +5835,10 @@ function renderReport(){
     <span class="ml-auto text-xs text-gray-400 font-medium whitespace-nowrap">${tasks.length} dari ${repSourceTasks('all').length} baris (${collabRows.length} kolaborasi) • ${escapeHtml(rangeLabel(f))}</span>
   </div>`;
   const kpiHtml=kpis.map(k=>`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-3"><div class="text-[11px] uppercase tracking-wider text-gray-400 font-semibold">${k[0]}</div><div class="text-2xl font-bold mt-0.5 ${k[2]||'text-gray-900 dark:text-white'}">${k[1]}</div></div>`).join('');
-  const picTable=`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden"><div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2"><span class="font-semibold text-sm text-gray-900 dark:text-white">${repPakaiPeran()?'Peran Saya':'Per PIC'}</span><span class="text-[11px] text-gray-400 font-medium">Klik baris untuk lihat detail stage</span></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-[11px] uppercase tracking-wider text-gray-400"><th class="px-4 py-2">${repPakaiPeran()?'Peran':'PIC'}</th><th class="px-4 py-2">Aktif</th><th class="px-4 py-2">Selesai</th><th class="px-4 py-2">Overdue</th><th class="px-4 py-2">Baru ${wl}</th><th class="px-4 py-2" title="Baris yang berasal dari task kolaborasi">Kolab</th></tr></thead><tbody>${picRows.length?picRows.map((r,i)=>{const on=same(state.repPic,r.pic); return `<tr onclick="selectReportPic(${i})" class="border-t border-gray-100 dark:border-slate-800 cursor-pointer ${on?'bg-indigo-50 dark:bg-indigo-900/30':'hover:bg-gray-50 dark:hover:bg-slate-800/60'}"><td class="px-4 py-2 font-medium text-gray-800 dark:text-slate-200 flex items-center gap-1.5"><span class="material-icons-round text-[16px] ${on?'text-indigo-600':'text-gray-300 dark:text-slate-600'}">${on?'expand_more':'chevron_right'}</span>${escapeHtml(repPakaiPeran()?repLabelPeran(r.pic):r.pic)}</td><td class="px-4 py-2">${r.aktif}</td><td class="px-4 py-2 text-emerald-600">${r.selesai}</td><td class="px-4 py-2 ${r.overdue?'text-rose-600 font-semibold':''}">${r.overdue}</td><td class="px-4 py-2">${r.baru}</td><td class="px-4 py-2 ${r.kolab?'text-violet-600 font-semibold':'text-gray-400'}">${r.kolab}</td></tr>`;}).join(''):`<tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">Tidak ada data.</td></tr>`}</tbody></table></div></div>`;
+  const picKartu=picRows.length
+    ? picRows.map((r,i)=>repKartuPic(r,i,same(state.repPic,r.pic))).join('')
+    : `<div class="px-2 py-6 text-center text-gray-400">Tidak ada data.</div>`;
+  const picTable=`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden"><div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2"><span class="font-semibold text-sm text-gray-900 dark:text-white">${repPakaiPeran()?'Peran Saya':'Per PIC'}</span><span class="text-[11px] text-gray-400 font-medium">Ketuk untuk lihat detail stage</span></div><div class="md:hidden p-2 space-y-2">${picKartu}</div><div class="hidden md:block overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-[11px] uppercase tracking-wider text-gray-400"><th class="px-4 py-2">${repPakaiPeran()?'Peran':'PIC'}</th><th class="px-4 py-2">Aktif</th><th class="px-4 py-2">Selesai</th><th class="px-4 py-2">Overdue</th><th class="px-4 py-2">Baru ${wl}</th><th class="px-4 py-2" title="Baris yang berasal dari task kolaborasi">Kolab</th></tr></thead><tbody>${picRows.length?picRows.map((r,i)=>{const on=same(state.repPic,r.pic); return `<tr onclick="selectReportPic(${i})" class="border-t border-gray-100 dark:border-slate-800 cursor-pointer ${on?'bg-indigo-50 dark:bg-indigo-900/30':'hover:bg-gray-50 dark:hover:bg-slate-800/60'}"><td class="px-4 py-2 font-medium text-gray-800 dark:text-slate-200 flex items-center gap-1.5"><span class="material-icons-round text-[16px] ${on?'text-indigo-600':'text-gray-300 dark:text-slate-600'}">${on?'expand_more':'chevron_right'}</span>${escapeHtml(repPakaiPeran()?repLabelPeran(r.pic):r.pic)}</td><td class="px-4 py-2">${r.aktif}</td><td class="px-4 py-2 text-emerald-600">${r.selesai}</td><td class="px-4 py-2 ${r.overdue?'text-rose-600 font-semibold':''}">${r.overdue}</td><td class="px-4 py-2">${r.baru}</td><td class="px-4 py-2 ${r.kolab?'text-violet-600 font-semibold':'text-gray-400'}">${r.kolab}</td></tr>`;}).join(''):`<tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">Tidak ada data.</td></tr>`}</tbody></table></div></div>`;
   const stageTable=`<div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 overflow-hidden"><div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between gap-2"><span class="font-semibold text-sm text-gray-900 dark:text-white">Per Stage (task aktif)</span><span class="text-[11px] text-gray-400 font-medium">Klik untuk filter stage</span></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-[11px] uppercase tracking-wider text-gray-400"><th class="px-4 py-2">Stage</th><th class="px-4 py-2">Jumlah aktif</th></tr></thead><tbody>${stageRows.length?stageRows.map((r,i)=>{const on=f.stage.some(v=>same(v,r.stage)); return `<tr onclick="toggleRepStageIdx(${i})" class="border-t border-gray-100 dark:border-slate-800 cursor-pointer ${on?'bg-indigo-50 dark:bg-indigo-900/30':'hover:bg-gray-50 dark:hover:bg-slate-800/60'}"><td class="px-4 py-2 font-medium text-gray-800 dark:text-slate-200">${escapeHtml(r.stage)}${on?' <span class="material-icons-round text-[14px] text-indigo-600 align-middle">check</span>':''}</td><td class="px-4 py-2">${r.jumlah}</td></tr>`;}).join(''):`<tr><td colspan="2" class="px-4 py-6 text-center text-gray-400">Tidak ada data.</td></tr>`}</tbody></table></div></div>`;
   const detail=state.repPic?repDetailHtml(state.repPic,tasks):'';
   box.innerHTML=`<div class="flex items-center justify-between gap-3 flex-wrap"><div><h2 class="text-lg font-semibold text-gray-900 dark:text-white">Laporan</h2><p class="text-sm text-gray-500">${escapeHtml(rangeLabel(f))} • ${escapeHtml(repSrcLabel(f.src))} • klik PIC untuk lihat stage yang dikerjakan.</p></div><div class="flex gap-2"><button onclick="exportReportCSV()" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold flex items-center gap-1.5"><span class="material-icons-round text-[18px]">download</span> Export CSV</button><button onclick="window.print()" class="px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold flex items-center gap-1.5"><span class="material-icons-round text-[18px]">print</span> Print/PDF</button></div></div>${filterBar}<div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">${kpiHtml}</div><div class="grid grid-cols-1 lg:grid-cols-2 gap-4">${picTable}${stageTable}</div>${detail}`;

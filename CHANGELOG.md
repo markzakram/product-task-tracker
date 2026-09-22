@@ -31,6 +31,95 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.111.0 — Tampilan ponsel, tahap 4: tab yang belum tersentuh
+
+Tahap 1–3 menggarap Task List, Kanban, Dashboard, dan Rancangan Paket. Tahap 4 menyisir
+tab yang belum pernah dilihat di layar 375px. Yang diukur bukan tebakan: seluruh kontrol
+di delapan tab dihitung tingginya, dan tiap elemen dibandingkan lebarnya dengan layar.
+
+### Komunikasi bisa dipakai lagi
+
+Ini temuan terburuknya. Dua panelnya masing-masing setinggi `calc(100vh - 150px)` = 662px.
+Di layar lebar keduanya bersebelahan; di ponsel grid-nya satu kolom, jadi keduanya
+**bertumpuk**. Akibatnya kotak tulis pesan berakhir di **y=1493** — dua layar penuh harus
+dilewati hanya untuk membalas satu komentar.
+
+Sekarang yang tampil satu saja: daftar task dulu, lalu percakapan setelah task diketuk,
+dengan tombol kembali di kepalanya. Kotak tulisnya kini di **y=721**, terlihat tanpa
+menggulir sama sekali.
+
+Polanya sebenarnya sudah setengah ada sebelum ini — `state.selectedTaskId` sudah menentukan
+isi percakapan dan Escape sudah menutupnya. Yang ditambahkan cuma menyembunyikan salah
+satunya. Di layar lebar tak ada yang berubah: dua panel tetap bersebelahan dan tombol
+kembalinya tak pernah muncul.
+
+Tingginya kini pakai `dvh`, bukan `vh`. Di ponsel bilah alamat browser menyusut saat
+digulir dan `vh` tak ikut berubah — panelnya jadi lebih tinggi daripada ruang yang benar-
+benar ada, dan bagian bawahnya tersembunyi di balik navigasi.
+
+### Laporan jadi kartu
+
+Tabel "Per PIC" punya enam kolom dan melebar jadi 475px di wadah selebar 335px — harus
+digeser ke samping untuk membaca satu baris, lalu digeser balik untuk baris berikutnya.
+Persis masalah Task List sebelum tahap 1, dan jawabannya sama: di bawah 768px yang digambar
+kartu — nama di atas, lima angka berjajar di bawahnya.
+
+Tabel kedua ("per stage") dibiarkan apa adanya: dua kolom, 333px, sudah muat.
+
+Ajakan di kepala panelnya ikut berubah dari "Klik baris" jadi "Ketuk" — yang ditekan sudah
+bukan baris lagi.
+
+### Sisa kontrol kecil
+
+Link Saya, Catatan Saya, Dashboard Lain, Laporan, dan tombol bawaan FullCalendar tak punya
+wadah `.tt-tap-bar` dari tahap 3, jadi kontrolnya masih 28–35px. Semuanya kini 44px, lewat
+id view-nya — tak ada satu pun markah yang perlu disentuh.
+
+### QC di browser dalam aplikasi — dan bug yang selama ini tak terlihat
+
+Pengujian tahap 1–4 memakai layar 375×812. Tangkapan layar dari lapangan datang dari
+**browser dalam WhatsApp**, yang punya chrome tetap di atas *dan* bawah — tinggi tampaknya
+cuma sekitar 580px. Di situ tiga hal langsung terlihat rusak, dan satu di antaranya ternyata
+sudah rusak sejak dulu di semua ukuran ponsel.
+
+**Laci menu tak pernah jadi flex container di ponsel.** Sidebar-nya ditulis `hidden md:flex`.
+Begitu `hidden` dilepas untuk membukanya, tak ada satu pun utilitas display yang berlaku —
+`md:flex` baru aktif di 768px — jadi `<aside>` kembali ke `display:block`, dan
+`flex-col` serta `flex-1` di dalamnya diam-diam tak berfungsi. Akibatnya nav memakai tinggi
+isinya (843px) alih-alih menggulir, dan kaki sidebar terdorong ke **y=907**: pemilih **Mode
+User** dan tombol **Ganti identitas** tak bisa diraih sama sekali — bukan cuma di layar
+pendek, tapi di semua ukuran ponsel. Kelas `flex` kini dipasang saat membuka dan dicabut
+saat menutup, nav diberi `min-h-0` supaya boleh menyusut, dan kakinya `shrink-0`.
+
+**`100vh` bukan tinggi yang terlihat.** Di browser ponsel `100vh` berarti tinggi saat bilah
+alamat tersembunyi; di browser dalam aplikasi yang chrome-nya tak pernah menyusut, selisihnya
+bisa 150px lebih — dan seluruh isi aplikasi meleset sebanyak itu. Akar aplikasi, laci, dan
+tinggi minimum papan kanban kini pakai `dvh`.
+
+**35px di Kanban yang mustahil dijangkau.** `h-full` mengunci view kanban ke tinggi kotak isi
+`<section>` (404px di layar 580) padahal papannya 430px. Luberannya tak ikut terhitung di
+`scrollHeight`, jadi sisa terakhirnya tetap tertutup navigasi bawah sekalipun sudah digulir
+mentok. `h-full` kini hanya berlaku di layar lebar.
+
+Sekalian: papan kanban **Task Kolaborasi** ternyata terlewat dari tahap 1–4 — kolomnya masih
+300px tetap. Kini ikut selebar layar dan ber-snap seperti kanban utama.
+
+Hasil sapuan ulang di 375×580: **11 dari 14 tab bersih** — tak ada yang tertutup navigasi
+bawah, tak ada yang lebih lebar dari layar, tak ada kontrol di bawah 44px. Tiga sisanya
+Rancangan Paket (41 kotak pilih yang memang sengaja 24px), Dropdown Master, dan Timeline.
+### Dua yang sengaja belum dikerjakan
+
+Keduanya bukan soal ukuran tombol, jadi tak pantas diselesaikan dengan menaikkan angka:
+
+**Timeline (Gantt)** menggambar SVG selebar **6.232px** — 613 elemen lebih lebar dari layar.
+Gantt di layar 375px bukan masalah penyetelan; yang dibutuhkan tampilan lain sama sekali,
+misalnya daftar berurut tanggal. Itu keputusan produk, bukan perbaikan tata letak.
+
+**Dropdown Master** punya **233 kontrol** yang semuanya di bawah 44px, plus tarik-untuk-
+mengurutkan yang belum pernah diuji dengan jari. Ini layar konfigurasi milik Manager, dan
+urutan pengerjaannya sebaiknya ditentukan dulu: apakah memang dipakai dari ponsel.
+
+---
 ## 1.110.0 — Tampilan ponsel, tahap 3: kanban satu kolom & target ketukan
 
 Tahap 1 membuat isinya terbaca, tahap 2 membuatnya terasa seperti aplikasi. Tahap 3

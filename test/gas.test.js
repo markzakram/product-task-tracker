@@ -3124,4 +3124,96 @@ console.log('=== 16t. Tampilan ponsel, tahap 3 ===');
     idx.indexOf("['type','platform','pic','status'].filter(k=>f[k]).length") >= 0);
 }
 
+console.log('=== 16u. Tampilan ponsel, tahap 4 ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* ---- Komunikasi: daftar ATAU percakapan ----
+     Dua panel masing-masing 662px. Di lg mereka bersebelahan; di ponsel grid-nya satu
+     kolom, jadi mereka bertumpuk dan kotak tulis pesannya berakhir di y=1493 — dua layar
+     penuh harus dilewati hanya untuk membalas komentar. */
+  ok('kedua panel punya id', idx.indexOf('id="commListPanel"') >= 0 && idx.indexOf('id="commChatPanel"') >= 0);
+  ok('pemilih panelnya ada', idx.indexOf('function segarkanTataKomunikasi()') >= 0);
+  ok('yang disembunyikan saling berlawanan',
+    idx.indexOf("daftar.classList.toggle('hidden', adaTask);") >= 0
+    && idx.indexOf("obrol.classList.toggle('hidden', !adaTask);") >= 0);
+  /* dvh, bukan vh: di ponsel bilah alamat browser menyusut saat digulir, dan vh tak ikut
+     berubah — panelnya jadi lebih tinggi dari ruang yang benar-benar ada. */
+  ok('tingginya ikut ruang yang benar-benar ada',
+    idx.indexOf('h-[calc(100dvh-240px)] lg:h-[calc(100vh-150px)]') >= 0);
+  /* Tombol kembali cuma masuk akal kalau daftarnya memang tersembunyi. */
+  ok('tombol kembali hanya di layar kecil',
+    idx.indexOf('onclick="closeCommChat()" title="Kembali ke daftar task" class="lg:hidden') >= 0);
+  /* Dipanggil juga saat TAK ada task terpilih — kalau tidak, menutup percakapan lewat
+     Escape meninggalkan dua panel tersembunyi sekaligus. */
+  ok('dipanggil di kedua cabang',
+    (idx.match(/segarkanTataKomunikasi\(\);/g) || []).length >= 2);
+
+  /* ---- Laporan: tabel enam kolom jadi kartu ----
+     475px di wadah 335px — harus digeser ke samping untuk membaca satu baris, lalu digeser
+     balik untuk baris berikutnya. Persis masalah Task List sebelum tahap 1. */
+  ok('pembuat kartunya ada', idx.indexOf('function repKartuPic(r, i, aktif)') >= 0);
+  ok('kartunya dirakit dari baris yang sama',
+    idx.indexOf('picRows.map((r,i)=>repKartuPic(r,i,same(state.repPic,r.pic)))') >= 0);
+  ok('kartu hanya di ponsel', idx.indexOf('<div class="md:hidden p-2 space-y-2">') >= 0);
+  ok('tabel hanya di layar lebar', idx.indexOf('<div class="hidden md:block overflow-x-auto"><table class="w-full text-sm">') >= 0);
+  /* Kartu dan tabel memakai penangan yang sama, jadi memilih PIC tetap satu jalur. */
+  ok('kartu memanggil aksi yang sama dengan baris tabel',
+    idx.indexOf('<div onclick="selectReportPic(') >= 0);
+  /* "Klik baris" tak berlaku lagi kalau yang tampil kartu yang diketuk. */
+  ok('ajakannya tak lagi menyebut klik baris',
+    idx.indexOf('Ketuk untuk lihat detail stage') >= 0 && idx.indexOf('Klik baris untuk lihat detail stage') < 0);
+
+  /* ---- Tab sisa yang tak punya wadah .tt-tap-bar ---- */
+  ['#mylinksView', '#mynotesView', '#extdashView', '#reportView'].forEach(v => {
+    ok(v + ' ikut aturan 44px', idx.indexOf(v + ' button,' + v + ' select,' + v + ' input') >= 0);
+  });
+  /* Tombol bawaan FullCalendar tak bisa diberi kelas dari sini. */
+  ok('tombol Calendar ikut 44px', idx.indexOf('#calendarView .fc button{min-height:44px}') >= 0);
+}
+
+console.log('=== 16v. QC ponsel: browser dalam aplikasi & laci menu ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* ---- Bug laci menu ----
+     Sidebar-nya ditulis "hidden md:flex". Di ponsel, begitu "hidden" dilepas, TAK ADA
+     utilitas display yang berlaku — md:flex baru aktif di 768px — jadi <aside> kembali ke
+     display:block dan flex-col di dalamnya diam-diam tak berfungsi. Akibatnya nav memakai
+     tinggi isinya (843px di dalam laci 580px), overflow-y-auto tak pernah aktif, dan kaki
+     sidebar terdorong ke y=907: pemilih Mode User dan "Ganti identitas" tak bisa diraih
+     sama sekali di SEMUA ukuran ponsel. */
+  ok('laci dijadikan flex saat dibuka', idx.indexOf("s.classList.add('flex','absolute','z-[80]'") >= 0);
+  ok('dan dicabut lagi saat ditutup', idx.indexOf("s.classList.remove('flex','absolute','z-[80]'") >= 0);
+  /* min-height:auto bawaan flex membuat item menolak menyusut lebih kecil dari isinya,
+     jadi overflow-y-auto tak pernah jalan tanpa min-h-0. */
+  ok('nav laci boleh menyusut', idx.indexOf('<nav class="p-3 flex-1 min-h-0 overflow-y-auto">') >= 0);
+  /* Kaki yang harus utuh; nav di atasnya yang menggulir. */
+  ok('kaki laci tak ikut menyusut', idx.indexOf('<div class="p-3 shrink-0 border-t border-gray-100') >= 0);
+
+  /* ---- Tinggi layar yang benar-benar terlihat ----
+     100vh di browser ponsel = tinggi saat bilah alamat tersembunyi, bukan tinggi sekarang.
+     Di browser DALAM aplikasi (WhatsApp, Instagram) yang chrome-nya tetap ada di atas DAN
+     bawah, selisihnya bisa 150px+ — dan seluruh isi aplikasi meleset sebanyak itu. */
+  ok('akar aplikasi pakai tinggi yang terlihat', idx.indexOf('<div class="flex h-[100dvh]">') >= 0);
+  ok('tak ada lagi h-screen', idx.indexOf('h-screen') < 0);
+  ok('laci terbuka juga pakai dvh', idx.indexOf("'h-[100dvh]','top-0','left-0'") >= 0);
+  ok('tinggi minimum papan kanban ikut dvh', idx.indexOf('min-h-[calc(100dvh-210px)]') >= 0);
+
+  /* ---- Kanban: 35px yang tak bisa dijangkau ----
+     h-full mengunci view ini ke tinggi kotak isi <section> (404px di layar 580) padahal
+     papannya 430px. Luberannya tak ikut terhitung di scrollHeight, jadi sisa terakhirnya
+     tetap tertutup bilah bawah sekalipun sudah digulir mentok. */
+  ok('tinggi view kanban tak dikunci di ponsel',
+    idx.indexOf('id="kanbanView" class="view hide space-y-3 md:h-full') >= 0);
+
+  /* ---- Kanban Task Kolaborasi, yang terlewat tahap 1-4 ---- */
+  ok('kolomnya ikut lebar layar di ponsel',
+    idx.indexOf('snap-center shrink-0 w-[86vw] md:w-[300px]') >= 0);
+  ok('papannya ikut snap', idx.indexOf('id="collabBoard" class="hide flex gap-3 overflow-x-auto snap-x snap-mandatory md:snap-none') >= 0);
+
+  /* Tiga tombol yang berdiri sendiri di luar deretan .tt-tap-bar mana pun. */
+  ok('tombol lepas ikut 44px', idx.indexOf('#kanbanToolbar button,#collabAddBtn,#commSearch{min-height:44px}') >= 0);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);
