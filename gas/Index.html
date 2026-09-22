@@ -489,14 +489,18 @@
 
         <!-- TIMELINE -->
         <div id="timelineView" class="view hide space-y-4 max-w-[1700px] mx-auto">
-          <div class="flex items-center gap-2 flex-wrap">
+          <!-- Hari/Minggu/Bulan itu skala gambar Gantt; di ponsel yang tampil daftar, jadi
+               pemilihnya tak mengubah apa pun dan hanya memakan ruang. -->
+          <div class="hidden md:flex items-center gap-2 flex-wrap">
             <span class="font-medium text-xs flex items-center gap-1.5 text-gray-500"><span class="material-icons-round text-[18px]">view_timeline</span>Skala</span>
             <button onclick="setGanttMode('Day')" id="gmode-Day" class="gmode px-3 py-1.5 text-sm rounded-lg font-medium border">Hari</button>
             <button onclick="setGanttMode('Week')" id="gmode-Week" class="gmode px-3 py-1.5 text-sm rounded-lg font-medium border">Minggu</button>
             <button onclick="setGanttMode('Month')" id="gmode-Month" class="gmode px-3 py-1.5 text-sm rounded-lg font-medium border">Bulan</button>
             <span class="ml-auto text-[11px] text-gray-400 font-medium hidden sm:inline">Klik bar = detail • tarik/ulur = ubah jadwal</span>
           </div>
-          <div id="timelineLegend"></div>
+          <!-- Legenda warna mubazir di daftar ponsel: tiap baris sudah membawa chip status
+               bertulisan. Di layar 580px ia memakan 70px sebelum baris pertama terlihat. -->
+          <div id="timelineLegend" class="hidden md:block"></div>
           <div class="bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-4 overflow-x-auto">
             <div id="ganttWrap"></div>
           </div>
@@ -980,7 +984,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.111.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.112.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -1320,7 +1324,7 @@ function renderStagingMark(){
       /* Task List menggambar kartu ATAU baris, tak pernah keduanya. Saat lebar layar
          melewati 768px — ponsel diputar, jendela ditarik — yang sedang tampil harus
          digambar ulang, kalau tidak layarnya jadi kosong sama sekali. */
-      window.addEventListener('resize', ()=>{ const k=pakaiKartuTask(); if(k!==state._kartuTask){ state._kartuTask=k; if(state.activeView==='list') renderTable(); } });
+      window.addEventListener('resize', ()=>{ const k=pakaiKartuTask(); if(k!==state._kartuTask){ state._kartuTask=k; if(state.activeView==='list') renderTable(); if(state.activeView==='timeline') renderTimeline(); } });
       /* Service worker-nya ada supaya Chrome mau menawarkan "Pasang aplikasi"; ia sengaja
          TIDAK menyimpan halaman ke cache (alasan lengkapnya di public/sw.js).
          Dilewati di Apps Script: di sana halaman ini disajikan dalam iframe di origin
@@ -3229,11 +3233,120 @@ function fmtDate(d){if(!d)return''; if(typeof d==='string')return d.slice(0,10);
 function addDaysStr(s,n){const d=new Date(String(s).slice(0,10)+'T00:00:00'); if(isNaN(d))return s; d.setDate(d.getDate()+n); return fmtDate(d);}
 function setGanttMode(m){state.ganttMode=m; renderTimeline();}
 function updateGanttModeButtons(){['Day','Week','Month'].forEach(m=>{const b=document.getElementById('gmode-'+m); if(!b)return; const on=state.ganttMode===m; b.className='gmode px-3 py-1.5 text-sm rounded-lg font-medium border '+(on?'bg-indigo-600 text-white border-indigo-600':'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-300 dark:border-slate-700 hover:bg-gray-50');});}
+/* ---------- Timeline di ponsel: daftar urut tanggal ----------
+
+   Gantt-nya menggambar SVG selebar 6.232px. Di layar 375px itu berarti menggeser ke samping
+   terus-menerus, dan bar setinggi 22px praktis mustahil ditarik dengan jempol — menjadwal
+   ulang lewat seretan memang bukan untuk ponsel.
+
+   Yang dibawa ke ponsel bukan gambarnya, melainkan yang orang cari DARI gambar itu: apa
+   yang jalan kapan, berurutan, dan berapa lama. Panjang bar jadi angka "N hari".
+
+   Mengetuk baris membuka modal — sama persis dengan mengeklik bar di Gantt, jadi menjadwal
+   ulang tetap bisa, lewat ruas tanggal di sana. */
+/* Ambang yang sama dengan Task List. Sengaja memanggil fungsinya, bukan menyalin angkanya,
+   supaya keduanya tak bisa melenceng sendiri-sendiri. */
+function pakaiDaftarJadwal(){ return pakaiKartuTask(); }
+/* Awal & akhir dihitung dengan rumus yang SAMA PERSIS dengan yang diberikan ke Gantt di
+   renderTimeline(). Kalau dibiarkan beda, daftar dan grafik akan menyebut tanggal berbeda
+   untuk task yang sama — beda yang cuma ketahuan kalau seseorang membandingkan keduanya. */
+function mulaiJadwal(t){ return fmtDate(t.startDate||t.createdDate||t.dueDate); }
+function akhirJadwal(t){ const m=mulaiJadwal(t); const a=fmtDate(t.dueDate||m); return a<m?m:a; }
+/* parseDate() memulangkan tanggal MAKSIMUM (tahun 275760) untuk masukan tak sah, bukan
+   NaN — jadi isNaN tak pernah menangkapnya dan "99.979.282 hari" lolos ke layar. Yang
+   diperiksa bentuk teksnya. */
+function tanggalSah(s){ return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(s||'')); }
+function lamaHari(mulai,akhir){
+  if(!tanggalSah(mulai)||!tanggalSah(akhir)) return 1;
+  const a=parseDate(mulai), b=parseDate(akhir);
+  return Math.max(1, Math.round((b-a)/86400000)+1);   // inklusif: mulai & akhir ikut dihitung
+}
+function labelBulan(tgl){
+  if(!tanggalSah(tgl)) return 'Tanpa tanggal';
+  const d=parseDate(tgl);
+  return d.toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+}
+function barisJadwalHp(t){
+  const mulai=mulaiJadwal(t), akhir=akhirJadwal(t);
+  const sah=tanggalSah(mulai);
+  const d=parseDate(mulai);
+  const tgl = sah ? d.toLocaleDateString('id-ID',{day:'2-digit'}) : '--';
+  const bln = sah ? d.toLocaleDateString('id-ID',{month:'short'}) : '';
+  const telat=isLate(t);
+  const buka = t._collab ? `openCollabModal('${escapeAttr(t.collabId)}')` : `openTaskModal('${escapeAttr(t.id)}')`;
+  return `<button type="button" onclick="${buka}" class="w-full text-left rounded-lg border border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 flex items-start gap-3 active:bg-gray-50 dark:active:bg-slate-800">
+    <span class="shrink-0 w-10 text-center" style="border-left:3px solid ${statusHex(t.status)};padding-left:6px">
+      <span class="block text-[9px] uppercase tracking-wide text-gray-400">${bln}</span>
+      <span class="block text-lg font-bold leading-none text-gray-800 dark:text-slate-100">${tgl}</span>
+    </span>
+    <span class="min-w-0 flex-1">
+      <span class="block font-medium text-sm text-gray-900 dark:text-white leading-snug break-words">${escapeHtml(t.taskName||t.id||'-')}</span>
+      <span class="mt-1 flex items-center gap-1.5 flex-wrap text-[11px] text-gray-500 dark:text-slate-400">
+        ${t.pic?`<span class="flex items-center gap-1">${avatar(t.pic)}${escapeHtml(t.pic)}</span>`:''}
+        <span class="${telat?'text-rose-600 font-medium':''}">${formatDateHuman(mulai)} → ${formatDateHuman(akhir)}</span>
+        <span class="text-gray-400">· ${lamaHari(mulai,akhir)} hari</span>
+      </span>
+    </span>
+    <span class="shrink-0">${statusChip(t.status)}</span>
+  </button>`;
+}
+/* Yang dicari orang dari Timeline di ponsel: apa yang SEDANG dan AKAN jalan. Task yang
+   jadwalnya sudah lewat seluruhnya ditaruh di balik satu tombol — bukan sekadar digulir
+   melewatinya. Dengan data sekarang bedanya halaman 70.760px lawan sekitar 6.000px, dan
+   membuka tab ini tak lagi mendarat empat bulan di masa lalu.
+
+   Gantt di layar lebar tetap menampilkan semuanya — di sana memang seluruh rentang yang
+   jadi gunanya. */
+function toggleJadwalLewat(){ state._jadwalLewat=!state._jadwalLewat; renderTimeline(); }
+function renderDaftarJadwal(tasks){
+  const wrap=document.getElementById('ganttWrap'); if(!wrap) return;
+  const kini=todayStr();
+  const urut=tasks.slice().sort((a,b)=>{
+    const ma=mulaiJadwal(a), mb=mulaiJadwal(b);
+    if(ma!==mb) return ma<mb?-1:1;
+    return String(a.taskName||'').localeCompare(String(b.taskName||''));
+  });
+  /* Batasnya tanggal AKHIR, bukan tanggal mulai: task yang dimulai Juni tapi jatuh tempo
+     besok masih 'sedang jalan', dan menyembunyikannya justru menyembunyikan yang penting.
+
+     Dan batasnya 30 hari ke belakang, bukan hari ini. Kalau patokannya hari ini, tim yang
+     seluruh jadwalnya sedang telat akan membuka Timeline dan melihat layar KOSONG — persis
+     keadaan saat mereka paling perlu melihatnya. Jendela 30 hari membuat yang baru lewat
+     tetap terlihat, dan tetap membuang ekor panjang yang tak ada gunanya di ponsel. */
+  const batas=addDaysStr(kini,-30);
+  const lewat=urut.filter(t=>akhirJadwal(t)<batas);
+  const jalan=urut.filter(t=>akhirJadwal(t)>=batas);
+  const tampil=state._jadwalLewat ? urut : jalan;
+
+  const tombol = lewat.length ? `<button type="button" onclick="toggleJadwalLewat()" class="w-full mb-2 min-h-[44px] px-3 rounded-lg border border-dashed border-gray-300 dark:border-slate-700 text-xs font-semibold text-gray-500 dark:text-slate-400 flex items-center justify-center gap-1.5"><span class="material-icons-round text-[15px]">${state._jadwalLewat?'expand_less':'history'}</span>${state._jadwalLewat?'Sembunyikan yang lebih lama':'Tampilkan '+lewat.length+' task sebelum '+formatDateHuman(batas)}</button>` : '';
+
+  if(!tampil.length){ wrap.innerHTML = tombol + emptyState(lewat.length ? 'Tak ada jadwal 30 hari terakhir ke depan. Task yang lebih lama ada di tombol atas.' : 'Tidak ada task dengan tanggal untuk ditampilkan.'); return; }
+
+  let bulan='';
+  const isi=tampil.map(t=>{
+    const b=labelBulan(mulaiJadwal(t));
+    let kepala='';
+    /* Kepala bulan menempel di atas saat digulir — tanpa itu, sesudah beberapa layar tak
+       jelas lagi sedang melihat bulan apa. */
+    if(b!==bulan){ bulan=b; kepala=`<div class="sticky top-0 z-10 -mx-1 px-1 py-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur text-[11px] font-bold uppercase tracking-widest text-gray-400">${escapeHtml(b)}</div>`; }
+    return kepala + barisJadwalHp(t);
+  }).join('');
+  wrap.innerHTML = tombol + `<div class="space-y-1.5">${isi}</div>`;
+}
 function renderTimeline(){
   updateGanttModeButtons();
   const wrap=document.getElementById('ganttWrap'); if(!wrap) return;
   const tasks=viewTasks().filter(t=>t.dueDate||t.startDate);
   const _tl=document.getElementById('timelineLegend'); if(_tl) _tl.innerHTML=statusLegendHtml(tasks);
+  /* Sesudah legenda, sebelum Gantt: di ponsel legendanya tetap berguna (warna = status),
+     tapi grafiknya tidak. state.gantt dikosongkan supaya tak ada sisa instans yang
+     dipegang saat layar dilebarkan lagi. */
+  if(pakaiDaftarJadwal()){
+    state.gantt=null;
+    if(!tasks.length){ document.getElementById('ganttWrap').innerHTML=emptyState('Tidak ada task dengan tanggal untuk ditampilkan.'); return; }
+    renderDaftarJadwal(tasks);
+    return;
+  }
   if(!window.Gantt){wrap.innerHTML=emptyState('Komponen timeline belum termuat. Pastikan ada koneksi internet, lalu muat ulang.'); return;}
   if(!tasks.length){wrap.innerHTML=emptyState('Tidak ada task dengan tanggal untuk ditampilkan.'); state.gantt=null; return;}
   wrap.innerHTML='<svg id="ganttSvg"></svg>';

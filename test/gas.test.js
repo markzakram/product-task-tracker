@@ -3216,4 +3216,60 @@ console.log('=== 16v. QC ponsel: browser dalam aplikasi & laci menu ===');
   ok('tombol lepas ikut 44px', idx.indexOf('#kanbanToolbar button,#collabAddBtn,#commSearch{min-height:44px}') >= 0);
 }
 
+console.log('=== 16w. Tampilan ponsel, tahap 5: Timeline jadi daftar ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Gantt menggambar SVG selebar 6.232px — 613 elemen lebih lebar dari layar 375px, dan bar
+     setinggi 22px praktis mustahil ditarik dengan jempol. Yang dibawa ke ponsel bukan
+     gambarnya, melainkan yang orang cari DARI gambar itu: apa yang jalan kapan. */
+  ok('penggantinya ada', idx.indexOf('function renderDaftarJadwal(tasks)') >= 0);
+  ok('renderTimeline bercabang sebelum Gantt', idx.indexOf('if(pakaiDaftarJadwal()){') >= 0);
+  /* Ambangnya memanggil fungsi Task List, bukan menyalin angkanya — dua salinan angka 768
+     bisa melenceng sendiri-sendiri tanpa ada yang sadar. */
+  ok('ambangnya satu sumber', idx.indexOf('function pakaiDaftarJadwal(){ return pakaiKartuTask(); }') >= 0);
+  /* Memutar ponsel melewati 768px harus menukar daftar dan grafik. */
+  ok('lebar berubah menggambar ulang', idx.indexOf("if(state.activeView==='timeline') renderTimeline();") >= 0);
+
+  /* Rumus awal & akhir harus SAMA PERSIS dengan yang diberikan ke Gantt. Kalau berbeda,
+     daftar dan grafik menyebut tanggal berbeda untuk task yang sama — beda yang hanya
+     ketahuan kalau seseorang kebetulan membandingkan keduanya. */
+  ok('rumus Gantt masih seperti semula',
+    idx.indexOf('let start=t.startDate||t.createdDate||t.dueDate;') >= 0
+    && idx.indexOf('let end=t.dueDate||start;') >= 0);
+  ok('daftar memakai rumus yang sama',
+    idx.indexOf('function mulaiJadwal(t){ return fmtDate(t.startDate||t.createdDate||t.dueDate); }') >= 0
+    && idx.indexOf('const a=fmtDate(t.dueDate||m); return a<m?m:a;') >= 0);
+
+  /* parseDate() memulangkan tanggal MAKSIMUM (tahun 275760) untuk masukan tak sah, bukan
+     NaN — jadi isNaN tak pernah menangkapnya dan '99.979.282 hari' lolos ke layar. */
+  ok('tanggal tak sah dijaga lewat bentuk teksnya',
+    idx.indexOf("function tanggalSah(s){ return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(s||'')); }") >= 0);
+  ok('lamaHari memakai penjagaan itu', idx.indexOf('if(!tanggalSah(mulai)||!tanggalSah(akhir)) return 1;') >= 0);
+  ok('lamanya inklusif', idx.indexOf('return Math.max(1, Math.round((b-a)/86400000)+1);') >= 0);
+
+  /* Batasnya 30 hari ke belakang, BUKAN hari ini. Kalau patokannya hari ini, tim yang
+     seluruh jadwalnya sedang telat membuka Timeline dan melihat layar kosong — persis
+     keadaan saat mereka paling perlu melihatnya. */
+  ok('jendelanya 30 hari ke belakang', idx.indexOf('const batas=addDaysStr(kini,-30);') >= 0);
+  /* Yang dibandingkan tanggal AKHIR: task yang mulai Juni tapi jatuh tempo besok masih
+     sedang jalan, dan menyembunyikannya justru menyembunyikan yang penting. */
+  ok('yang dibandingkan tanggal akhir', idx.indexOf('const lewat=urut.filter(t=>akhirJadwal(t)<batas);') >= 0);
+  ok('sisanya di balik satu tombol', idx.indexOf('function toggleJadwalLewat()') >= 0);
+  /* Tombolnya menyebut tanggal batasnya, bukan sekadar "yang lama" — supaya jelas apa yang
+     sedang tidak terlihat. */
+  ok('tombolnya menyebut tanggal batas', idx.indexOf("'Tampilkan '+lewat.length+' task sebelum '+formatDateHuman(batas)") >= 0);
+
+  /* Hari/Minggu/Bulan itu skala gambar Gantt; di daftar ia tak mengubah apa pun. Legenda
+     warna juga mubazir karena tiap baris sudah membawa chip status bertulisan. */
+  ok('pemilih skala sembunyi di ponsel',
+    idx.indexOf('<div class="hidden md:flex items-center gap-2 flex-wrap">') >= 0);
+  ok('legenda sembunyi di ponsel', idx.indexOf('<div id="timelineLegend" class="hidden md:block"></div>') >= 0);
+
+  /* Mengetuk baris membuka modal — sama persis dengan mengeklik bar di Gantt, jadi
+     menjadwal ulang tetap bisa lewat ruas tanggal di sana. */
+  ok('baris membuka modal yang sama dengan bar Gantt',
+    idx.indexOf('function barisJadwalHp(t)') >= 0 && idx.indexOf('on_click: task=>openTaskModal(task.id)') >= 0);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

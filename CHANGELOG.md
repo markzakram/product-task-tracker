@@ -31,6 +31,67 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.112.0 — Tampilan ponsel, tahap 5: Timeline jadi daftar
+
+Tahap terakhir. Dari tiga hal yang tersisa di 1.111.0, satu dikerjakan dan dua sengaja
+ditutup — keputusan pemilik produk, bukan kehabisan waktu.
+
+### Gantt tak dipaksakan ke layar 375px
+
+Gantt menggambar SVG selebar **6.232px**: 613 elemen lebih lebar dari layar, dan bar
+setinggi 22px praktis mustahil ditarik dengan jempol. Ini bukan masalah yang bisa
+diselesaikan dengan menyetel ukuran.
+
+Jadi yang dibawa ke ponsel bukan gambarnya, melainkan yang orang cari **dari** gambar itu:
+apa yang jalan kapan, berurutan, dan berapa lama. Di bawah 768px Timeline jadi daftar urut
+tanggal — tanggal mulai di kiri, nama task, PIC, rentang, dan panjang bar berubah jadi
+angka "N hari". Dikelompokkan per bulan dengan kepala yang menempel saat digulir.
+
+Mengetuk baris membuka modal — sama persis dengan mengeklik bar di Gantt, jadi menjadwal
+ulang tetap bisa, lewat ruas tanggal di sana. Di layar lebar tak ada yang berubah sama
+sekali: Gantt-nya utuh, lengkap dengan seret-untuk-menjadwal-ulang.
+
+**Jendelanya 30 hari ke belakang, bukan "mulai hari ini".** Versi pertama menyembunyikan
+semua yang jadwalnya sudah lewat. Di data uji hasilnya layar **kosong** — 475 dari 475 task
+sudah lewat tanggalnya. Itu justru keadaan saat orang paling perlu melihat jadwalnya. Yang
+berlaku sekarang: 30 hari terakhir ke depan tampil, sisanya di balik satu tombol yang
+menyebut tanggal batasnya ("Tampilkan 442 task sebelum 23 Agu"). Halaman turun dari
+**70.779px jadi 5.509px**.
+
+Yang dibandingkan tanggal **akhir**, bukan tanggal mulai: task yang dimulai Juni tapi jatuh
+tempo besok masih sedang jalan, dan menyembunyikannya justru menyembunyikan yang penting.
+
+Pemilih skala (Hari/Minggu/Bulan) dan legenda warna disembunyikan di ponsel — yang pertama
+tak mengubah apa pun di daftar, yang kedua mubazir karena tiap baris sudah membawa chip
+status bertulisan.
+
+### Dua jebakan yang ketahuan saat mengerjakannya
+
+**`parseDate()` tidak memulangkan NaN.** Untuk masukan tak sah ia memulangkan tanggal
+*maksimum* — tahun 275760. Jadi penjagaan `isNaN` yang tampak wajar tak pernah menangkap
+apa pun, dan sebuah task tanpa tanggal akan tampil sebagai "99.979.282 hari". Yang diperiksa
+sekarang bentuk teksnya.
+
+**Rumus tanggal disalin, bukan dibagi.** Awal dan akhir di daftar dihitung dengan rumus yang
+sama persis dengan yang diberikan ke Gantt. Kalau keduanya dibiarkan berbeda, daftar dan
+grafik akan menyebut tanggal berbeda untuk task yang sama — beda yang hanya ketahuan kalau
+seseorang kebetulan membandingkan keduanya. Ada pemeriksaan otomatis yang menjaga keduanya
+tetap sama.
+
+### Dua yang ditutup, bukan ditunda
+
+Keduanya dikonfirmasi sebagai pekerjaan di depan komputer, jadi tidak dioptimalkan untuk
+ponsel — dicatat di sini supaya keputusannya tidak hilang dan tidak perlu diperdebatkan lagi:
+
+| Layar | Keadaan | Keputusan |
+| --- | --- | --- |
+| **Dropdown Master** | 233 kontrol di bawah 44px, tarik-untuk-mengurutkan belum diuji dengan jari | Konsol admin (user, PIN, opsi dropdown) — dipakai dari komputer |
+| **Kisi Rancangan Paket** | 92 kotak isian 26px + 22 dropdown 27px di dalam modal | Entri data ala spreadsheet — dipakai dari komputer |
+
+Kalau suatu saat ternyata dipakai dari ponsel juga, keduanya butuh tata letak berbeda —
+bukan sekadar tombol yang lebih besar.
+
+---
 ## 1.111.0 — Tampilan ponsel, tahap 4: tab yang belum tersentuh
 
 Tahap 1–3 menggarap Task List, Kanban, Dashboard, dan Rancangan Paket. Tahap 4 menyisir
