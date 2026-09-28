@@ -3497,4 +3497,64 @@ console.log('=== 16z. Buka cepat: task, kolaborasi, paket, link ===');
     idx.indexOf(".concat((c.steps||[]).map(x=>x.name+' '+x.pic))") >= 0);
 }
 
+console.log('=== 17a. Tombol pasang aplikasi (PWA) ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Dua jalur yang benar-benar berbeda, bukan satu jalur dengan cabang kecil. */
+  ok('tombolnya ada', idx.indexOf('id="btnPasang"') >= 0);
+  /* Tersembunyi sampai segarkanTombolPasang() memutuskan sebaliknya — menawarkan
+     pemasangan pada aplikasi yang sudah terpasang itu membingungkan. */
+  ok('tersembunyi sampai diputuskan', idx.indexOf('id="btnPasang" onclick="pasangAplikasi()" title="Pasang sebagai aplikasi" class="hide') >= 0);
+  ok('penentu tampilnya ada', idx.indexOf('function bisaDipasang(){ return !sudahTerpasang() && (!!state._promptPasang || iniIOS()); }') >= 0);
+
+  /* Android/desktop: peristiwanya ditahan supaya Chrome tak memunculkan bilah pemasangannya
+     sendiri — kita yang memilih kapan menawarkannya. */
+  ok('beforeinstallprompt ditahan',
+    idx.indexOf("window.addEventListener('beforeinstallprompt', e=>{") >= 0
+    && idx.indexOf('  e.preventDefault();' + String.fromCharCode(10) + '  state._promptPasang=e;') >= 0);
+  /* Didaftarkan di tingkat atas, BUKAN di dalam afterLoad. afterLoad baru berjalan sesudah
+     data bootstrap tiba, sedangkan beforeinstallprompt bisa menyala jauh lebih awal — dan
+     peristiwa yang lewat tak pernah datang lagi. Ini bukan soal kerapian: pendaftaran di
+     tempat yang salah membuat tombolnya kadang tak pernah muncul, tanpa pola yang jelas. */
+  const iAfter = idx.indexOf('function afterLoad()');
+  const iDengar = idx.indexOf("window.addEventListener('beforeinstallprompt'");
+  const iTutupAfter = idx.indexOf('function renderAll()', iAfter);
+  ok('didaftarkan di luar afterLoad', iDengar > 0 && !(iDengar > iAfter && iDengar < iTutupAfter));
+  /* Peristiwa itu HANYA BISA DIPAKAI SEKALI. Ia dibuang sebelum prompt() dipanggil, bukan
+     sesudah — kalau sesudah, pemanggilan kedua yang dijamin gagal masih sempat lolos. */
+  ok('peristiwanya dibuang sebelum dipakai',
+    idx.indexOf('    state._promptPasang=null;' + String.fromCharCode(10) + '    try{' + String.fromCharCode(10) + '      p.prompt();') >= 0);
+  ok('pemasangan selesai menyembunyikan tombolnya',
+    idx.indexOf("window.addEventListener('appinstalled', ()=>{") >= 0);
+
+  /* iOS: Safari TIDAK punya API pemasangan sama sekali. beforeinstallprompt tak pernah ada
+     di sana, jadi yang bisa dilakukan tombol hanyalah menunjukkan caranya. */
+  ok('panel petunjuk ada', idx.indexOf('id="panelPasang"') >= 0);
+  ok('langkahnya dibuat per-platform', idx.indexOf('function langkahPasangHtml()') >= 0);
+  /* Yang paling sering bikin orang gagal, dan karena itu ditaruh paling atas: membuka
+     tautan dari WhatsApp/Instagram memakai browser dalam aplikasi, dan di situ
+     "Add to Home Screen" MEMANG TIDAK ADA. */
+  ok('memperingatkan browser dalam aplikasi',
+    idx.indexOf('Buka dulu di Safari') >= 0 && idx.indexOf('dibuka dari dalam WhatsApp atau Instagram') >= 0);
+  ok('menyebut Add to Home Screen', idx.indexOf('Add to Home Screen') >= 0);
+  /* Penyimpanan aplikasi layar-utama iOS terpisah dari Safari — PIN harus dimasukkan lagi.
+     Tanpa disebut di sini, itu akan terbaca sebagai aplikasi rusak. */
+  ok('menyebut PIN perlu dimasukkan lagi', idx.indexOf('PIN perlu dimasukkan sekali lagi') >= 0);
+
+  /* Sudah terpasang = jangan tawarkan lagi. Diperiksa lewat display-mode DAN
+     navigator.standalone, karena yang kedua satu-satunya yang ada di iOS lama. */
+  ok('deteksi terpasang lewat display-mode', idx.indexOf("matchMedia('(display-mode: standalone)').matches") >= 0);
+  ok('deteksi terpasang lewat navigator.standalone', idx.indexOf('return navigator.standalone === true;') >= 0);
+  /* iPad sejak iPadOS 13 menyamar jadi MacIntel; pembedanya cuma adanya titik sentuh. */
+  ok('iPad yang menyamar jadi MacIntel ikut dikenali',
+    idx.indexOf("return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints||0) > 1;") >= 0);
+
+  ok('Escape menutup panelnya', idx.indexOf("if(modalTerbuka('panelPasang')){ tutupPanelPasang(); return true; }") >= 0);
+  /* iOS tak pernah menembakkan peristiwa apa pun, jadi tombolnya harus disegarkan sekali
+     saat muat — kalau menunggu peristiwa, di iPhone ia tak akan pernah muncul. */
+  ok('disegarkan sekali saat muat',
+    idx.indexOf("document.addEventListener('DOMContentLoaded', segarkanTombolPasang);") >= 0);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

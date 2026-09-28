@@ -359,6 +359,22 @@
 
     <!-- Buka cepat: Ctrl/Cmd+K dari tab mana pun. z-[95] di atas modal (90) karena ia
          dipanggil DARI mana saja, termasuk saat sebuah modal sedang terbuka. -->
+    <!-- Petunjuk iOS. Bukan pilihan gaya: Safari tidak punya API pemasangan sama sekali,
+         jadi di iPhone satu-satunya yang bisa dilakukan tombol itu MENUNJUKKAN caranya. -->
+    <div id="panelPasang" class="hide fixed inset-0 z-[95] bg-gray-900/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onclick="tutupPanelPasang(event)">
+      <div class="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-2xl p-5" onclick="event.stopPropagation()">
+        <div class="flex items-start gap-3 mb-3">
+          <span class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0"><span class="material-icons-round text-[20px]">install_mobile</span></span>
+          <div class="min-w-0">
+            <h3 class="font-bold text-gray-900 dark:text-white">Pasang ke layar utama</h3>
+            <p class="text-[12px] text-gray-500 dark:text-slate-400 leading-snug">Supaya terbuka tanpa bilah alamat, seperti aplikasi biasa.</p>
+          </div>
+        </div>
+        <div id="langkahPasang" class="space-y-2.5 text-[13px] text-gray-700 dark:text-slate-200"></div>
+        <button onclick="tutupPanelPasang()" class="mt-4 w-full min-h-[44px] rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm">Mengerti</button>
+      </div>
+    </div>
+
     <div id="bukaCepat" class="hide fixed inset-0 z-[95] bg-gray-900/40 backdrop-blur-sm flex items-start justify-center p-4 pt-[12vh]" onclick="tutupBukaCepat(event)">
       <div class="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-slate-800 shadow-2xl overflow-hidden" onclick="event.stopPropagation()">
         <div class="flex items-center gap-2 px-4 py-3 border-b border-gray-100 dark:border-slate-800">
@@ -403,6 +419,11 @@
             </button>
             <div id="notifMenu" class="hide absolute right-0 mt-2 w-80 max-h-[400px] overflow-y-auto bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl z-[60] scrollbar-thin"></div>
           </div>
+          <!-- Muncul hanya bila aplikasinya BELUM terpasang dan memang bisa dipasang;
+               segarkanTombolPasang() yang memutuskan. -->
+          <button id="btnPasang" onclick="pasangAplikasi()" title="Pasang sebagai aplikasi" class="hide w-9 h-9 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50">
+            <span class="material-icons-round text-[18px]">install_mobile</span>
+          </button>
           <button onclick="toggleTheme()" class="w-9 h-9 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex items-center justify-center text-gray-500 dark:text-slate-300 hover:bg-gray-50">
             <span id="themeIcon" class="material-icons-round text-[18px]">dark_mode</span>
           </button>
@@ -1002,7 +1023,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.116.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.117.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -2488,6 +2509,7 @@ function tutupLapisanAtas(){
   /* Buka cepat diperiksa pertama: ia melayang di atas segalanya (z-95), jadi Escape
      harus menutupnya dulu, bukan modal yang ada di belakangnya. */
   if(modalTerbuka('bukaCepat')){ tutupBukaCepat(); return true; }
+  if(modalTerbuka('panelPasang')){ tutupPanelPasang(); return true; }
   // Kedua penutup ini hanya butuh sasaran yang berada DI LUAR dirinya sendiri.
   const diLuar={ target: document.body };
   const notif=document.getElementById('notifMenu');
@@ -3472,6 +3494,102 @@ function tutupBukaCepat(ev){
   if(ev && ev.target && ev.target.id!=='bukaCepat') return;   // klik di dalam panel tak menutupnya
   const p=document.getElementById('bukaCepat'); if(p) p.classList.add('hide');
 }
+
+/* ---------- Pasang sebagai aplikasi (PWA) ----------
+
+   Dua jalur yang benar-benar berbeda, bukan satu jalur dengan cabang kecil:
+
+   Android & desktop (Chrome/Edge) — browser menembakkan beforeinstallprompt saat situsnya
+   memenuhi syarat. Peristiwa itu ditahan, tombolnya dimunculkan, lalu prompt()-nya dipanggil
+   waktu tombol ditekan. Ini pemasangan sungguhan, sekali ketuk.
+
+   iPhone & iPad — Safari TIDAK punya API pemasangan sama sekali. beforeinstallprompt tak
+   pernah ada di sana, dan tak ada cara apa pun memicu pemasangan dari kode. Yang bisa
+   dilakukan tombol hanyalah MENUNJUKKAN caranya. Itu bukan kekurangan kode ini.
+
+   Yang paling sering bikin orang gagal, dan karena itu ditaruh paling atas di panelnya:
+   membuka tautan dari WhatsApp/Instagram memakai browser dalam aplikasi, dan di situ
+   "Add to Home Screen" MEMANG TIDAK ADA. Harus dibuka di Safari dulu. */
+function sudahTerpasang(){
+  try{
+    if(window.matchMedia && (matchMedia('(display-mode: standalone)').matches
+      || matchMedia('(display-mode: fullscreen)').matches
+      || matchMedia('(display-mode: minimal-ui)').matches)) return true;
+  }catch(_){ }
+  return navigator.standalone === true;   // iOS lama
+}
+/* iPad sejak iPadOS 13 menyamar jadi MacIntel; yang membedakannya dari Mac sungguhan cuma
+   adanya titik sentuh. */
+function iniIOS(){
+  const ua=String(navigator.userAgent||"");
+  if(/iPhone|iPad|iPod/i.test(ua)) return true;
+  return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints||0) > 1;
+}
+function bisaDipasang(){ return !sudahTerpasang() && (!!state._promptPasang || iniIOS()); }
+function segarkanTombolPasang(){
+  const b=document.getElementById('btnPasang'); if(!b) return;
+  b.classList.toggle('hide', !bisaDipasang());
+}
+function langkahPasangHtml(){
+  const baris=(no,teks)=>`<div class="flex gap-2.5"><span class="w-5 h-5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">${no}</span><span class="leading-snug">${teks}</span></div>`;
+  if(iniIOS()){
+    return `<div class="mb-3 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40 text-[12px] text-amber-800 dark:text-amber-200 leading-snug">
+      <b>Buka dulu di Safari.</b> Kalau halaman ini dibuka dari dalam WhatsApp atau Instagram, pilihan <i>Add to Home Screen</i> memang tidak ada di sana.
+    </div>`
+      + baris(1,'Ketuk tombol <b>Bagikan</b> di Safari (kotak dengan panah ke atas).')
+      + baris(2,'Gulir, lalu pilih <b>Add to Home Screen</b>.')
+      + baris(3,'Ketuk <b>Add</b>. Ikon ProductTrack muncul di layar utama.')
+      + `<p class="pt-1 text-[11px] text-gray-400 leading-snug">Jam, sinyal, dan baterai tetap ada — itu bilah status iOS, sama seperti aplikasi biasa. PIN perlu dimasukkan sekali lagi di dalamnya karena penyimpanannya terpisah dari Safari.</p>`;
+  }
+  return baris(1,'Buka menu browser (titik tiga), lalu pilih <b>Pasang aplikasi</b> atau <b>Install app</b>.')
+    + baris(2,'Sahkan pemasangannya.')
+    + `<p class="pt-1 text-[11px] text-gray-400 leading-snug">Kalau pilihan itu tak muncul, browsernya belum menganggap situs ini bisa dipasang — coba muat ulang halamannya.</p>`;
+}
+function pasangAplikasi(){
+  /* Android/desktop: pemasangan sungguhan. Peristiwanya HANYA BISA DIPAKAI SEKALI, jadi ia
+     dibuang setelah dipanggil — memanggilnya dua kali dijamin gagal. */
+  const p=state._promptPasang;
+  if(p){
+    state._promptPasang=null;
+    try{
+      p.prompt();
+      Promise.resolve(p.userChoice).then(h=>{
+        if(h && h.outcome==='accepted') showToast('Aplikasi dipasang.');
+        segarkanTombolPasang();
+      }).catch(()=>segarkanTombolPasang());
+      return;
+    }catch(_){ }   // gagal memanggil -> jatuh ke petunjuk manual di bawah
+  }
+  const kotak=document.getElementById('langkahPasang');
+  if(kotak) kotak.innerHTML=langkahPasangHtml();
+  const panel=document.getElementById('panelPasang');
+  if(panel) panel.classList.remove('hide');
+}
+function tutupPanelPasang(ev){
+  if(ev && ev.target && ev.target.id!=='panelPasang') return;
+  const panel=document.getElementById('panelPasang'); if(panel) panel.classList.add('hide');
+}
+
+/* Didaftarkan di tingkat atas, BUKAN di dalam afterLoad. afterLoad baru berjalan sesudah
+   data bootstrap tiba, sedangkan beforeinstallprompt bisa menyala jauh lebih awal — dan
+   peristiwa yang lewat tak pernah datang lagi. Pendaftaran pendengar tak butuh DOM siap.
+
+   Ditahan (preventDefault) supaya Chrome tak memunculkan bilah pemasangannya sendiri:
+   kita yang memilih kapan menawarkannya, lewat tombol di header. */
+window.addEventListener('beforeinstallprompt', e=>{
+  e.preventDefault();
+  state._promptPasang=e;
+  segarkanTombolPasang();
+});
+window.addEventListener('appinstalled', ()=>{
+  state._promptPasang=null;
+  segarkanTombolPasang();
+  try{ showToast('ProductTrack terpasang. Buka dari ikonnya, bukan dari browser.'); }catch(_){ }
+});
+/* iOS tak pernah menembakkan peristiwa apa pun, jadi tombolnya harus disegarkan sendiri.
+   Kalau hanya menunggu peristiwa, di iPhone ia tak akan pernah muncul. */
+document.addEventListener('DOMContentLoaded', segarkanTombolPasang);
+segarkanTombolPasang();
 
 /* ---------- Timeline (Gantt) ---------- */
 function slug(s){return String(s||'tanpa-status').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'tanpa-status';}

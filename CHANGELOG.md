@@ -31,6 +31,85 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.117.0 — Tombol pasang aplikasi
+
+Manifest dan service worker sudah ada sejak 1.109.0, tapi tak ada satu pun yang memberitahu
+orang bahwa aplikasi ini **bisa dipasang**. Sekarang ada tombol di header — muncul hanya
+kalau memang bisa dipasang dan belum terpasang.
+
+### Dua jalur yang benar-benar berbeda
+
+Ini bukan satu tombol dengan cabang kecil. Perilakunya berbeda secara mendasar, dan itu
+bukan pilihan kami:
+
+**Android & desktop (Chrome/Edge)** — browser menembakkan `beforeinstallprompt` saat
+situsnya memenuhi syarat. Peristiwanya ditahan (supaya Chrome tak memunculkan bilah
+pemasangannya sendiri), tombolnya dimunculkan, lalu `prompt()` dipanggil saat tombol
+ditekan. **Pemasangan sungguhan, sekali ketuk.**
+
+**iPhone & iPad** — Safari **tidak punya API pemasangan sama sekali**.
+`beforeinstallprompt` tak pernah ada di sana, dan tak ada cara apa pun memicu pemasangan
+dari kode. Yang bisa dilakukan tombolnya hanyalah **menunjukkan caranya**. Itu batas
+platform, bukan kekurangan yang bisa ditambal.
+
+### Satu kalimat yang ditaruh paling atas di panel iOS
+
+Penyebab paling sering orang gagal memasang bukan langkahnya, melainkan **dari mana halaman
+itu dibuka**. Tautan yang dibuka dari dalam WhatsApp atau Instagram berjalan di browser
+dalam aplikasi, dan di situ pilihan *Add to Home Screen* **memang tidak ada** — sebanyak apa
+pun orang menggulir menu Bagikan, ia tak akan menemukannya.
+
+Karena itu peringatan "buka dulu di Safari" ditaruh di atas ketiga langkahnya, bukan sebagai
+catatan kaki. Ditambah dua hal yang kalau tak disebut akan terbaca sebagai aplikasi rusak:
+jam dan baterai **tetap ada** (itu bilah status iOS, sama seperti aplikasi biasa), dan **PIN
+perlu dimasukkan sekali lagi** karena penyimpanan aplikasi layar-utama terpisah dari Safari.
+
+### Tiga hal kecil yang menentukan tombolnya benar
+
+**Peristiwanya hanya bisa dipakai sekali.** `state._promptPasang` dikosongkan **sebelum**
+`prompt()` dipanggil, bukan sesudah — kalau sesudah, ketukan kedua yang dijamin gagal masih
+sempat lolos.
+
+**Sudah terpasang berarti jangan ditawarkan lagi.** Diperiksa lewat `display-mode`
+*dan* `navigator.standalone`; yang kedua satu-satunya yang ada di iOS lama.
+
+**iPad menyamar jadi MacIntel** sejak iPadOS 13. Pembedanya dari Mac sungguhan cuma adanya
+titik sentuh, jadi itu yang diperiksa — tanpa ini, pengguna iPad tak akan pernah melihat
+tombolnya.
+
+iOS tak menembakkan peristiwa apa pun, jadi tombolnya disegarkan sekali saat halaman dimuat.
+Kalau hanya menunggu peristiwa, di iPhone ia tak akan pernah muncul sama sekali.
+
+### Sebuah tes lama menemukan balapan yang belum terjadi
+
+Pendengarnya semula dipasang di dalam `afterLoad()`. Semua uji lolos — kecuali satu yang
+sudah ada sejak lama dan sama sekali tak berhubungan: ia menjaga agar layar "Memuat…" pasti
+hilang lewat `finally`, dan memeriksanya dalam jendela 3.000 karakter dari awal `afterLoad()`.
+Sisipan baru mendorong `finally`-nya keluar jendela itu.
+
+Yang menarik bukan tesnya, melainkan apa yang ia tunjukkan tanpa sengaja: `afterLoad()` baru
+berjalan **setelah data bootstrap tiba**, sedangkan `beforeinstallprompt` bisa menyala jauh
+lebih awal — dan peristiwa yang lewat **tak pernah datang lagi**. Jadi tombolnya kadang tak
+akan muncul, tanpa pola yang bisa ditebak, dan pada mesin cepat justru lebih sering gagal.
+
+Pendengarnya kini didaftarkan di tingkat atas; mendaftarkan pendengar memang tak butuh DOM
+siap. Ada pemeriksaan otomatis yang memastikan ia tidak pernah kembali masuk ke dalam
+`afterLoad()`.
+
+### Catatan pengujian
+
+Kedua jalur diuji dengan keadaan yang disuntikkan, karena pane uji tidak menembakkan
+`beforeinstallprompt` (sebab yang sama dengan service worker yang tak bisa didaftarkan di
+sana). Yang terbukti: tombol muncul, `prompt()` terpanggil **tepat sekali**, peristiwanya
+terbuang, tombol hilang sesudahnya, panel petunjuk tidak ikut muncul di jalur Android — dan
+di jalur iOS panelnya terbuka lengkap dengan peringatan WhatsApp-nya. Di layar 375x580
+tombolnya 44x44 dan panelnya muat utuh (443px dari 580px).
+
+Yang **belum** terbukti dan hanya bisa Anda pastikan sendiri: bahwa Chrome di ponsel Anda
+benar-benar menembakkan `beforeinstallprompt` untuk domain ini, dan bahwa pemasangan iOS
+berjalan sampai ikonnya muncul.
+
+---
 ## 1.116.0 — Buka cepat sekarang mencakup task, kolaborasi, dan paket
 
 `Ctrl/Cmd + K` tak lagi khusus link. Empat jenis sekaligus, dari tab mana pun:
