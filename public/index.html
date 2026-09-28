@@ -331,6 +331,19 @@
 
       <!-- shrink-0: kaki ini yang harus utuh; nav di atasnya yang menggulir. -->
       <div class="p-3 shrink-0 border-t border-gray-100 dark:border-slate-800 space-y-2.5">
+        <!-- Bertulisan, bukan ikon saja. Ikon di header terlalu samar untuk orang yang belum
+             tahu aplikasi ini bisa dipasang — pola yang sama dipakai di guru-freelance-dashboard.
+
+             Ditaruh di KAKI sidebar, bukan di ujung daftar nav: nav-nya menggulir, dan di sana
+             tombolnya berakhir 361px di bawah garis pandang — ada, tapi tak pernah terlihat.
+             Kaki sidebar shrink-0, jadi selalu tampak tanpa menggulir.
+
+             Muncul hanya bila memang bisa dipasang dan belum terpasang; segarkanTombolPasang()
+             yang memutuskan. -->
+        <button id="btnPasang" onclick="pasangAplikasi()" class="hide w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left font-medium text-sm text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/25 border border-indigo-200 dark:border-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/40">
+          <span class="material-icons-round text-[20px]">download</span>
+          <span class="flex-1">Pasang aplikasi</span>
+        </button>
         <div id="modeUserBox" class="p-3 rounded-xl bg-gray-50 dark:bg-slate-800/70">
           <div class="flex items-center justify-between mb-2">
             <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mode User</div>
@@ -419,11 +432,6 @@
             </button>
             <div id="notifMenu" class="hide absolute right-0 mt-2 w-80 max-h-[400px] overflow-y-auto bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl z-[60] scrollbar-thin"></div>
           </div>
-          <!-- Muncul hanya bila aplikasinya BELUM terpasang dan memang bisa dipasang;
-               segarkanTombolPasang() yang memutuskan. -->
-          <button id="btnPasang" onclick="pasangAplikasi()" title="Pasang sebagai aplikasi" class="hide w-9 h-9 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50">
-            <span class="material-icons-round text-[18px]">install_mobile</span>
-          </button>
           <button onclick="toggleTheme()" class="w-9 h-9 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex items-center justify-center text-gray-500 dark:text-slate-300 hover:bg-gray-50">
             <span id="themeIcon" class="material-icons-round text-[18px]">dark_mode</span>
           </button>
@@ -1023,7 +1031,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.117.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.118.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {

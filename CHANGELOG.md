@@ -31,6 +31,32 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.118.0 — Tombol pasang jadi bertulisan, dan pindah ke tempat yang terlihat
+
+Di 1.117.0 tombolnya ikon kecil di header. Itu keliru, dan alasannya sudah tertulis di
+proyek lain yang memakai pola ini lebih dulu — `guru-freelance-dashboard`, di komentar
+komponennya sendiri: **ikon di header terlalu samar** untuk orang yang belum tahu aplikasi
+ini bisa dipasang. Orang tak mencari tombol yang keberadaannya belum mereka ketahui.
+
+Jadi tombolnya kini **bertulisan** — ikon unduh + teks "Pasang aplikasi" selebar sidebar,
+seperti entri nav biasa.
+
+### Percobaan pertama salah tempat, dan angkanya yang menunjukkannya
+
+Penempatan pertama: di ujung daftar nav sidebar, meniru posisi di proyek rujukan. Kelihatan
+masuk akal — dan salah. Daftar nav ProductTrack **menggulir**, dan isinya lebih panjang:
+tombolnya berakhir di **y=911 sementara area nav berhenti di 604**. Perlu menggulir 361px
+untuk melihatnya.
+
+Ada, tapi tak pernah terlihat — yang untuk tombol semacam ini sama saja dengan tidak ada,
+dan justru mengulang kesalahan yang mau diperbaiki. Sekarang ia di **kaki sidebar** yang
+`shrink-0`, tepat di atas kotak Mode User, jadi selalu tampak tanpa menggulir. Ada
+pemeriksaan otomatis yang memastikan ia tetap berada di luar `<nav>`.
+
+Yang tidak berubah: mekanismenya, kedua jalurnya (pemasangan sungguhan di Android/desktop,
+petunjuk manual di iOS), dan semua kehati-hatian di 1.117.0.
+
+---
 ## 1.117.0 — Tombol pasang aplikasi
 
 Manifest dan service worker sudah ada sejak 1.109.0, tapi tak ada satu pun yang memberitahu

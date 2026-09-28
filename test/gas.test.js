@@ -3505,7 +3505,18 @@ console.log('=== 17a. Tombol pasang aplikasi (PWA) ===');
   ok('tombolnya ada', idx.indexOf('id="btnPasang"') >= 0);
   /* Tersembunyi sampai segarkanTombolPasang() memutuskan sebaliknya — menawarkan
      pemasangan pada aplikasi yang sudah terpasang itu membingungkan. */
-  ok('tersembunyi sampai diputuskan', idx.indexOf('id="btnPasang" onclick="pasangAplikasi()" title="Pasang sebagai aplikasi" class="hide') >= 0);
+  ok('tersembunyi sampai diputuskan',
+    idx.indexOf('id="btnPasang" onclick="pasangAplikasi()" class="hide w-full') >= 0);
+  /* BERTULISAN, bukan ikon saja: ikon di header terlalu samar untuk orang yang belum tahu
+     aplikasi ini bisa dipasang. Pola yang sama dipakai di guru-freelance-dashboard. */
+  ok('tombolnya bertulisan', idx.indexOf('<span class="flex-1">Pasang aplikasi</span>') >= 0);
+  /* Di KAKI sidebar (shrink-0), bukan di ujung daftar nav: nav-nya menggulir, dan di sana
+     tombolnya berakhir 361px di bawah garis pandang — ada, tapi tak pernah terlihat.
+     Diperiksa lewat urutan posisi: tombolnya harus SESUDAH penutup </nav>. */
+  const iTutupNav = idx.indexOf('      </nav>');
+  const iTombol = idx.indexOf('id="btnPasang"');
+  ok('ditaruh di kaki sidebar, bukan di dalam nav yang menggulir',
+    iTutupNav > 0 && iTombol > iTutupNav);
   ok('penentu tampilnya ada', idx.indexOf('function bisaDipasang(){ return !sudahTerpasang() && (!!state._promptPasang || iniIOS()); }') >= 0);
 
   /* Android/desktop: peristiwanya ditahan supaya Chrome tak memunculkan bilah pemasangannya
