@@ -31,6 +31,76 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.115.0 — Link Saya: buka cepat, sering dibuka, lencana jenis
+
+Dengan 23 link di 7 folder, mencari sudah terasa berat — padahal kotak pencarian sudah
+ada sejak awal. Jadi masalahnya bukan "tak ada cara mencari".
+
+Tiga hal yang sebenarnya terjadi, dan hanya satu yang soal jumlah:
+
+### Folder pada rasio ini menambah kerja, bukan mengurangi
+
+Tujuh folder untuk 23 link berarti rata-rata **3 link per folder**. Untuk menemukan sesuatu
+Anda harus ingat *folder mana* lebih dulu — satu lapisan ingatan tambahan demi
+pengelompokan yang tipis. Folder mulai berguna di sekitar 8–10 link per folder.
+
+Foldernya **tidak** diubah. Yang ditambahkan membuat folder jarang perlu disentuh:
+
+**Buka cepat, `Ctrl/Cmd + K`, dari tab mana pun.** Ketik dua-tiga huruf, Enter, link
+terbuka. Inilah yang membuat jumlah link tak lagi jadi masalah: 23 atau 200 sama cepatnya,
+karena tak ada yang perlu dipindai.
+
+Pencocokannya sengaja sederhana dan bisa ditebak, bukan fuzzy pintar — orang harus bisa
+memperkirakan kenapa sesuatu muncul di atas. Urutannya: awalan judul → **inisial** →
+potongan judul → folder → **jenis** → URL, lalu hitungan buka sebagai pemecah seri.
+Inisial berarti `dl` menemukan **D**ashboard**L**iveclass, dan `t2p` menemukan
+**T**ahap **2** **P**CPM. Mengetik `sheet` memunculkan semua spreadsheet sekaligus.
+
+### Yang dipakai tiap hari tak lagi duduk di urutan abjad
+
+Baris **"Sering dibuka"** di atas, enam teratas berdasarkan hitungan klik. Disembunyikan
+saat sedang mencari — di situ orang sudah tahu apa yang dicarinya.
+
+Hitungannya disimpan di `localStorage`, **bukan** di spreadsheet. Menulis ke sheet tiap kali
+sebuah link diklik berarti satu panggilan jaringan untuk sesuatu yang tak pernah dibaca
+orang lain — dan sejak 1.113.0 aksi tulis dari ponsel pun tertutup. Konsekuensi yang
+diterima: **hitungannya per-perangkat**, tak ikut pindah ke ponsel. Kuncinya URL, bukan
+nomor baris; baris bergeser tiap kali ada link dihapus, dan hitungan yang menempel ke
+nomor baris akan diam-diam berpindah ke link lain.
+
+### Lencana jenis — dan kenapa bukan favicon
+
+Semua baris memakai ikon rantai abu-abu yang sama, jadi memindai berarti membaca satu per
+satu. Jawaban refleksnya favicon, dan itu **keliru di sini**: domainnya menumpuk — dari 23
+link, ~11 di `vercel.app`, ~4 `drive.google.com`, ~4 `docs.google.com`. Favicon justru
+membuat sebelas link tampak sama persis.
+
+Yang membedakan bukan **di mana**-nya, tapi **apa**-nya. Jadi jenisnya dibaca dari pola URL
+dan diberi warna sendiri: `Sheet`, `Dok`, `Slide`, `Form`, `Drive`, `Script`, `App`, `Web`.
+Tanpa satu pun permintaan ke luar — tak ada URL yang bocor ke pihak ketiga hanya untuk
+mengambil gambar 16px.
+
+Urutan pemeriksaannya penting dan diuji: `docs.google.com` diperiksa **sebelum**
+`drive.google.com`, supaya sebuah spreadsheet tak jatuh ke "Drive" hanya karena sama-sama
+Google.
+
+### Satu jebakan yang ketahuan saat menguji
+
+Fokus ke kotak ketik semula dipasang lewat `requestAnimationFrame`. rAF **tidak berjalan sama
+sekali** saat halaman tersembunyi atau tabnya di latar — panel terbuka tanpa kursor, dan
+orang harus mengeklik kotaknya dulu. Itu persis menghapus guna sebuah pintasan papan ketik.
+Ketahuan karena jendela uji kebetulan tidak di depan: `document.hasFocus()` bernilai false
+dan fokusnya memang tak pernah masuk. Sekarang dipanggil langsung, dengan `setTimeout` 0
+sebagai cadangan — ia tetap berjalan di keadaan itu.
+
+### Yang sengaja tidak dilakukan
+
+Folder **tidak** dibuat bisa dilipat. Pada 23 link itu menyembunyikan lebih banyak daripada
+yang dihemat, dan menambah satu ketukan ke setiap pencarian. Kalau nanti pencarian cepat
+sudah terpakai dan foldernya ternyata jarang disentuh, pertanyaannya bukan "bagaimana
+melipatnya" melainkan "apakah masih perlu".
+
+---
 ## 1.114.0 — Mencentang dari ponsel benar-benar bisa dipakai
 
 Susulan untuk 1.113.0. Di sana aksi tulis dari ponsel ditutup kecuali membalas komentar

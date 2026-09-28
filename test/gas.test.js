@@ -3362,4 +3362,84 @@ console.log('=== 16x. Ponsel: lihat saja, dua pengecualian ===');
     idx.indexOf('function stepChecklistEditable(order){ return !isViewOnly(); }') >= 0);
 }
 
+console.log('=== 16y. Link Saya: buka cepat, sering dibuka, lencana jenis ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Dua fungsi ini murni, jadi diuji PERILAKUNYA di sini — bukan sekadar dicocokkan
+     teksnya. Sumbernya diambil dari Index.html lalu dijalankan di VM. */
+  const ambil = nama => {
+    const a = idx.indexOf('function ' + nama + '(');
+    if (a < 0) throw new Error('fungsi ' + nama + ' tak ketemu di Index.html');
+    const b = idx.indexOf(String.fromCharCode(10) + '}', a);
+    return idx.slice(a, b + 2);
+  };
+  const ctx = {};
+  vm.runInNewContext(ambil('jenisLink') + String.fromCharCode(10) + ambil('inisialJudul'), ctx);
+  ok('kedua fungsi berhasil diambil', typeof ctx.jenisLink === 'function' && typeof ctx.inisialJudul === 'function');
+
+  /* Kenapa BUKAN favicon: domainnya menumpuk. Dari 23 link milik pengguna, ~11 di
+     vercel.app, ~4 drive.google.com, ~4 docs.google.com. Favicon akan membuat sebelas
+     link tampak sama persis. Yang membedakan APA-nya, bukan DI MANA-nya. */
+  [
+    ['https://docs.google.com/spreadsheets/d/abc', 'Sheet'],
+    ['https://docs.google.com/document/d/abc', 'Dok'],
+    ['https://docs.google.com/presentation/d/abc', 'Slide'],
+    ['https://docs.google.com/forms/d/abc', 'Form'],
+    ['https://drive.google.com/drive/folders/abc', 'Drive'],
+    ['https://script.google.com/a/macros/x/s/abc', 'Script'],
+    ['https://script.google.com/u/0/home/projects/abc', 'Script'],
+    ['https://figural-tpa.vercel.app/', 'App'],
+    ['https://github.com/anthropics/claude-code', 'Web'],
+    ['', 'Web'],
+  ].forEach(p => {
+    ok('jenis ' + (p[0] || '(kosong)').slice(8, 44) + ' -> ' + p[1], ctx.jenisLink(p[0]).label === p[1]);
+  });
+  /* Drive diperiksa SESUDAH docs.google.com: sebuah spreadsheet tak boleh jatuh ke Drive
+     hanya karena sama-sama google. Ini yang paling gampang rusak kalau urutannya diubah. */
+  ok('spreadsheet tidak jatuh ke Drive',
+    ctx.jenisLink('https://docs.google.com/spreadsheets/d/x').label !== 'Drive');
+
+  /* Inisial: "dl" harus menemukan DashboardLiveclass. Tanpa ini, judul gabungan tanpa
+     spasi hanya bisa ditemukan dengan mengetik awalannya utuh. */
+  ok('camelCase dipecah', ctx.inisialJudul('DashboardLiveclass') === 'dl');
+  ok('spasi dipecah', ctx.inisialJudul('Spreadsheet Liveclass') === 'sl');
+  ok('angka ikut dihitung', ctx.inisialJudul('Tahap 2 PCPM') === 't2p');
+  ok('tanda baca tidak bikin kosong', ctx.inisialJudul('Tes-Hitung Generator') === 'thg');
+
+  /* Hitungan buka disimpan di localStorage, BUKAN di spreadsheet: menulis ke sheet tiap
+     kali link diklik berarti satu panggilan jaringan untuk sesuatu yang tak pernah dibaca
+     orang lain — dan sejak 1.113.0 aksi tulis dari ponsel pun tertutup. */
+  ok('hitungan di localStorage', idx.indexOf("const LINK_HITS='tt_link_hits';") >= 0);
+  ok('bukan aksi backend baru', idx.indexOf('addUserLinkHit') < 0 && idx.indexOf('setLinkHit') < 0);
+  /* Kuncinya URL, bukan nomor baris: baris bergeser tiap kali ada link dihapus, dan
+     hitungan yang menempel ke nomor baris diam-diam berpindah ke link lain. */
+  ok('dikunci ke URL, bukan nomor baris', idx.indexOf('function catatBukaLink(url)') >= 0);
+  /* Penyimpanan bisa penuh atau diblokir (mode penyamaran) — fitur ini boleh gagal, tapi
+     tidak boleh menggagalkan pembukaan link-nya. */
+  ok('kegagalan penyimpanan tidak merusak apa pun', idx.indexOf('}catch(_){ }   // mode penyamaran') >= 0);
+
+  /* Buka cepat: inilah yang membuat JUMLAH link tak lagi jadi masalah. */
+  ok('panel buka cepat ada', idx.indexOf('id="linkGo"') >= 0);
+  ok('pintasan Ctrl/Cmd+K',
+    idx.indexOf("if((e.ctrlKey||e.metaKey) && (e.key==='k'||e.key==='K')){ e.preventDefault(); bukaPanelLinkGo(); }") >= 0);
+  /* z-[95] di atas modal (90): panel ini dipanggil DARI mana saja, termasuk saat sebuah
+     modal sedang terbuka. */
+  ok('melayang di atas modal', idx.indexOf('id="linkGo" class="hide fixed inset-0 z-[95]') >= 0);
+  ok('Escape menutupnya lebih dulu', idx.indexOf("if(modalTerbuka('linkGo')){ tutupLinkGo(); return true; }") >= 0);
+  /* rAF TIDAK berjalan saat halaman tersembunyi atau tabnya di latar — panel akan terbuka
+     tanpa kursor dan orang harus mengeklik kotaknya dulu, persis menghapus guna pintasan.
+     Terbukti waktu diuji: document.hasFocus() false, fokus tak pernah masuk. */
+  ok('fokus tidak bergantung requestAnimationFrame',
+    idx.indexOf('if(inp){ inp.focus(); setTimeout(') >= 0);
+  /* Panel kosong tak menolong siapa pun: tanpa ketikan, tampilkan yang paling sering. */
+  ok('tanpa ketikan menampilkan yang sering dibuka', idx.indexOf('if(!t) return semua.map(l=>({l,n:hitsLink(l)}))') >= 0);
+  ok('panah & Enter ditangani', idx.indexOf('function linkGoKey(e)') >= 0);
+
+  /* Baris "Sering dibuka" disembunyikan saat sedang mencari — di situ orang sudah tahu apa
+     yang dicarinya, dan baris itu cuma menambah kebisingan. */
+  ok('baris sering dibuka ada', idx.indexOf('const sering = q ? [] : mine.slice()') >= 0);
+  ok('disebut bahwa hitungannya per-perangkat', idx.indexOf('dihitung di perangkat ini') >= 0);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);
