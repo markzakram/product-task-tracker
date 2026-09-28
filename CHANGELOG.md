@@ -31,6 +31,59 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.116.0 — Buka cepat sekarang mencakup task, kolaborasi, dan paket
+
+`Ctrl/Cmd + K` tak lagi khusus link. Empat jenis sekaligus, dari tab mana pun:
+**task, task kolaborasi, rancangan paket, dan link**. Ketik dua-tiga huruf, Enter.
+
+### Mengetik nomornya adalah jalan tercepat
+
+Ketik `tsk-004`, `col-003`, atau `pkg-001` dan hasilnya **tepat satu**. Nomor diperiksa
+paling awal dalam urutan skor, karena ia satu-satunya yang pasti: kalau seseorang mengetik
+nomor, ia sudah tahu persis yang dicari, dan apa pun yang muncul di atasnya salah.
+
+Urutan selengkapnya: nomor persis → awalan nomor → awalan judul → **inisial** → potongan
+judul → nama jenis → sisanya. Untuk kolaborasi, **nama prosesnya ikut dicari** — orang
+lebih sering ingat "QC 70" daripada judul kolaborasinya.
+
+### Batas per jenis, bukan penghalusan
+
+Ini yang menentukan fiturnya berguna atau tidak. Jumlahnya timpang: **475 task, 41 paket,
+22 kolaborasi, 4 link**. Tanpa batas, satu ketikan umum akan memunculkan sepuluh task dan
+menutupi link yang barangkali justru dicari.
+
+Jadi maksimal **4 per jenis, 10 total**. Hasilnya mengetik `paket` memberi 4 Paket, 4 Task,
+2 Kolaborasi — bukan sepuluh task.
+
+### Yang dicari mengikuti hak akses, bukan saringan
+
+Sumbernya memakai `scopedTasks()`, **bukan** `viewTasks()`. Bedanya menentukan: yang kedua
+sudah kena saringan yang sedang aktif di tab. Kalau Task List sedang disaring "Overdue",
+buka cepat tetap harus bisa menemukan segalanya — menyaring dua kali membuat sesuatu
+"hilang" tanpa sebab yang terlihat di layar.
+
+Hak aksesnya tetap dihormati penuh, dan itu diuji langsung: **Manager melihat 475 task,
+Staff hanya 83** — keduanya sama persis dengan `scopedTasks()` masing-masing. Tamu hanya
+melihat kolaborasi yang memang dibagikan.
+
+### Tanpa ketikan pun panelnya berguna
+
+Panel kosong tak menolong siapa pun. Tanpa ketikan yang ditawarkan: **link yang paling
+sering Anda buka**, lalu **kolaborasi yang sedang jadi giliran Anda** — dua alasan paling
+mungkin seseorang menekan Ctrl+K tanpa tahu mau mengetik apa.
+
+### Catatan teknis
+
+Tiap hasil membawa **cara membukanya sendiri** (sebuah closure), jadi menambah jenis baru
+nanti tak menyentuh fungsi pembukanya sama sekali. Task, kolaborasi, dan paket berpindah
+tab dulu sebelum modalnya dibuka, supaya modalnya tak muncul di atas layar yang tak
+nyambung. Panelnya ditutup **sebelum** sasaran dibuka: `openTaskModal()` dan kawan-kawannya
+memindahkan fokus, dan menutup sesudahnya akan merebutnya kembali.
+
+Namanya diganti dari `linkGo` jadi `bukaCepat` di seluruh berkas — isinya memang bukan
+cuma link lagi, dan nama yang menyesatkan akan jadi jebakan bagi yang membacanya nanti.
+
+---
 ## 1.115.0 — Link Saya: buka cepat, sering dibuka, lencana jenis
 
 Dengan 23 link di 7 folder, mencari sudah terasa berat — padahal kotak pencarian sudah

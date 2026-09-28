@@ -3420,26 +3420,81 @@ console.log('=== 16y. Link Saya: buka cepat, sering dibuka, lencana jenis ===');
   ok('kegagalan penyimpanan tidak merusak apa pun', idx.indexOf('}catch(_){ }   // mode penyamaran') >= 0);
 
   /* Buka cepat: inilah yang membuat JUMLAH link tak lagi jadi masalah. */
-  ok('panel buka cepat ada', idx.indexOf('id="linkGo"') >= 0);
+  ok('panel buka cepat ada', idx.indexOf('id="bukaCepat"') >= 0);
   ok('pintasan Ctrl/Cmd+K',
-    idx.indexOf("if((e.ctrlKey||e.metaKey) && (e.key==='k'||e.key==='K')){ e.preventDefault(); bukaPanelLinkGo(); }") >= 0);
+    idx.indexOf("if((e.ctrlKey||e.metaKey) && (e.key==='k'||e.key==='K')){ e.preventDefault(); bukaPanelCepat(); }") >= 0);
   /* z-[95] di atas modal (90): panel ini dipanggil DARI mana saja, termasuk saat sebuah
      modal sedang terbuka. */
-  ok('melayang di atas modal', idx.indexOf('id="linkGo" class="hide fixed inset-0 z-[95]') >= 0);
-  ok('Escape menutupnya lebih dulu', idx.indexOf("if(modalTerbuka('linkGo')){ tutupLinkGo(); return true; }") >= 0);
+  ok('melayang di atas modal', idx.indexOf('id="bukaCepat" class="hide fixed inset-0 z-[95]') >= 0);
+  ok('Escape menutupnya lebih dulu', idx.indexOf("if(modalTerbuka('bukaCepat')){ tutupBukaCepat(); return true; }") >= 0);
   /* rAF TIDAK berjalan saat halaman tersembunyi atau tabnya di latar — panel akan terbuka
      tanpa kursor dan orang harus mengeklik kotaknya dulu, persis menghapus guna pintasan.
      Terbukti waktu diuji: document.hasFocus() false, fokus tak pernah masuk. */
   ok('fokus tidak bergantung requestAnimationFrame',
     idx.indexOf('if(inp){ inp.focus(); setTimeout(') >= 0);
-  /* Panel kosong tak menolong siapa pun: tanpa ketikan, tampilkan yang paling sering. */
-  ok('tanpa ketikan menampilkan yang sering dibuka', idx.indexOf('if(!t) return semua.map(l=>({l,n:hitsLink(l)}))') >= 0);
-  ok('panah & Enter ditangani', idx.indexOf('function linkGoKey(e)') >= 0);
+  /* Panel kosong tak menolong siapa pun. Yang ditawarkan tanpa ketikan: link paling sering
+     dibuka, lalu kolaborasi yang sedang jadi giliran Anda — dua alasan paling mungkin
+     seseorang menekan Ctrl+K tanpa tahu mau mengetik apa. */
+  ok('tanpa ketikan menawarkan link sering + giliran',
+    idx.indexOf("const link=semua.filter(x=>x.tipe==='Link'&&x.n>0)") >= 0
+    && idx.indexOf('giliran=ids.map(id=>semua.find(') >= 0);
+  ok('panah & Enter ditangani', idx.indexOf('function bukaCepatKey(e)') >= 0);
 
   /* Baris "Sering dibuka" disembunyikan saat sedang mencari — di situ orang sudah tahu apa
      yang dicarinya, dan baris itu cuma menambah kebisingan. */
   ok('baris sering dibuka ada', idx.indexOf('const sering = q ? [] : mine.slice()') >= 0);
   ok('disebut bahwa hitungannya per-perangkat', idx.indexOf('dihitung di perangkat ini') >= 0);
+}
+
+console.log('=== 16z. Buka cepat: task, kolaborasi, paket, link ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  ok('sumbernya satu fungsi', idx.indexOf('function sumberBukaCepat()') >= 0);
+  ['Link','Task','Kolab','Paket'].forEach(t => {
+    ok('jenis ' + t + ' ikut dicari', idx.indexOf("tipe:'" + t + "'") >= 0);
+  });
+
+  /* Sumbernya disaring HAK AKSES, tapi sengaja TIDAK disaring oleh saringan yang sedang
+     aktif di tab. Kalau Task List sedang disaring "Overdue", buka cepat tetap harus bisa
+     menemukan segalanya — menyaring dua kali membuat sesuatu hilang tanpa sebab terlihat.
+     Terbukti saat diuji: Manager 475 task, Staff 83, keduanya sama persis dengan
+     scopedTasks() masing-masing. */
+  ok('task memakai scopedTasks, bukan viewTasks',
+    idx.indexOf('scopedTasks().forEach(t=>{') >= 0 && idx.indexOf('viewTasks().forEach') < 0);
+  /* Aturan hak untuk kolaborasi cuma satu, dan disalin dari filteredCollabs(). */
+  ok('tamu hanya melihat kolaborasi yang dibagikan',
+    idx.indexOf('if(isViewOnly()) kol=kol.filter(c=>c.mirror);') >= 0);
+  ok('paket tak disaring ulang di klien', idx.indexOf('allPackages().forEach(p=>{') >= 0);
+
+  /* Nomor diperiksa paling awal karena ia satu-satunya yang PASTI: mengetik "tsk-500"
+     berarti sudah tahu persis yang dicari, dan apa pun di atasnya salah. */
+  ok('nomor persis menang di atas segalanya', idx.indexOf('if(id && id===q) sk=200;') >= 0);
+  ok('awalan nomor tetap kuat', idx.indexOf('else if(id && id.indexOf(q)===0) sk=150;') >= 0);
+
+  /* Batas per jenis WAJIB, bukan penghalusan: task ratusan sementara link puluhan, jadi
+     tanpa batas satu ketikan umum memunculkan sepuluh task dan menutupi link yang mungkin
+     justru dicari. Terbukti: mengetik "paket" memberi 4 Paket + 4 Task + 2 Kolab. */
+  ok('ada batas per jenis', idx.indexOf('const BC_BATAS_JENIS = 4;') >= 0);
+  ok('ada batas total', idx.indexOf('const BC_BATAS_TOTAL = 10;') >= 0);
+  ok('batasnya benar-benar diterapkan',
+    idx.indexOf('if((dipakai[t]||0)>=BC_BATAS_JENIS) continue;') >= 0);
+
+  /* Tiap hasil membawa cara membukanya sendiri, jadi menambah jenis baru nanti tak
+     menyentuh fungsi pembukanya sama sekali. */
+  ok('pembukanya memakai closure', idx.indexOf('try{ it.buka(); }catch(e){') >= 0);
+  /* Panel ditutup DULU: openTaskModal dan kawan-kawannya memindahkan fokus, dan menutup
+     sesudahnya akan merebutnya kembali. */
+  ok('panel ditutup sebelum membuka sasaran',
+    idx.indexOf('  tutupBukaCepat();' + String.fromCharCode(10) + '  try{ it.buka(); }') >= 0);
+  /* Tiga jenis pindah tab dulu, supaya modalnya tak muncul di atas layar yang tak nyambung. */
+  ok('task pindah ke Task List', idx.indexOf("switchView('list'); openTaskModal(t.id);") >= 0);
+  ok('kolaborasi pindah ke tabnya', idx.indexOf("switchView('collab'); openCollabModal(c.id);") >= 0);
+  ok('paket pindah ke tabnya', idx.indexOf("switchView('paket'); openPaketModal(p.id);") >= 0);
+
+  /* Orang lebih sering ingat nama prosesnya ("QC 70") daripada judul kolaborasinya. */
+  ok('nama proses ikut dicari',
+    idx.indexOf(".concat((c.steps||[]).map(x=>x.name+' '+x.pic))") >= 0);
 }
 
 console.log(`\n✅ Semua ${passed} assertion lulus.`);
