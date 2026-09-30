@@ -31,6 +31,74 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.119.0 — Revisi berhenti dihitung telat, dan tenggat yang tertahan kini menjelaskan diri
+
+Sebuah task hanya bisa sampai ke **Revisi** dengan lebih dulu melewati **Review PM**.
+Artinya pekerjaannya sudah diserahkan, dan bola berpindah ke PM. Menghitungnya telat berarti
+menghukum orang atas antrean review dan atas keputusan orang lain untuk mengembalikannya.
+
+Review PM dan Hold sudah dikecualikan sejak lama; **Revisi ternyata tidak** — komentar di
+kodenya bahkan menyebutnya eksplisit: *"Aktif & dihitung deadline: Todo, In progress,
+Revisi."* Sekarang ikut dikecualikan.
+
+Perubahannya satu baris. Seluruh 19 pemakaian `isLate()` mengalir dari satu
+`isDeadlineActive()`, jadi tak ada risiko sebagian tempat ikut dan sebagian tidak.
+
+### Yang tersisa dihitung tinggal dua
+
+Todo dan In progress. Empat status lain (Review PM, Revisi, Hold, Done) menghentikan
+hitungan. Itu konsekuensi yang perlu disadari: **task yang mandek di Revisi berbulan-bulan
+tak lagi memunculkan tanda bahaya apa pun.**
+
+### Penanda yang menjelaskan kenapa TELAT-nya hilang
+
+Tanpa itu, task yang tanggalnya jelas sudah lewat tapi tak berlencana apa-apa terbaca
+sebagai pelacaknya yang rusak. Jadi ditambahkan penanda ketiga, di slot yang sama dengan
+**TELAT** dan **HARI INI**.
+
+Dua keputusan yang membuatnya berguna, bukan sekadar ramai:
+
+**Muncul hanya saat tenggatnya sudah lewat.** Task Revisi yang tenggatnya belum lewat tak
+berlencana — di situ memang tak ada yang perlu dijelaskan. Lencana yang selalu menyala
+hanya akan mengulang chip status di sebelahnya, dan jadi kebisingan murni di kolom Revisi
+pada papan Kanban yang isinya memang semua Revisi.
+
+**Yang ditulis nama statusnya** — `REVISI`, `REVIEW PM`, `HOLD` — bukan satu kata seragam.
+Warnanya diambil dari `statusHex()`, sumber warna status yang sama dengan Kanban, chart, dan
+kalender, jadi lencana "REVISI" sewarna dengan kolom Revisi di papan. Tooltipnya menyebut
+sebabnya utuh; lencana tanpa penjelasan hanya memindahkan kebingungan.
+
+**Done sengaja tidak berlencana.** Ia selesai, bukan tertahan — tak ada yang perlu
+dijelaskan pada task yang sudah beres.
+
+### Satu sumber, bukan tiga tempat
+
+Sebelumnya tiap kartu menuliskan sendiri ekspresi `${overdue?TELAT:(today?HARI INI:'')}`.
+Menambah penanda ketiga ke tiga tempat berarti satu di antaranya pasti terlewat, dan
+bedanya baru ketahuan berbulan-bulan kemudian. Semuanya kini lewat satu `penandaTenggat()`,
+dipakai kartu Kanban, kartu kolaborasi, kartu ponsel, dan **Task List di desktop** — yang
+terakhir itu justru permukaan utama di sana, dan sebelumnya tak menampilkan apa pun.
+
+### Dampak pada angka
+
+Di data uji: **nol**. Tak ada satu pun task Revisi yang tenggatnya sudah lewat saat ini,
+jadi hitungan Overdue tak bergeser sama sekali (tetap 4). Tapi penandanya langsung
+memunculkan **5 task** yang selama ini diam-diam melewati tenggat tanpa satu pun tanda —
+3 Hold dan 2 Review PM. Angka di produksi bisa berbeda.
+
+### Yang tidak bisa dikerjakan sekarang
+
+Penanda ini menunjukkan tenggat yang sudah lewat, tapi **tidak** menunjukkan sudah berapa
+lama. Revisi yang mandek sebulan tampak sama dengan yang dikembalikan kemarin.
+
+Itu bukan pilihan, melainkan batas data: log aktivitas hanya memuat **200 baris terakhir**,
+jadi justru revisi yang paling lama mandek adalah yang jejak perpindahan statusnya sudah
+tergeser keluar. Memakai `lastUpdate` sebagai pengganti akan menyesatkan — ia berubah tiap
+kali task disunting, jadi revisi sebulan yang kemarin diedit akan tampil "1 hari".
+
+Menampilkannya dengan benar butuh kolom sendiri di sheet yang dicatat saat status berpindah.
+
+---
 ## 1.118.0 — Tombol pasang jadi bertulisan, dan pindah ke tempat yang terlihat
 
 Di 1.117.0 tombolnya ikon kecil di header. Itu keliru, dan alasannya sudah tertulis di

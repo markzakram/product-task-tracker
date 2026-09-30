@@ -3568,4 +3568,70 @@ console.log('=== 17a. Tombol pasang aplikasi (PWA) ===');
     idx.indexOf("document.addEventListener('DOMContentLoaded', segarkanTombolPasang);") >= 0);
 }
 
+console.log('=== 17c. Revisi menghentikan hitungan telat + penanda tenggat tertahan ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Aturannya murni, jadi diuji PERILAKUNYA di sini — bukan sekadar dicocokkan teksnya. */
+  const ambil = nama => {
+    const a = idx.indexOf('function ' + nama + '(');
+    if (a < 0) throw new Error('fungsi ' + nama + ' tak ketemu di Index.html');
+    const b = idx.indexOf(String.fromCharCode(10), a);
+    return idx.slice(a, b);
+  };
+  const ctx = {};
+  vm.runInNewContext(ambil('isDeadlineActive'), ctx);
+  ok('aturannya berhasil diambil', typeof ctx.isDeadlineActive === 'function');
+
+  /* Sebuah task hanya bisa sampai ke Revisi dengan LEBIH DULU melewati Review PM — artinya
+     pekerjaannya sudah diserahkan tepat waktu dan bola berpindah ke PM. Menghitungnya telat
+     berarti menghukum orang atas antrean review dan atas keputusan orang lain. */
+  [
+    ['Todo', true], ['In progress', true],
+    ['Review PM', false], ['Revisi', false], ['Hold', false], ['Done', false],
+  ].forEach(p => {
+    ok('status ' + p[0] + (p[1] ? ' DIHITUNG tenggatnya' : ' TIDAK dihitung tenggatnya'),
+      ctx.isDeadlineActive({ status: p[0] }) === p[1]);
+  });
+  /* Data dari sheet tak selalu rapi: huruf besar, spasi ganda, spasi di ujung. */
+  ok('huruf besar-kecil tak jadi soal', ctx.isDeadlineActive({ status: 'REVISI' }) === false);
+  ok('spasi di ujung dibuang', ctx.isDeadlineActive({ status: '  revisi  ' }) === false);
+  ok('spasi ganda dirapikan', ctx.isDeadlineActive({ status: 'Review  PM' }) === false);
+  /* Yang tersisa dihitung tinggal dua. Kalau nanti ada status baru yang lupa didaftarkan,
+     ia akan ikut dihitung telat — itu bawaan yang aman, tapi perlu disadari. */
+  ok('hanya Todo & In progress yang bisa telat',
+    ['Todo','In progress'].every(s => ctx.isDeadlineActive({status:s}))
+    && ['Review PM','Revisi','Hold','Done'].every(s => !ctx.isDeadlineActive({status:s})));
+
+  /* Done sengaja TIDAK berlencana: ia selesai, bukan tertahan — tak ada yang perlu
+     dijelaskan pada task yang sudah beres. */
+  ok('Done dikecualikan dari penanda', idx.indexOf("if(!t || isDone(t) || !t.dueDate) return '';") >= 0);
+  /* Penandanya muncul HANYA saat tenggatnya lewat. Task Revisi yang tenggatnya belum lewat
+     tak berlencana, karena di situ memang tak ada yang perlu dijelaskan. */
+  ok('hanya saat tenggat sudah lewat', idx.indexOf("if(parseDate(t.dueDate) >= TODAY) return '';") >= 0);
+  ok('yang ditulis nama statusnya', idx.indexOf("return isDeadlineActive(t) ? '' : String(t.status||'').trim();") >= 0);
+
+  /* SATU sumber penanda. Sebelum ini tiap kartu menuliskan sendiri ekspresi TELAT/HARI INI,
+     dan menambah penanda ketiga berarti menyunting beberapa tempat sekaligus — dengan satu
+     yang pasti terlewat. */
+  ok('penanda punya satu sumber', idx.indexOf('function penandaTenggat(t)') >= 0);
+  ok('kartu kanban memakainya', idx.indexOf('{penandaTenggat(t) || (t.approvalGate') >= 0);
+  ok('kartu kolaborasi memakainya', (idx.match(/penandaTenggat\(t\)/g) || []).length >= 3);
+  /* Tak boleh ada lagi yang menuliskan penandanya sendiri. */
+  ok('tak ada lagi penanda yang ditulis tangan',
+    idx.indexOf("'<span class=\"text-[10px] font-bold text-rose-600\">TELAT</span>':(today?") < 0);
+
+  /* Warnanya dari statusHex() — sumber warna status yang sama dengan kanban, chart, dan
+     kalender, jadi "REVISI" di lencana sewarna dengan kolom Revisi di papan. */
+  ok('warnanya dari sumber warna status', idx.indexOf('style="color:${statusHex(tahan)}"') >= 0);
+  /* Task List di desktop ikut: ia justru permukaan utama di sana, dan tanpa lencana tanggal
+     yang jelas sudah lewat tampil abu-abu polos tanpa satu pun petunjuk. */
+  ok('Task List desktop ikut berlencana',
+    idx.indexOf('style="color:${statusHex(statusTertahan(t))}"') >= 0);
+  ok('kartu ponsel ikut berlencana', idx.indexOf('const tertahan=statusTertahan(t);') >= 0);
+  /* Tooltipnya menjelaskan sebabnya — lencana tanpa penjelasan hanya memindahkan
+     kebingungan, bukan menghapusnya. */
+  ok('tooltipnya menjelaskan sebabnya', idx.indexOf('tidak dihitung telat karena status') >= 0);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

@@ -1031,7 +1031,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.118.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.119.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -2714,7 +2714,7 @@ function collabInlineCard(t){
   return `<div data-collab-id="${escapeAttr(t.collabId)}" onclick="openCollabModal('${escapeAttr(t.collabId)}')" style="${col?`border-left:4px solid ${col}`:''}" class="tt-card nodrag group bg-white dark:bg-slate-800 rounded-lg p-3 ring-1 ring-violet-300 dark:ring-violet-800 hover:ring-indigo-300 shadow-sm cursor-pointer">
     <div class="flex items-start justify-between gap-2">
       <span class="inline-flex items-center gap-0.5 h-5 px-1.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"><span class="material-icons-round text-[12px]">account_tree</span>KOLABORASI</span>
-      ${overdue?'<span class="text-[10px] font-bold text-rose-600">TELAT</span>':(today?'<span class="text-[10px] font-bold text-pink-600">HARI INI</span>':'')}
+      ${penandaTenggat(t)}
     </div>
     <p class="text-[13px] font-medium leading-snug text-gray-800 dark:text-slate-100 mt-1.5 line-clamp-2">${escapeHtml(t.taskName||'-')}</p>
     <div class="mt-1.5 text-[11px] text-gray-600 dark:text-slate-300">Proses ${escapeHtml(same(t._stepOwner,state.currentUser)?'Anda':(stepPicLabel(t._stepOwner)||t.pic||'—'))}: <b>${escapeHtml(t._myStepName||'—')}</b>${t._myStepDeadline?` · <span class="${overdue?'text-rose-600 font-semibold':'text-gray-500'}">${escapeHtml(t._myStepDeadline)}</span>`:''}</div>
@@ -3187,7 +3187,7 @@ function taskCard(t){
     <div class="flex items-start justify-between gap-2">
       <span class="flex items-center gap-1 min-w-0"><span class="text-[10px] font-mono text-gray-400">${escapeHtml(t.id||'-')}</span>${mirrorChip(t)}</span>
       <span class="flex items-center gap-1 shrink-0">
-        ${overdue?'<span class="text-[10px] font-bold text-rose-600">TELAT</span>':(today?'<span class="text-[10px] font-bold text-pink-600">HARI INI</span>':(t.approvalGate && !same(t.approvalGate,'No')?`<span class="text-[10px] font-semibold text-amber-600">${escapeHtml(t.approvalGate)}</span>`:''))}
+        ${penandaTenggat(t) || (t.approvalGate && !same(t.approvalGate,'No')?`<span class="text-[10px] font-semibold text-amber-600">${escapeHtml(t.approvalGate)}</span>`:'')}
         ${duplicateCardBtn(t)}
       </span>
     </div>
@@ -3281,6 +3281,7 @@ function renderKepalaTabel(){
    sejauh satu ketukan. */
 function taskKartuHp(t){
   const telat=isLate(t), hariIni=!isDone(t)&&daysToDue(t)===0;
+  const tertahan=statusTertahan(t);   // tenggat lewat tapi tak dihitung — lihat penandaTenggat()
   const tepi=telat?'border-l-[3px] border-rose-500':(hariIni?'border-l-[3px] border-pink-500':'border-l-[3px] border-transparent');
   const buka=t._collab?`openCollabModal('${escapeAttr(t.collabId)}')`:`openTaskModal('${escapeAttr(t.id)}')`;
   return `<div onclick="${buka}" class="${tepi} bg-white dark:bg-slate-900 rounded-xl border border-gray-200 dark:border-slate-800 p-3 active:bg-gray-50 dark:active:bg-slate-800">
@@ -3294,6 +3295,7 @@ function taskKartuHp(t){
       ${t.stage?`<span>· ${escapeHtml(t.stage)}</span>`:''}
       ${t.platform?`<span>· ${escapeHtml(t.platform)}</span>`:''}
       <span class="ml-auto font-medium ${telat?'text-rose-600':(hariIni?'text-pink-600':'')}">${t.dueDate?formatDateHuman(t.dueDate):'—'}${telat?' • telat':''}</span>
+      ${tertahan?`<span class="shrink-0 text-[10px] font-bold" style="color:${statusHex(tertahan)}">${escapeHtml(tertahan.toUpperCase())}</span>`:''}
     </div>
   </div>`;
 }
@@ -3321,7 +3323,10 @@ function renderTable(){
     <td class="px-4 py-3"><div class="flex items-center gap-2">${avatar(t.pic)}${inlineSelect('pic', t)}</div></td>
     <td class="px-4 py-3 text-gray-600 dark:text-slate-300">${escapeHtml(t.platform||'-')}</td>
     ${bisaLihatKesulitan()?`<td class="px-4 py-3">${inlineSelect('priority', t)}</td>`:''}
-    <td class="px-4 py-3 font-medium ${overdue?'text-rose-600':(today?'text-pink-600':'text-gray-600 dark:text-slate-300')}">${t.dueDate?formatDateHuman(t.dueDate):'-'}</td>
+    <!-- Lencana ikut di sini, bukan cuma di kartu: Task List justru permukaan utama di
+         desktop, dan tanpa ini tanggal yang jelas sudah lewat tampil abu-abu polos tanpa
+         satu pun petunjuk kenapa ia tak dihitung telat. -->
+    <td class="px-4 py-3 font-medium ${overdue?'text-rose-600':(today?'text-pink-600':'text-gray-600 dark:text-slate-300')}">${t.dueDate?formatDateHuman(t.dueDate):'-'}${statusTertahan(t)?` <span class="ml-1 text-[9px] font-bold align-middle" style="color:${statusHex(statusTertahan(t))}" title="Tenggat sudah lewat, tapi tidak dihitung telat karena status ${escapeAttr(statusTertahan(t))}.">${escapeHtml(statusTertahan(t).toUpperCase())}</span>`:''}</td>
     <td class="px-4 py-3 text-right whitespace-nowrap">${canMirror()?`<button onclick="toggleMirror(event,'${escapeAttr(t.id)}')" title="${isMirrored(t)?'Tampil di Lintas Divisi — klik untuk sembunyikan':'Klik untuk tampilkan ke Lintas Divisi'}" class="mr-2 align-middle ${isMirrored(t)?'text-emerald-600':'text-gray-300 hover:text-gray-500'}"><span class="material-icons-round text-[18px]">cast</span></button>`:(isMirrored(t)?`<span class="mr-2 align-middle text-emerald-600" title="Tampil di Lintas Divisi"><span class="material-icons-round text-[16px]">cast</span></span>`:'')}<span class="text-sm font-medium text-indigo-600 hover:text-indigo-700">Buka</span></td>
   </tr>`;}).join('');
   document.getElementById('taskTable').innerHTML=rows || `<tr><td colspan="8" class="px-4 py-14 text-center text-gray-400 font-medium">Tidak ada task sesuai filter.</td></tr>`;
@@ -7017,10 +7022,46 @@ function exportCsv(){
 
 /* ---------- Helpers ---------- */
 function isDone(t){return String(t.status||'').toLowerCase()==='done';}
-// Status "aman" dari hitungan deadline (tidak telat & tidak due): Done, Review PM, Hold.
-// Aktif & dihitung deadline: Todo, In progress, Revisi.
-function isDeadlineActive(t){const s=String(t.status||'').toLowerCase().replace(/\s+/g,' ').trim(); return s!=='done' && s!=='review pm' && s!=='hold';}
+/* Status "aman" dari hitungan deadline (tidak telat & tidak due): Done, Review PM, Revisi,
+   Hold. Yang masih dihitung tinggal Todo dan In progress.
+
+   Revisi masuk daftar ini sejak 1.119.0. Alasannya: sebuah task hanya bisa sampai ke Revisi
+   dengan LEBIH DULU melewati Review PM — artinya pekerjaannya sudah diserahkan tepat waktu,
+   dan bola berpindah ke PM. Menghitungnya telat berarti menghukum orang atas antrean review
+   dan atas keputusan orang lain untuk mengembalikannya.
+
+   Akibat yang diterima: task yang mandek di Revisi berbulan-bulan tak lagi memunculkan
+   tanda bahaya apa pun. Penanda di penandaTenggat() menutupi sebagiannya — ia menunjukkan
+   tenggat yang sudah lewat — tapi TIDAK menunjukkan sudah berapa lama. Itu butuh kolom
+   sendiri di sheet; log aktivitas hanya memuat 200 baris terakhir, jadi justru revisi yang
+   paling lama mandek adalah yang jejaknya sudah tergeser keluar. */
+function isDeadlineActive(t){const s=String(t.status||'').toLowerCase().replace(/\s+/g,' ').trim(); return s!=='done' && s!=='review pm' && s!=='revisi' && s!=='hold';}
 function isLate(t){return isDeadlineActive(t) && t.dueDate && parseDate(t.dueDate)<TODAY;}
+/* Tenggat sudah lewat, tapi statusnya menghentikan hitungan. Done sengaja TIDAK termasuk:
+   ia selesai, bukan tertahan — tak ada yang perlu dijelaskan pada task yang sudah beres. */
+function statusTertahan(t){
+  if(!t || isDone(t) || !t.dueDate) return '';
+  if(parseDate(t.dueDate) >= TODAY) return '';
+  return isDeadlineActive(t) ? '' : String(t.status||'').trim();
+}
+/* SATU sumber penanda tenggat untuk semua kartu. Sebelumnya tiap tempat menuliskan sendiri
+   ${overdue?TELAT:(today?HARI INI:'')}, dan menambah penanda ketiga berarti menyunting
+   beberapa tempat sekaligus — dengan satu yang pasti terlewat.
+
+   Penanda ketiga muncul HANYA saat tenggatnya lewat tapi tak dihitung. Tanpa itu, task
+   yang tanggalnya jelas sudah lewat tapi tak berlencana apa pun terbaca sebagai pelacaknya
+   yang rusak. Ia tak muncul untuk Revisi yang tenggatnya belum lewat, karena di situ memang
+   tak ada yang perlu dijelaskan.
+
+   Warnanya diambil dari statusHex() — sumber warna status yang sama dengan kanban, chart,
+   dan kalender, jadi "REVISI" di lencana ini sewarna dengan kolom Revisi di papan. */
+function penandaTenggat(t){
+  if(isLate(t)) return `<span class="text-[10px] font-bold text-rose-600">TELAT</span>`;
+  if(isDeadlineActive(t) && daysToDue(t)===0) return `<span class="text-[10px] font-bold text-pink-600">HARI INI</span>`;
+  const tahan=statusTertahan(t);
+  if(tahan) return `<span class="text-[10px] font-bold" style="color:${statusHex(tahan)}" title="Tenggat ${escapeAttr(formatDateHuman(t.dueDate))} sudah lewat, tapi tidak dihitung telat karena status ${escapeAttr(tahan)}.">${escapeHtml(tahan.toUpperCase())}</span>`;
+  return '';
+}
 function daysToDue(t){if(!t.dueDate)return 9999; return Math.ceil((parseDate(t.dueDate)-TODAY)/86400000);}
 function parseDate(s){const d=new Date(s+'T00:00:00'); return isNaN(d)?new Date(8640000000000000):d;}
 function todayStr(){return isoLocal(new Date());}   // waktu LOKAL (toISOString bikin geser 1 hari di UTC+7 sebelum jam 7)
