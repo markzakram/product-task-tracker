@@ -3684,4 +3684,39 @@ console.log('=== 17d. Simpan rancangan paket: penjaga kirim-ganda ===');
     && idx.indexOf("document.getElementById('loading').classList.remove('hide');") >= 0);
 }
 
+console.log('=== 17e. Membersihkan baris kembar di rancangan paket ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Perbaikan 1.120.0 menghentikan duplikasi BARU, tapi tak menyentuh yang sudah telanjur
+     tertulis. Ini alatnya, supaya tak perlu menghapus puluhan baris satu per satu — dan
+     supaya tak perlu menyerahkan kredensial produksi ke siapa pun. */
+  ok('pendeteksinya ada', idx.indexOf('function pkgBarisKembar()') >= 0);
+  ok('pembersihnya ada', idx.indexOf('function pkgRapikanKembar()') >= 0);
+  ok('tombolnya ada', idx.indexOf('id="btnRapikanKembar"') >= 0);
+  /* Tersembunyi sampai memang ada yang kembar — tombol yang selalu ada menyiratkan
+     masalah yang selalu ada. */
+  ok('tersembunyi bila tak ada yang kembar', idx.indexOf('btn.classList.toggle(\'hide\', n===0);') >= 0);
+  ok('disegarkan tiap panel digambar', idx.indexOf('setTimeout(segarkanTombolRapikan, 0);') >= 0);
+
+  /* Aman karena satu hal yang SUDAH DIBUKTIKAN di staging: baris kembar hasil
+     simpan-bersamaan membawa itemId yang SAMA (dua baris "Verbal" keduanya ITM-0662).
+     Setoran menempel pada itemId, bukan pada baris, jadi membuang baris kedua tak membuat
+     satu pun setoran jadi yatim. */
+  ok('item dibandingkan lewat itemId', idx.indexOf("const id=String(tr.getAttribute('data-itemid')||'').trim();") >= 0);
+  /* Baris yang belum pernah tersimpan belum punya itemId, jadi ia dibandingkan isinya. */
+  ok('baris baru dibandingkan isinya', idx.indexOf("const kunci = id || ('baru|'") >= 0);
+  ok('tautan dibandingkan label+url', idx.indexOf("const kunci=l+'|'+u;") >= 0);
+
+  /* Yang dibuang cuma dari FORM, bukan langsung dari sheet: orangnya melihat hasilnya dulu
+     lalu menekan Simpan sendiri. Pembersihan yang menulis diam-diam ke data produksi bukan
+     sesuatu yang pantas dilakukan tanpa dilihat. */
+  ok('hanya membuang dari form, tidak menyimpan sendiri',
+    idx.indexOf('Periksa dulu, lalu tekan Simpan untuk menerapkannya.') >= 0);
+  const iRapi = idx.indexOf('function pkgRapikanKembar()');
+  const iTutupRapi = idx.indexOf('function pkgReadItems()', iRapi);
+  const badan = idx.slice(iRapi, iTutupRapi);
+  ok('pembersihnya tak memanggil simpan', badan.indexOf('savePackagePanel') < 0 && badan.indexOf('GAS.') < 0);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

@@ -31,6 +31,53 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.121.0 — Alat pembersih baris kembar
+
+Perbaikan di 1.120.0 menghentikan duplikasi **baru**, tapi tak menyentuh paket yang sudah
+telanjur terduplikasi — dan itu memang yang terjadi: sesudah di-deploy, PKG-010 masih
+menampilkan tiap targetnya dua kali.
+
+Membersihkannya dengan tangan berarti menghapus puluhan baris satu per satu dari panel.
+Membersihkannya lewat skrip berarti menyerahkan kredensial spreadsheet produksi. Keduanya
+tak pantas, jadi alatnya ditaruh di dalam aplikasi.
+
+### Cara pakainya
+
+Buka rancangan paketnya. Kalau ada baris kembar, muncul tombol **"Rapikan N baris kembar"**
+di sebelah Simpan — dengan jumlahnya, bukan sekadar ajakan. Tekan, baris kembarnya hilang
+dari form, lalu **Anda** yang menekan Simpan.
+
+Pembersihannya sengaja **tidak** menyimpan sendiri. Anda melihat hasilnya dulu. Sesuatu yang
+menulis diam-diam ke data produksi bukan hal yang pantas dijalankan tanpa dilihat.
+
+Tombolnya tersembunyi kalau tak ada yang kembar — tombol yang selalu ada menyiratkan masalah
+yang selalu ada.
+
+### Kenapa membuangnya aman
+
+Ini yang harus dipastikan sebelum menulis satu baris pun kode pembersih: **apakah baris
+kembar itu ber-ID sama atau berbeda?** Kalau berbeda, setoran bisa terbelah di antara
+keduanya, dan membuang salah satunya akan menghilangkan angka.
+
+Diuji di staging dengan duplikasi yang sengaja dibuat: dua baris "Verbal" keduanya
+`ITM-0662`, dua baris "Silogisme" keduanya `ITM-0663`. **ID-nya sama.** Sebabnya masuk
+akal — kedua simpan yang berbarengan itu mengirim daftar item yang sama lengkap dengan
+itemId-nya masing-masing, jadi keduanya menulis ID yang identik.
+
+Karena setoran menempel pada itemId dan bukan pada baris, membuang baris kedua tidak membuat
+satu pun setoran jadi yatim. Pembersihannya lossless.
+
+Baris yang belum pernah tersimpan belum punya itemId, jadi ia dibandingkan isinya
+(nama + grup + target + satuan). Tautan dibandingkan label + URL.
+
+### Diuji ujung-ke-ujung
+
+Paket uji dibuat di staging dengan duplikasi sungguhan lewat dua simpan serentak: 6 target
+(3 kembar) dan 2 tautan (1 kembar). Tombolnya muncul menulis **"Rapikan 4 baris kembar"** —
+hitungan yang tepat. Sesudah ditekan dan disimpan, isinya di server jadi **3 target dan
+1 tautan**, dengan ketiga itemId-nya utuh. Paket ujinya dihapus lagi.
+
+---
 ## 1.120.0 — Perbaikan: menyimpan rancangan paket bisa menggandakan seluruh isinya
 
 Dilaporkan dari lapangan: menyunting sebuah rancangan paket lalu menyimpan membuat **semua**

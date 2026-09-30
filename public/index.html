@@ -1031,7 +1031,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.120.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.121.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -4811,6 +4811,66 @@ function pkgReadTautan(){
   });
   return out;
 }
+/* ---------- Membersihkan baris kembar ----------
+
+   Perbaikan di 1.120.0 menghentikan duplikasi BARU, tapi tak menyentuh yang sudah telanjur
+   tertulis. Ini alat untuk membereskannya, supaya tak perlu menghapus puluhan baris satu
+   per satu — dan supaya tak perlu menyerahkan kredensial produksi ke siapa pun.
+
+   Aman karena satu hal yang sudah dibuktikan: baris kembar hasil simpan-bersamaan membawa
+   itemId yang SAMA (diuji di staging: dua baris "A" keduanya ITM-0662). Setoran menempel
+   pada itemId, bukan pada baris, jadi membuang baris kedua tak membuat satu pun setoran
+   jadi yatim. Kalau nanti ternyata ada kembar ber-ID BERBEDA, ia TIDAK disentuh di sini —
+   itu kasus lain yang butuh penyatuan setoran lebih dulu.
+
+   Yang dibuang cuma dari FORM, bukan langsung dari sheet. Orangnya melihat hasilnya dulu,
+   lalu menekan Simpan sendiri — pembersihan yang menulis diam-diam ke data produksi bukan
+   sesuatu yang pantas dilakukan tanpa dilihat. */
+function pkgBarisKembar(){
+  const kotak=document.getElementById('pkgItemBox');
+  const tautan=document.getElementById('pkgTautanBox');
+  const buangItem=[], buangTautan=[];
+  if(kotak){
+    const lihat={};
+    [...kotak.querySelectorAll('[data-pkgi]')].forEach(tr=>{
+      const id=String(tr.getAttribute('data-itemid')||'').trim();
+      /* Tanpa itemId berarti baris baru yang belum pernah tersimpan — dibandingkan
+         isinya, karena belum punya identitas lain. */
+      const g=cls=>((tr.querySelector('.'+cls)||{}).value||'').trim();
+      const kunci = id || ('baru|'+g('pkgi-nama')+'|'+g('pkgi-grup')+'|'+g('pkgi-target')+'|'+g('pkgi-satuan'));
+      if(!kunci || kunci==='baru||||') return;
+      if(lihat[kunci]) buangItem.push(tr); else lihat[kunci]=1;
+    });
+  }
+  if(tautan){
+    const lihat={};
+    [...tautan.querySelectorAll('.pkgl-row')].forEach(b=>{
+      const u=(((b.querySelector('.pkgl-url')||{}).value)||'').trim();
+      const l=(((b.querySelector('.pkgl-label')||{}).value)||'').trim();
+      if(!u) return;
+      const kunci=l+'|'+u;
+      if(lihat[kunci]) buangTautan.push(b); else lihat[kunci]=1;
+    });
+  }
+  return { item:buangItem, tautan:buangTautan };
+}
+function segarkanTombolRapikan(){
+  const btn=document.getElementById('btnRapikanKembar'); if(!btn) return;
+  const k=pkgBarisKembar();
+  const n=k.item.length+k.tautan.length;
+  btn.classList.toggle('hide', n===0);
+  const lbl=document.getElementById('lblRapikanKembar');
+  if(lbl) lbl.textContent='Rapikan '+n+' baris kembar';
+}
+function pkgRapikanKembar(){
+  const k=pkgBarisKembar();
+  const n=k.item.length+k.tautan.length;
+  if(!n){ showToast('Tidak ada baris kembar.'); return; }
+  k.item.forEach(el=>el.remove());
+  k.tautan.forEach(el=>el.remove());
+  segarkanTombolRapikan();
+  showToast(n+' baris kembar dibuang dari form. Periksa dulu, lalu tekan Simpan untuk menerapkannya.');
+}
 function pkgReadItems(){
   const box=document.getElementById('pkgItemBox'); if(!box) return [];
   const out=[];
@@ -4936,6 +4996,9 @@ function pkgPanelBox(){
   return document.getElementById('collabPkgBox');
 }
 function renderPackagePanel(){
+  /* Dijalankan di akhir lewat setTimeout 0: panelnya baru ada di DOM sesudah fungsi ini
+     selesai menulis innerHTML-nya. */
+  setTimeout(segarkanTombolRapikan, 0);
   const box=pkgPanelBox(); if(!box) return;
   /* Kedua modal (Paket & Task Kolaborasi) sama-sama menampung panel ini, dan panelnya
      memakai id tetap seperti #pkgItemBox dan #pkg-program. Kalau kotak yang TIDAK aktif
@@ -5062,6 +5125,9 @@ function renderPackagePanel(){
       ${(bisaP||bisaRancang||(c&&canManageCollab()))?`<div class="flex items-center justify-between gap-2 flex-wrap">
         <span class="text-[11px] text-gray-400">${p.updatedBy?`Terakhir diubah ${escapeHtml(p.updatedBy)}${p.updatedAt?' · '+escapeHtml(p.updatedAt):''}`:'Belum pernah disimpan.'}</span>
         ${(!lipat&&canMirrorPaket())?`<button type="button" onclick="togglePaketMirror()" title="Tampilkan rancangan ini di layar Lintas Divisi" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border ${p.mirror?'border-emerald-300 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20':'border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400'} text-[11px] font-semibold"><span class="material-icons-round text-[13px]">${p.mirror?'visibility':'visibility_off'}</span>${p.mirror?'Tampil di Lintas Divisi':'Bagikan ke Lintas Divisi'}</button>`:''}
+        <!-- Muncul hanya bila memang ADA baris kembar; segarkanTombolRapikan() yang
+             memutuskan, dipanggil di akhir renderPackagePanel(). -->
+        <button type="button" id="btnRapikanKembar" onclick="pkgRapikanKembar()" class="hide inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-rose-300 dark:border-rose-900/50 text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-900/20 text-[11px] font-semibold"><span class="material-icons-round text-[13px]">cleaning_services</span><span id="lblRapikanKembar">Rapikan baris kembar</span></button>
         <button type="button" id="btnSimpanPaket" onclick="savePackagePanel()" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan</button>
       </div>`:`<div class="text-[11px] text-gray-400">Paket ini sudah punya PIC dan bukan Anda, jadi isinya hanya bisa dilihat.</div>`}
     </div>`;
