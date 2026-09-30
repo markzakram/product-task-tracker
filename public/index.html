@@ -1031,7 +1031,7 @@
 /* ===== Jembatan backend: Google Apps Script native ATAU Vercel /api ===== */
 const GAS_NATIVE = (typeof google !== 'undefined' && google.script && google.script.run) ? google.script.run : null;
 const API_BASE = '/api/rpc';
-const APP_VERSION = '1.119.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
+const APP_VERSION = '1.120.0'; // >>> BUMP versi ini tiap update (lihat CHANGELOG.md), biar dev tahu build terpasang <<<
 // localStorage bisa MELEMPAR (mode privat, atau iframe Apps Script saat cookie pihak
 // ketiga diblokir). Semua akses lewat pembungkus ini supaya tak pernah mematikan aplikasi.
 var LS = {
@@ -5062,7 +5062,7 @@ function renderPackagePanel(){
       ${(bisaP||bisaRancang||(c&&canManageCollab()))?`<div class="flex items-center justify-between gap-2 flex-wrap">
         <span class="text-[11px] text-gray-400">${p.updatedBy?`Terakhir diubah ${escapeHtml(p.updatedBy)}${p.updatedAt?' · '+escapeHtml(p.updatedAt):''}`:'Belum pernah disimpan.'}</span>
         ${(!lipat&&canMirrorPaket())?`<button type="button" onclick="togglePaketMirror()" title="Tampilkan rancangan ini di layar Lintas Divisi" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border ${p.mirror?'border-emerald-300 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20':'border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400'} text-[11px] font-semibold"><span class="material-icons-round text-[13px]">${p.mirror?'visibility':'visibility_off'}</span>${p.mirror?'Tampil di Lintas Divisi':'Bagikan ke Lintas Divisi'}</button>`:''}
-        <button type="button" onclick="savePackagePanel()" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan</button>
+        <button type="button" id="btnSimpanPaket" onclick="savePackagePanel()" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold shadow-sm"><span class="material-icons-round text-[13px]">save</span>Simpan</button>
       </div>`:`<div class="text-[11px] text-gray-400">Paket ini sudah punya PIC dan bukan Anda, jadi isinya hanya bisa dilihat.</div>`}
     </div>`;
 }
@@ -5136,6 +5136,42 @@ function createPackageForCollab(){
 /* Satu tombol Simpan, dua kiriman berbeda — rancangan dan setoran punya pemilik dan
    izin berbeda, jadi tak boleh digabung jadi satu panggilan. Setoran dikirim belakangan
    supaya target yang baru dibuat sudah punya Item ID saat setorannya menunjuk ke sana. */
+/* ---------- Penjaga kirim-ganda ----------
+
+   Menekan Simpan dua kali mengirim DUA permintaan yang berjalan bersamaan. Keduanya
+   membaca sheet, keduanya menghapus baris lama yang SAMA, lalu keduanya menambah —
+   hasilnya dua salinan dari seluruh isi rancangan.
+
+   Bukan dugaan: diuji di staging dengan dua savePackage() serentak, dan tautannya benar
+   jadi dua. Satu kali simpan tidak pernah menduplikasi, jadi purge/append-nya sendiri
+   memang benar — yang salah adalah membiarkan dua berjalan berbarengan.
+
+   Simpan kolaborasi tidak kena karena ia memasang overlay #loading (fixed inset-0 z-100)
+   yang menelan klik kedua. Panel paket tidak, jadi butuh kunci sendiri.
+
+   Mengembalikan null berarti "sudah ada yang berjalan" — pemanggilnya berhenti di situ.
+
+   Diberi ID, bukan simpulnya: jalur sukses menggambar ulang panelnya SEBELUM kunci dilepas,
+   jadi simpul yang dipegang saat mengunci sudah terlepas dari dokumen waktu pelepasannya
+   dijalankan. Memegang simpul lama tetap "bekerja" — tapi hanya karena penggambaran ulang
+   kebetulan menghasilkan tombol baru yang hidup. Begitu penggambaran itu berubah, tombolnya
+   akan mati selamanya tanpa sebab yang terlihat. Dicari ulang lewat ID, itu tak bisa terjadi. */
+function kunciKirim(idTombol, labelSibuk){
+  const btn=document.getElementById(idTombol);
+  if(!btn || btn.disabled) return null;
+  const orig=btn.innerHTML;
+  btn.disabled=true; btn.classList.add('opacity-60','cursor-not-allowed');
+  if(labelSibuk) btn.innerHTML=labelSibuk;
+  let sudah=false;
+  return function(){
+    if(sudah) return;   // dipanggil dari beberapa jalur selesai; yang pertama saja
+    sudah=true;
+    const b=document.getElementById(idTombol);   // bisa jadi simpul yang berbeda sekarang
+    if(!b) return;
+    b.disabled=false; b.classList.remove('opacity-60','cursor-not-allowed');
+    b.innerHTML=orig;
+  };
+}
 function savePackagePanel(){
   const p=currentPackage(); if(!p){ showToast('Tautkan ke sebuah paket dulu.', false); return; }
   const c=currentCollab();
@@ -5173,6 +5209,13 @@ function savePackagePanel(){
       kunci[kk]=1;
     }
   }
+  /* Dikunci SESUDAH semua pemeriksaan yang bisa berhenti lebih awal — kalau dikunci di atas,
+     sebuah validasi yang gagal akan meninggalkan tombolnya mati selamanya.
+
+     Kuncinya dipegang melintasi DUA penulisan (savePackage lalu setPackageContrib), bukan
+     dilepas di antaranya: jeda di situ persis selebar jendela yang bisa disusupi klik kedua. */
+  const lepas=kunciKirim('btnSimpanPaket', `<span class="material-icons-round text-[13px]">hourglass_top</span>Menyimpan…`);
+  if(!lepas) return;   // sudah ada simpan yang berjalan
   const selesai=(res)=>{
     state.packages=res.packages||state.packages; state.collabs=res.collabs||state.collabs;
     showToast(res.message); renderPackagePanel();
@@ -5181,16 +5224,16 @@ function savePackagePanel(){
     if(state.activeView==='paket') renderPaket();
   };
   const kirimSetoran=()=>{
-    if(!setoran) return;
-    GAS.withSuccessHandler(r2=>{ if(r2&&r2.success) selesai(r2); else showToast((r2&&r2.message)||'Gagal simpan setoran', false); })
-       .withFailureHandler(err=>showToast('Gagal: '+(err.message||err), false))
+    if(!setoran){ lepas(); return; }
+    GAS.withSuccessHandler(r2=>{ lepas(); if(r2&&r2.success) selesai(r2); else showToast((r2&&r2.message)||'Gagal simpan setoran', false); })
+       .withFailureHandler(err=>{ lepas(); showToast('Gagal: '+(err.message||err), false); })
        .setPackageContrib(p.id, c.id, setoran, state.currentUser);
   };
   if(!Object.keys(payload).length){ kirimSetoran(); return; }
   GAS.withSuccessHandler(res=>{
-    if(!res||!res.success){ showToast((res&&res.message)||'Gagal simpan rancangan', false); return; }
-    selesai(res); kirimSetoran();
-  }).withFailureHandler(err=>showToast('Gagal: '+(err.message||err), false))
+    if(!res||!res.success){ lepas(); showToast((res&&res.message)||'Gagal simpan rancangan', false); return; }
+    selesai(res); kirimSetoran();   // kirimSetoran yang melepas kuncinya
+  }).withFailureHandler(err=>{ lepas(); showToast('Gagal: '+(err.message||err), false); })
     .savePackage(p.id, payload, state.currentUser);
 }
 function loadPackages(cb){

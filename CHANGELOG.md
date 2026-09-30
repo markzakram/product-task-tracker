@@ -31,6 +31,63 @@ Tak ada entri yang dibuang. Entri `1.80.0 — Tombol "Task Saya"` juga dikembali
 sempat hilang dari CHANGELOG di `master` karena tertimpa saat commit paralel.
 
 ---
+## 1.120.0 — Perbaikan: menyimpan rancangan paket bisa menggandakan seluruh isinya
+
+Dilaporkan dari lapangan: menyunting sebuah rancangan paket lalu menyimpan membuat **semua**
+komponen di dalamnya terduplikat — tiap target muncul dua kali, tiap tautan muncul dua kali.
+
+### Yang sebenarnya terjadi
+
+Penelusurannya dimulai dari dugaan yang salah. Jalur simpan memakai pola *hapus dulu, lalu
+tambah* (`purgeRowsForRef` → `valuesAppend`), jadi tersangka pertama adalah penghapusan
+yang gagal. Diuji langsung di staging dengan paket sekali-pakai: **satu kali simpan tidak
+pernah menduplikasi**. Logikanya sendiri benar.
+
+Tersangka berikutnya terbukti: **dua simpan yang berjalan bersamaan.** Diuji dengan dua
+`savePackage()` serentak, dan tautannya benar-benar jadi dua. Sebabnya jelas begitu dilihat —
+keduanya membaca sheet, keduanya menghitung baris lama yang **sama**, keduanya menghapusnya,
+lalu keduanya menambah. Satu salinan dari masing-masing.
+
+Dan tombol Simpan di panel rancangan **tak punya penjaga sama sekali**: tak dinonaktifkan,
+tak ada overlay, tak ada penanda "sedang berjalan". Menekannya dua kali — atau sekali dengan
+jari yang terpeleset — sudah cukup.
+
+### Kenapa tombol simpan lain tidak kena
+
+Simpan Task Kolaborasi memasang overlay `#loading` (`fixed inset-0 z-[100]`) sebelum
+mengirim, dan overlay itu menelan klik kedua. Perlindungannya tak disengaja, tapi nyata.
+Panel paket tak memasang apa pun. Ada pemeriksaan otomatis yang akan memberitahu kalau
+overlay itu suatu saat hilang.
+
+### Perbaikannya
+
+Tombolnya dikunci selama permintaan berjalan, dengan label berubah jadi "Menyimpan…".
+Tiga hal yang membuatnya benar, dan masing-masing sudah menggigit saat dikerjakan:
+
+**Dikunci sesudah semua validasi.** Kalau dikunci di awal, sebuah validasi yang gagal
+(misalnya dua setoran ke proses yang sama) akan meninggalkan tombolnya mati selamanya.
+
+**Kuncinya dipegang melintasi dua penulisan.** Simpan rancangan sebenarnya mengirim dua kali
+berurutan — `savePackage` lalu `setPackageContrib`. Jeda di antaranya persis selebar
+jendela yang bisa disusupi klik kedua, jadi kuncinya baru dilepas setelah keduanya selesai.
+
+**Dilepas lewat pencarian ulang ID, bukan simpul tombol yang lama.** Jalur sukses menggambar
+ulang panelnya sebelum kunci dilepas, jadi simpul yang dipegang saat mengunci sudah terlepas
+dari dokumen. Versi pertama tetap "bekerja" — tapi hanya karena penggambaran ulang kebetulan
+menghasilkan tombol baru yang hidup. Begitu penggambaran itu berubah, tombolnya akan mati
+selamanya tanpa sebab yang terlihat.
+
+### Yang masih bisa terjadi
+
+Kunci ini ada di sisi yang menekan. Ia menutup sebab yang dilaporkan — satu orang menekan
+dua kali — tapi **tidak** menutup dua orang yang menyimpan paket yang sama pada detik yang
+sama dari perangkat berbeda. Itu butuh kunci di server (baris penanda di sheet dengan
+bandingkan-lalu-tulis), dan itu pekerjaan tersendiri.
+
+Kalau nanti ada laporan duplikasi lagi padahal tak ada yang menekan dua kali, itulah
+sebabnya — dan itu petunjuk bahwa kuncinya perlu naik ke server.
+
+---
 ## 1.119.0 — Revisi berhenti dihitung telat, dan tenggat yang tertahan kini menjelaskan diri
 
 Sebuah task hanya bisa sampai ke **Revisi** dengan lebih dulu melewati **Review PM**.

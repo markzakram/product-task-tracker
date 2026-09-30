@@ -3634,4 +3634,54 @@ console.log('=== 17c. Revisi menghentikan hitungan telat + penanda tenggat terta
   ok('tooltipnya menjelaskan sebabnya', idx.indexOf('tidak dihitung telat karena status') >= 0);
 }
 
+console.log('=== 17d. Simpan rancangan paket: penjaga kirim-ganda ===');
+{
+  const idx = fs.readFileSync(path.join(GAS_DIR, 'Index.html'), 'utf8');
+
+  /* Menekan Simpan dua kali mengirim DUA permintaan yang berjalan bersamaan. Keduanya
+     membaca sheet, keduanya menghapus baris lama yang SAMA, lalu keduanya menambah —
+     hasilnya dua salinan seluruh isi rancangan.
+
+     Bukan dugaan: diuji di staging dengan dua savePackage() serentak dan tautannya benar
+     jadi dua. SATU kali simpan tidak pernah menduplikasi, jadi purge/append-nya sendiri
+     memang benar — yang salah membiarkan dua berjalan berbarengan. */
+  ok('penguncinya ada', idx.indexOf('function kunciKirim(idTombol, labelSibuk)') >= 0);
+  ok('tombol simpan paket punya id', idx.indexOf('id="btnSimpanPaket"') >= 0);
+  ok('dipakai oleh simpan paket', idx.indexOf("kunciKirim('btnSimpanPaket'") >= 0);
+  /* Panggilan kedua ditolak lewat null, bukan lewat pemeriksaan terpisah yang bisa lupa. */
+  ok('panggilan kedua ditolak', idx.indexOf('if(!btn || btn.disabled) return null;') >= 0);
+  ok('pemanggilnya berhenti bila terkunci', idx.indexOf('if(!lepas) return;   // sudah ada simpan yang berjalan') >= 0);
+
+  /* Dicari ulang lewat ID saat melepas: jalur sukses menggambar ulang panelnya SEBELUM
+     kunci dilepas, jadi simpul yang dipegang saat mengunci sudah terlepas dari dokumen.
+     Memegang simpul lama tetap "bekerja" — tapi hanya karena penggambaran ulang kebetulan
+     menghasilkan tombol baru yang hidup. */
+  ok('melepas lewat pencarian ulang, bukan simpul lama',
+    idx.indexOf('const b=document.getElementById(idTombol);   // bisa jadi simpul yang berbeda sekarang') >= 0);
+  /* Dipanggil dari beberapa jalur selesai; yang pertama saja yang berlaku. */
+  ok('pelepasan hanya sekali', idx.indexOf('if(sudah) return;   // dipanggil dari beberapa jalur selesai') >= 0);
+
+  /* Dikunci SESUDAH semua pemeriksaan yang bisa berhenti lebih awal — kalau di atas,
+     sebuah validasi yang gagal meninggalkan tombolnya mati selamanya. */
+  const iKunci = idx.indexOf("kunciKirim('btnSimpanPaket'");
+  const iSetoranGanda = idx.indexOf('punya dua setoran untuk proses yang sama');
+  ok('dikunci sesudah validasi', iSetoranGanda > 0 && iKunci > iSetoranGanda);
+
+  /* Kuncinya dipegang melintasi DUA penulisan (savePackage lalu setPackageContrib), bukan
+     dilepas di antaranya: jeda di situ persis selebar jendela yang bisa disusupi klik kedua.
+     Karena itu yang melepas di jalur sukses adalah kirimSetoran, bukan penangan savePackage. */
+  ok('dilepas oleh kirimSetoran di jalur sukses',
+    idx.indexOf('selesai(res); kirimSetoran();   // kirimSetoran yang melepas kuncinya') >= 0);
+  ok('dilepas saat tak ada setoran', idx.indexOf('if(!setoran){ lepas(); return; }') >= 0);
+  /* Tiap jalur gagal juga harus melepas, kalau tidak tombolnya mati sesudah satu kegagalan. */
+  ok('dilepas di semua jalur gagal', (idx.match(/lepas\(\); showToast/g) || []).length >= 3);
+
+  /* Simpan kolaborasi tidak kena masalah yang sama: ia memasang overlay #loading
+     (fixed inset-0 z-[100]) yang menelan klik kedua. Kalau overlay itu hilang, ia butuh
+     kunci sendiri — pemeriksaan ini yang akan memberitahu. */
+  ok('simpan kolaborasi masih dijaga overlay',
+    idx.indexOf('id="loading" class="fixed inset-0 z-[100]') >= 0
+    && idx.indexOf("document.getElementById('loading').classList.remove('hide');") >= 0);
+}
+
 console.log(`\n✅ Semua ${passed} assertion lulus.`);
