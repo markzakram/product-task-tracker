@@ -151,6 +151,9 @@ milik manager, tak menyentuh data operasional tim: **[docs/OKR.md](docs/OKR.md)*
 Dan  menyatukan keduanya jadi MCP server, supaya Claude di device
 manager bisa ditanyai dengan bahasa biasa: **[docs/MCP.md](docs/MCP.md)**
 
+Pemindahan 18 tab spreadsheet ke MySQL — tahap 1 dan 2 bisa dijalankan dan diulang
+tanpa menyentuh aplikasi yang berjalan: **[docs/MIGRASI-MYSQL.md](docs/MIGRASI-MYSQL.md)**
+
 ## Cara kerja singkat (untuk developer)
 
 - Frontend memakai pola yang sama seperti dulu: `GAS.withSuccessHandler(...).withFailureHandler(...).namaFungsi(args)`.

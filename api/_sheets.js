@@ -1604,8 +1604,17 @@ function buildStepIndex(collabs) {
   return idx;
 }
 
-async function readPackages(stepIndex) {
+/* `pre` mengikuti pola yang sudah dipakai di berkas ini (getTasks(pre),
+   loadCollabsRaw(preC, preS), readOptionsRaw(pre)): kalau barisnya sudah ada,
+   jangan dibaca ulang. Dipakai api/_db.js untuk menyuapkan baris dari MySQL ke
+   pemeta yang SAMA PERSIS — perhitungan terpenuhi/menunggu/status/ringkas terlalu
+   berlapis untuk ditulis ulang tanpa menyimpang diam-diam. */
+async function readPackages(stepIndex, pre) {
   let prows = [], vrows = [], irows = [], crows = [], lrows = [];
+  if (pre !== undefined) {
+    prows = pre.prows || []; vrows = pre.vrows || []; irows = pre.irows || [];
+    crows = pre.crows || []; lrows = pre.lrows || [];
+  } else {
   try {
     const b = await valuesBatchGet([`${CONFIG.PACKAGE_SHEET}!A2:T`, `${CONFIG.PACKAGE_VARIANT_SHEET}!A2:F`,
       `${CONFIG.PACKAGE_ITEM_SHEET}!A2:J`, `${CONFIG.PACKAGE_CONTRIB_SHEET}!A2:F`,
@@ -1622,6 +1631,7 @@ async function readPackages(stepIndex) {
        rancangan yang sudah tertaut terlihat hilang: daftar kosong menimpa data yang baik.
        Dilempar supaya penangan gagal di layar mempertahankan data terakhir yang benar. */
     throw new Error('Gagal membaca data paket: ' + ((e && e.message) || e));
+  }
   }
   const idx = stepIndex || { step: {}, collab: {} };
   const out = {};
@@ -2708,47 +2718,26 @@ function magangVisibleTask(task, asUser) {
   return !!asUser && ownsTaskActor(task, asUser);
 }
 
-async function getBootstrapData(opts) {
+/* Penyusun hasil muat-awal, DIPISAH dari pengambilannya.
+
+   Dua cabang di sini menentukan data siapa sampai ke perangkat siapa: magang
+   hanya menerima task lingkungannya, dan tamu Lintas Divisi hanya menerima yang
+   sengaja dibagikan. Penyaringannya terjadi di SERVER justru supaya tak bisa
+   diintip lewat DevTools.
+
+   Karena itu api/_db.js memanggil fungsi yang SAMA, bukan menyalin isinya.
+   Dua salinan aturan penyaringan berarti dua tempat yang bisa menyimpang, dan
+   menyimpang di sini artinya kebocoran — bukan sekadar angka yang keliru.
+
+   Semua masukannya sudah jadi: pemanggil yang membacanya, dari Sheets maupun
+   dari MySQL. Fungsi ini tidak menyentuh penyimpanan apa pun. */
+function susunBootstrap(opts, d) {
   const viewOnly = !!(opts && opts.viewOnly);
   const magangOnly = !!(opts && opts.magangOnly);
-  // Satu batchGet untuk SEMUA range -> hemat kuota (±2 read, bukan ±11).
-  const meta = await getSheetMeta().catch(() => ({}));            // 1 read: tahu sheet mana yang ada
-  const sheetOf = {
-    tasks: CONFIG.TASK_SHEET, options: CONFIG.OPTIONS_SHEET, activity: CONFIG.ACTIVITY_SHEET,
-    comments: CONFIG.COMMENTS_SHEET, auth: CONFIG.AUTH_SHEET, links: CONFIG.LINKS_SHEET,
-    dashboards: CONFIG.DASHBOARDS_SHEET, notes: CONFIG.NOTES_SHEET, checklist: CONFIG.CHECKLIST_SHEET,
-    collab: CONFIG.COLLAB_SHEET, collabSteps: CONFIG.COLLAB_STEP_SHEET, users: CONFIG.USERS_SHEET,
-  };
-  const R = {
-    tasks: MAIN_DATA_RANGE(), options: `${CONFIG.OPTIONS_SHEET}!A2:E`, activity: `${CONFIG.ACTIVITY_SHEET}!A2:G`,
-    comments: `${CONFIG.COMMENTS_SHEET}!A2:D`, auth: `${CONFIG.AUTH_SHEET}!A2:B`, links: `${CONFIG.LINKS_SHEET}!A2:D`,
-    dashboards: `${CONFIG.DASHBOARDS_SHEET}!A2:D`, notes: `${CONFIG.NOTES_SHEET}!A2:E`, checklist: `${CONFIG.CHECKLIST_SHEET}!A2:C`,
-    // A2:J, bukan A2:I — kolom J menyimpan Paket ID. Kalau berhenti di I, tiap muat
-    // ulang mengembalikan collab tanpa tautan paket dan tautannya tampak hilang.
-    collab: `${CONFIG.COLLAB_SHEET}!A2:K`, collabSteps: `${CONFIG.COLLAB_STEP_SHEET}!A2:K`,
-    users: `${CONFIG.USERS_SHEET}!A2:C`,
-  };
-  const present = Object.keys(R).filter(k => meta[sheetOf[k]]);
-  let batch = null;
-  if (present.length) { try { batch = await valuesBatchGet(present.map(k => R[k])); } catch (e) { batch = null; } }  // 1 read
-  // pre(k): array (dari batch) bila sukses; [] bila sheet tak ada; undefined bila batch gagal -> fungsi baca sendiri.
-  const pre = (k) => (batch === null ? undefined : (meta[sheetOf[k]] ? (batch[R[k]] || []) : []));
-
-  // Peran diambil dari batch yang sama -> tidak menambah kuota baca sama sekali.
-  await loadUsers(pre('users'));
-
-  const [tasks, options, activity, commentsSummary, pinUsers, links, dashboards, notes, checklistSummary, collabs] = await Promise.all([
-    getTasks(pre('tasks')),
-    getOptions(pre('options')),
-    getActivityLog(200, pre('activity')),
-    getAllCommentsLite(pre('comments')),
-    listPinUsers(pre('auth')),
-    getAllLinks(pre('links')),
-    getAllDashboards(pre('dashboards')),
-    getAllNotes(pre('notes')),
-    getChecklistSummary(pre('checklist')),
-    getCollabs(pre('collab'), pre('collabSteps')).catch(() => []),
-  ]);
+  const tasks = d.tasks, options = d.options, activity = d.activity;
+  const commentsSummary = d.commentsSummary, pinUsers = d.pinUsers, links = d.links;
+  const dashboards = d.dashboards, notes = d.notes;
+  const checklistSummary = d.checklistSummary, collabs = d.collabs;
   if (magangOnly) {
     // Level magang: PANGKAS di server. Task karyawan tidak pernah ikut terkirim,
     // jadi tak bisa diintip lewat DevTools sekalipun.
@@ -2817,7 +2806,7 @@ async function getBootstrapData(opts) {
         managers: getManagers(),
         doneApprovers: getDoneApprovers(),
         collabManagers: getCollabManagers(),
-        users: await getUsers(),   // sumber peran untuk UI (Dev/Manager/Leader/Staff/Magang/Lihat Saja)
+        users: d.users,   // sumber peran untuk UI (Dev/Manager/Leader/Staff/Magang/Lihat Saja)
         roles: ROLES,
         generatedAt: nowStamp(),
       },
@@ -2840,11 +2829,58 @@ async function getBootstrapData(opts) {
       managers: getManagers(),
       doneApprovers: getDoneApprovers(),
       collabManagers: getCollabManagers(),
-      users: await getUsers(),   // sumber peran untuk UI (Dev/Manager/Leader/Staff/Magang/Lihat Saja)
+      users: d.users,   // sumber peran untuk UI (Dev/Manager/Leader/Staff/Magang/Lihat Saja)
       roles: ROLES,
       generatedAt: nowStamp(),
     },
   };
+}
+
+async function getBootstrapData(opts) {
+  const viewOnly = !!(opts && opts.viewOnly);
+  const magangOnly = !!(opts && opts.magangOnly);
+  // Satu batchGet untuk SEMUA range -> hemat kuota (±2 read, bukan ±11).
+  const meta = await getSheetMeta().catch(() => ({}));            // 1 read: tahu sheet mana yang ada
+  const sheetOf = {
+    tasks: CONFIG.TASK_SHEET, options: CONFIG.OPTIONS_SHEET, activity: CONFIG.ACTIVITY_SHEET,
+    comments: CONFIG.COMMENTS_SHEET, auth: CONFIG.AUTH_SHEET, links: CONFIG.LINKS_SHEET,
+    dashboards: CONFIG.DASHBOARDS_SHEET, notes: CONFIG.NOTES_SHEET, checklist: CONFIG.CHECKLIST_SHEET,
+    collab: CONFIG.COLLAB_SHEET, collabSteps: CONFIG.COLLAB_STEP_SHEET, users: CONFIG.USERS_SHEET,
+  };
+  const R = {
+    tasks: MAIN_DATA_RANGE(), options: `${CONFIG.OPTIONS_SHEET}!A2:E`, activity: `${CONFIG.ACTIVITY_SHEET}!A2:G`,
+    comments: `${CONFIG.COMMENTS_SHEET}!A2:D`, auth: `${CONFIG.AUTH_SHEET}!A2:B`, links: `${CONFIG.LINKS_SHEET}!A2:D`,
+    dashboards: `${CONFIG.DASHBOARDS_SHEET}!A2:D`, notes: `${CONFIG.NOTES_SHEET}!A2:E`, checklist: `${CONFIG.CHECKLIST_SHEET}!A2:C`,
+    // A2:J, bukan A2:I — kolom J menyimpan Paket ID. Kalau berhenti di I, tiap muat
+    // ulang mengembalikan collab tanpa tautan paket dan tautannya tampak hilang.
+    collab: `${CONFIG.COLLAB_SHEET}!A2:K`, collabSteps: `${CONFIG.COLLAB_STEP_SHEET}!A2:K`,
+    users: `${CONFIG.USERS_SHEET}!A2:C`,
+  };
+  const present = Object.keys(R).filter(k => meta[sheetOf[k]]);
+  let batch = null;
+  if (present.length) { try { batch = await valuesBatchGet(present.map(k => R[k])); } catch (e) { batch = null; } }  // 1 read
+  // pre(k): array (dari batch) bila sukses; [] bila sheet tak ada; undefined bila batch gagal -> fungsi baca sendiri.
+  const pre = (k) => (batch === null ? undefined : (meta[sheetOf[k]] ? (batch[R[k]] || []) : []));
+
+  // Peran diambil dari batch yang sama -> tidak menambah kuota baca sama sekali.
+  await loadUsers(pre('users'));
+
+  const [tasks, options, activity, commentsSummary, pinUsers, links, dashboards, notes, checklistSummary, collabs] = await Promise.all([
+    getTasks(pre('tasks')),
+    getOptions(pre('options')),
+    getActivityLog(200, pre('activity')),
+    getAllCommentsLite(pre('comments')),
+    listPinUsers(pre('auth')),
+    getAllLinks(pre('links')),
+    getAllDashboards(pre('dashboards')),
+    getAllNotes(pre('notes')),
+    getChecklistSummary(pre('checklist')),
+    getCollabs(pre('collab'), pre('collabSteps')).catch(() => []),
+  ]);
+  return susunBootstrap(opts, {
+    tasks, options, activity, commentsSummary, pinUsers, links, dashboards, notes,
+    checklistSummary, collabs, users: await getUsers(),
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -3403,7 +3439,14 @@ module.exports = {
   // rumus nama task (kata kerja/objek)
   seedFormulaTemplate,
   // (exported for tests)
-  _internals: { formatDate, toSheetDate, generateTaskId, rowToTask, taskToRow, findRowByTaskId, serialToDate, nowStamp,
+  /* Dipakai juga oleh api/_db.js supaya aturan yang sama tidak ditulis dua kali.
+     Menyalin OPTION_TYPES atau isChecked ke sana berarti dua tempat yang harus
+     ikut berubah bersamaan — dan yang satu pasti terlupakan. */
+  _internals: { OPTION_TYPES, DEFAULT_OPTIONS, baseName, isChecked, stampStr,
+    loadCollabsRaw, readPackages, buildStepIndex,
+    getAllCommentsLite, getChecklistSummary,
+    susunBootstrap,
+    formatDate, toSheetDate, generateTaskId, rowToTask, taskToRow, findRowByTaskId, serialToDate, nowStamp,
     isManagerActor, canApproveDone, getDoneApprovers, getManagers, isDoneStatus,
     isLeaderActor, isStaffActor, isMagangActor, canManageUsers, roleOfActor,
     usersConfigured, invalidateUsers, setUsersFromRows, normalizeRole, ROLES,
