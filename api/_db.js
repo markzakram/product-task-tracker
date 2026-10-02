@@ -713,6 +713,86 @@ async function deleteDashboard(row) {
   return { success: true, message: 'Dashboard dihapus.', dashboards: await getAllDashboards() };
 }
 
+/* Operasi folder — menyentuh banyak baris sekaligus.
+
+   Dua hal yang gampang meleset di sini, dan keduanya diam:
+
+   1. NAMA FOLDER PEKA HURUF BESAR-KECIL, NAMA USER TIDAK. _sheets.js memakai
+      `u.toLowerCase() === user.toLowerCase()` untuk user tapi `f === oldFolder`
+      untuk folder. Collation database ini (utf8mb4_0900_ai_ci) buta huruf
+      besar-kecil untuk KEDUANYA, jadi tanpa `BINARY` folder "Riset" dan "riset"
+      akan ikut tergabung — dan penggabungan itu tak bisa dibatalkan.
+
+   2. `changed` MENGHITUNG YANG COCOK, BUKAN YANG BERUBAH. affectedRows MySQL
+      hanya menghitung baris yang nilainya betul-betul berganti, jadi mengganti
+      nama folder dengan nama yang sama persis akan melaporkan 0 — sedangkan
+      Sheets melaporkan jumlah penuhnya. Karena itu dihitung lebih dulu dengan
+      SELECT, bukan diambil dari hasil UPDATE. */
+async function _folderMassal(tabel, medanDaftar, pembaca, user, folderLama, folderBaru) {
+  const [semua] = await q('SELECT COUNT(*) AS n FROM `' + tabel + '`');
+  /* Tabel yang benar-benar kosong mengembalikan daftar KOSONG, bukan daftar
+     lengkap — ditiru dari _sheets.js, yang keluar lebih awal sebelum membaca. */
+  if (!Number(semua.n)) return { success: true, changed: 0, [medanDaftar]: [] };
+
+  const sql = ' FROM `' + tabel + '` WHERE user_nama = ? AND BINARY folder = ?';
+  const [hitung] = await q('SELECT COUNT(*) AS n' + sql, [user, folderLama]);
+  const changed = Number(hitung.n) || 0;
+  if (changed > 0) {
+    await q('UPDATE `' + tabel + '` SET folder = ? WHERE user_nama = ? AND BINARY folder = ?',
+      [folderBaru, user, folderLama]);
+  }
+  return { success: true, changed, [medanDaftar]: await pembaca() };
+}
+
+const _folderLink = (u, a, b) => _folderMassal('user_links', 'links', getAllLinks, u, a, b);
+const _folderNote = (u, a, b) => _folderMassal('user_notes', 'notes', getAllNotes, u, a, b);
+
+async function renameUserFolder(user, oldFolder, newFolder) {
+  user = teks(user).trim();
+  oldFolder = teks(oldFolder).trim();
+  newFolder = teks(newFolder).trim();
+  if (!user) return { success: false, message: 'User tidak boleh kosong.' };
+  if (!oldFolder) return { success: false, message: 'Folder asal tidak valid.' };
+  if (!newFolder) return { success: false, message: 'Nama folder baru wajib diisi.' };
+  const res = await _folderLink(user, oldFolder, newFolder);
+  return Object.assign({}, res, {
+    message: 'Folder "' + oldFolder + '" diganti jadi "' + newFolder + '" (' + res.changed + ' link).' });
+}
+
+async function deleteUserFolder(user, folder) {
+  user = teks(user).trim();
+  folder = teks(folder).trim();
+  if (!user) return { success: false, message: 'User tidak boleh kosong.' };
+  if (!folder) return { success: false, message: 'Folder tidak valid.' };
+  /* Link TIDAK dihapus — hanya dipindah ke akar. Menghapus folder yang berisi
+     tak boleh berarti menghapus isinya. */
+  const res = await _folderLink(user, folder, '');
+  return Object.assign({}, res, {
+    message: 'Folder "' + folder + '" dihapus. ' + res.changed + ' link dipindah ke Umum (tidak terhapus).' });
+}
+
+async function renameNoteFolder(user, oldFolder, newFolder) {
+  user = teks(user).trim();
+  oldFolder = teks(oldFolder).trim();
+  newFolder = teks(newFolder).trim();
+  if (!user) return { success: false, message: 'User tidak boleh kosong.' };
+  if (!oldFolder) return { success: false, message: 'Folder asal tidak valid.' };
+  if (!newFolder) return { success: false, message: 'Nama folder baru wajib diisi.' };
+  const res = await _folderNote(user, oldFolder, newFolder);
+  return Object.assign({}, res, {
+    message: 'Folder "' + oldFolder + '" diganti jadi "' + newFolder + '" (' + res.changed + ' catatan).' });
+}
+
+async function deleteNoteFolder(user, folder) {
+  user = teks(user).trim();
+  folder = teks(folder).trim();
+  if (!user) return { success: false, message: 'User tidak boleh kosong.' };
+  if (!folder) return { success: false, message: 'Folder tidak valid.' };
+  const res = await _folderNote(user, folder, '');
+  return Object.assign({}, res, {
+    message: 'Folder "' + folder + '" dihapus. ' + res.changed + ' catatan dipindah ke Umum.' });
+}
+
 /* Dipakai alat banding dan skrip, bukan oleh rpc.js. Tanpa ini proses Node
    menggantung menunggu pool yang masih terbuka. */
 async function tutup() {
@@ -728,5 +808,6 @@ module.exports = {
   addUserLink, updateUserLink, deleteUserLink,
   addNote, updateNote, deleteNote,
   addDashboard, updateDashboard, deleteDashboard,
+  renameUserFolder, deleteUserFolder, renameNoteFolder, deleteNoteFolder,
   _db: { pool, q, tutup, teks, stempel, pegangan },
 };

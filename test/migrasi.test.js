@@ -561,10 +561,12 @@ console.log('\n=== 15. Alat banding fungsi tulis ===');
 
      Pengecualiannya skenario penolakan, yang memang menguji pegangan tak masuk
      akal — dan itu ditandai `ditolak` sehingga terbaca sebagai pilihan. */
+  /* Yang dimaksud hanya langkah yang MENERIMA pegangan. Operasi folder tidak:
+     ia bekerja dengan nama user dan nama folder, tak pernah dengan nomor baris. */
+  const menerimaPegangan = (fn) => /^(update|delete)/.test(fn) && !/Folder$/.test(fn);
   SKENARIO.forEach((s) => {
-    s.langkah.forEach((l) => {
-      if (/^add/.test(l.fn)) return;
-      if (s.ditolak) return;
+    if (s.ditolak) return;
+    s.langkah.filter((l) => menerimaPegangan(l.fn)).forEach((l) => {
       ok(s.nama.slice(0, 30) + ': pegangan dari ctx',
         String(l.args).indexOf('ctx.pegangan') >= 0);
     });
@@ -645,6 +647,80 @@ console.log('\n=== 16. Batas pegangan di _db.js ===');
      yang menentukan batasnya, supaya tak ada yang terlewat saat ditambah. */
   const pakai = (src.match(/peganganSah\(/g) || []).length;
   ok('dipakai oleh setiap fungsi yang menerima pegangan', pakai >= 3);
+}
+
+console.log('\n=== 17. Operasi folder — dua jebakan yang diam ===');
+{
+  const src = fs.readFileSync(path.join(__dirname, '..', 'api', '_db.js'), 'utf8');
+  const sheets = fs.readFileSync(path.join(__dirname, '..', 'api', '_sheets.js'), 'utf8');
+
+  /* JEBAKAN 1 — nama folder peka huruf besar-kecil, nama user tidak.
+
+     _sheets.js memakai `u.toLowerCase() === user.toLowerCase()` untuk user tapi
+     `f === oldFolder` untuk folder. Collation database ini buta huruf besar-kecil
+     untuk KEDUANYA, jadi tanpa BINARY folder "Riset" dan "riset" ikut tergabung.
+     Penggabungan itu tak bisa dibatalkan, dan tak ada error yang muncul. */
+  ok('_sheets memang mencocokkan folder dengan ===', /f === oldFolder/.test(sheets));
+  ok('_db memakai BINARY supaya peka huruf besar-kecil', /BINARY folder = \?/.test(src));
+  ok('dan user TIDAK pakai BINARY, mengikuti collation', !/BINARY user_nama/.test(src));
+
+  /* JEBAKAN 2 — `changed` menghitung yang COCOK, bukan yang berubah.
+
+     Angka itu muncul di pesan yang dibaca orang ("3 link dipindah ke Umum").
+     affectedRows MySQL hanya menghitung baris yang nilainya betul-betul berganti,
+     jadi mengganti nama folder dengan nama yang sama persis akan melaporkan nol
+     sedangkan Sheets melaporkan jumlah penuhnya. */
+  ok('jumlahnya dihitung SELECT lebih dulu', /SELECT COUNT\(\*\) AS n/.test(src));
+  const kode = src.replace(/\/\*[\s\S]*?\*\//g, '');
+  ok('bukan diambil dari affectedRows', !/affectedRows/.test(kode));
+
+  /* Folder dihapus, isinya TIDAK — dipindah ke akar. */
+  ok('deleteUserFolder memindah ke kosong, bukan menghapus', /_folderLink\(user, folder, ''\)/.test(src));
+  ok('deleteNoteFolder juga', /_folderNote\(user, folder, ''\)/.test(src));
+  ok('tak ada DELETE di jalur folder', !/DELETE FROM `user_(links|notes)` WHERE user_nama/.test(kode));
+
+  /* Tabel yang benar-benar kosong mengembalikan daftar KOSONG, bukan daftar
+     lengkap — keluar lebih awal, ditiru dari _sheets.js. */
+  ok('tabel kosong keluar lebih awal', /if \(!Number\(semua\.n\)\)/.test(src));
+
+  /* Skenario yang membuktikannya harus ada, bukan cuma kodenya yang benar. */
+  const { SKENARIO } = require('../scripts/banding/skenario.js');
+  const folderSkenario = SKENARIO.filter((s) => s.langkah.some((l) => /Folder$/.test(l.fn)));
+  ok('ada skenario folder', folderSkenario.length >= 8);
+  ok('salah satunya menaruh folder huruf kecil untuk menguji BINARY',
+    folderSkenario.some((s) => s.langkah.some((l) => /'riset'/.test(String(l.args)))));
+  ok('salah satunya mengganti nama dengan nama yang sama',
+    SKENARIO.some((s) => s.nama.indexOf('sama dengan yang lama') > 0));
+}
+
+console.log('\n=== 18. Kuota Sheets ===');
+{
+  /* Kuota dihitung per MENIT per pengguna, dan skenario folder jauh lebih mahal:
+     tiap penambahan memicu pembacaan daftar penuh, pembersihnya satu pembacaan
+     lagi per baris. Menunggu empat detik tak ada gunanya untuk jendela satu
+     menit — dan kegagalannya menyamar jadi "panjang beda: 0 vs 9". */
+  const srcTulis = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'banding', 'tulis.js'), 'utf8');
+  ok('pesan kuota dikenali', /Quota exceeded\|rateLimitExceeded/.test(srcTulis));
+  ok('menunggu jendela kuota, bukan empat detik', /BANDING_TUNGGU_KUOTA_MS \|\| 65000/.test(srcTulis));
+  ok('pembersih yang kena kuota ikut diulang', srcTulis.indexOf('bersihkanKeduanya') > 0);
+  ok('tunggunya diumumkan, bukan diam', srcTulis.indexOf('kuota Sheets habis — menunggu') > 0);
+
+  /* Jeda tetap tak bisa benar: skenario satu langkah memakai sekitar dua
+     panggilan, skenario folder memakai ~24. Yang murah akan menunggu sia-sia
+     sementara yang mahal tetap menabrak batas — lalu menabraknya BERUNTUN,
+     karena pembersih yang gagal meninggalkan jejak yang menggagalkan skenario
+     berikutnya. Sepuluh "beda" dari satu sebab; itu sudah terjadi. */
+  ok('jedanya sebanding dengan jumlah langkah',
+    /perLangkah \* \(spek\.langkah\.length \+ 1\)/.test(srcTulis));
+
+  /* Jalan penuh memakan beberapa menit. Tanpa cara menjalankan sebagian, orang
+     berhenti menjalankannya saat menggarap satu kelompok — dan alat banding yang
+     tak dijalankan tak menilai apa pun. */
+  ok('bisa dijalankan sebagian dengan --hanya', srcTulis.indexOf("'--hanya'") > 0);
+  ok('penyaring yang tak cocok apa pun dianggap kekeliruan, bukan nol skenario',
+    srcTulis.indexOf('Tak ada skenario yang cocok') > 0);
+  ok('yang dijalankan daftar tersaring, bukan SKENARIO utuh',
+    /for \(const spek of daftar\)/.test(srcTulis));
 }
 
 console.log('\n' + passed + ' assertion lulus.\n');

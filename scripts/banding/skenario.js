@@ -50,6 +50,17 @@ const bertanda = (x) => String(x.title || '').indexOf(TANDA) === 0;
    baris siluman. Tanpa ini, jejaknya terbawa ke jalan berikutnya dan muncul
    sebagai kegagalan di skenario lain yang tak ada hubungannya. Itu sudah terjadi:
    satu jalan meninggalkan dua baris, jalan berikutnya melaporkan sembilan beda. */
+/* Skenario folder menyentuh banyak baris sekaligus, jadi jejaknya tak bisa
+   dirapikan dengan satu penghapusan per langkah. Dibersihkan borongan. */
+async function bersihkanLinkUji(be) {
+  const sisa = (await be.getAllLinks()).filter(punyaUji);
+  for (const x of sisa.sort((a, b) => b.row - a.row)) await be.deleteUserLink(UJI, x.row);
+}
+async function bersihkanNoteUji(be) {
+  const sisa = (await be.getAllNotes()).filter(punyaUji);
+  for (const x of sisa.sort((a, b) => b.row - a.row)) await be.deleteNote(UJI, x.row);
+}
+
 async function bersihkanDashboardUji(be) {
   const daftar = await be.getAllDashboards();
   const sisa = daftar.filter(bertanda);
@@ -256,5 +267,96 @@ const SKENARIO = [
     ],
   },
 ];
+
+/* ------------------------------------------------------------------ FOLDER -- */
+/* Operasi folder menyentuh BANYAK baris sekaligus — yang pertama begitu. Karena
+   itu yang diuji bukan cuma hasil akhirnya, tapi juga hitungan `changed`, yang
+   muncul di pesan yang dibaca orang ("3 link dipindah ke Umum"). */
+
+const isiFolderLink = [
+  { fn: 'addUserLink', args: () => [UJI, 'L1', 'https://contoh.invalid/f1', 'Riset'] },
+  { fn: 'addUserLink', args: () => [UJI, 'L2', 'https://contoh.invalid/f2', 'Riset'] },
+  /* Huruf kecil, sengaja: _sheets.js mencocokkan folder PEKA huruf besar-kecil
+     (`f === oldFolder`), sedangkan collation MySQL buta huruf besar-kecil. Baris
+     ini yang akan ketahuan kalau `BINARY` lupa dipasang. */
+  { fn: 'addUserLink', args: () => [UJI, 'L3', 'https://contoh.invalid/f3', 'riset'] },
+  { fn: 'addUserLink', args: () => [UJI, 'L4', 'https://contoh.invalid/f4', 'Lain'] },
+];
+
+const isiFolderNote = [
+  { fn: 'addNote', args: () => [UJI, 'N1', 'isi', 'Riset'] },
+  { fn: 'addNote', args: () => [UJI, 'N2', 'isi', 'Riset'] },
+  { fn: 'addNote', args: () => [UJI, 'N3', 'isi', 'riset'] },
+];
+
+SKENARIO.push(
+  {
+    nama: 'renameUserFolder — hanya yang persis sama huruf besar-kecilnya',
+    periksa: ['getAllLinks'], bersihkan: bersihkanLinkUji,
+    langkah: isiFolderLink.concat([
+      { fn: 'renameUserFolder', args: () => [UJI, 'Riset', 'Riset Baru'] },
+    ]),
+  },
+  {
+    /* Nama user TIDAK peka huruf besar-kecil — kebalikan dari nama folder. */
+    nama: 'renameUserFolder — nama user tak peka huruf besar-kecil',
+    periksa: ['getAllLinks'], bersihkan: bersihkanLinkUji,
+    langkah: isiFolderLink.concat([
+      { fn: 'renameUserFolder', args: () => [UJI.toUpperCase(), 'Riset', 'Dari Huruf Besar'] },
+    ]),
+  },
+  {
+    /* Diganti dengan nama yang SAMA PERSIS. Sheets tetap menghitungnya sebagai
+       berubah; affectedRows MySQL akan melaporkan nol kalau hitungannya diambil
+       dari hasil UPDATE, bukan dihitung lebih dulu. */
+    nama: 'renameUserFolder — nama baru sama dengan yang lama',
+    periksa: ['getAllLinks'], bersihkan: bersihkanLinkUji,
+    langkah: isiFolderLink.concat([
+      { fn: 'renameUserFolder', args: () => [UJI, 'Riset', 'Riset'] },
+    ]),
+  },
+  {
+    nama: 'renameUserFolder — folder yang tak ada, changed nol',
+    periksa: ['getAllLinks'], bersihkan: bersihkanLinkUji,
+    langkah: isiFolderLink.concat([
+      { fn: 'renameUserFolder', args: () => [UJI, 'TidakAda', 'Baru'] },
+    ]),
+  },
+  {
+    /* Folder dihapus, isinya TIDAK. Link pindah ke akar. */
+    nama: 'deleteUserFolder — isinya dipindah, bukan dihapus',
+    periksa: ['getAllLinks'], bersihkan: bersihkanLinkUji,
+    langkah: isiFolderLink.concat([
+      { fn: 'deleteUserFolder', args: () => [UJI, 'Riset'] },
+    ]),
+  },
+  { ditolak: true, nama: 'renameUserFolder — folder baru kosong ditolak', periksa: ['getAllLinks'],
+    langkah: [{ fn: 'renameUserFolder', args: () => [UJI, 'Riset', ''] }] },
+  { ditolak: true, nama: 'renameUserFolder — user kosong ditolak', periksa: ['getAllLinks'],
+    langkah: [{ fn: 'renameUserFolder', args: () => ['', 'Riset', 'Baru'] }] },
+  { ditolak: true, nama: 'deleteUserFolder — folder kosong ditolak', periksa: ['getAllLinks'],
+    langkah: [{ fn: 'deleteUserFolder', args: () => [UJI, ''] }] },
+
+  {
+    nama: 'renameNoteFolder — hanya yang persis sama huruf besar-kecilnya',
+    periksa: ['getAllNotes'], samarkan: POLA_STEMPEL, bersihkan: bersihkanNoteUji,
+    langkah: isiFolderNote.concat([
+      { fn: 'renameNoteFolder', args: () => [UJI, 'Riset', 'Riset Baru'] },
+    ]),
+  },
+  {
+    nama: 'deleteNoteFolder — isinya dipindah, bukan dihapus',
+    periksa: ['getAllNotes'], samarkan: POLA_STEMPEL, bersihkan: bersihkanNoteUji,
+    langkah: isiFolderNote.concat([
+      { fn: 'deleteNoteFolder', args: () => [UJI, 'Riset'] },
+    ]),
+  },
+  { ditolak: true, nama: 'renameNoteFolder — folder asal kosong ditolak',
+    periksa: ['getAllNotes'], samarkan: POLA_STEMPEL,
+    langkah: [{ fn: 'renameNoteFolder', args: () => [UJI, '', 'Baru'] }] },
+  { ditolak: true, nama: 'deleteNoteFolder — user kosong ditolak',
+    periksa: ['getAllNotes'], samarkan: POLA_STEMPEL,
+    langkah: [{ fn: 'deleteNoteFolder', args: () => ['', 'Riset'] }] },
+);
 
 module.exports = { SKENARIO, UJI, TANDA };

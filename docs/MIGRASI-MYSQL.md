@@ -414,8 +414,11 @@ dan alat banding yang sering salah akan berhenti dipercaya.
 | 1 — daftar sederhana | `getUsers` `listPinUsers` `getAllLinks` `getAllDashboards` `getAllNotes` | **cocok** |
 | 2 — berstruktur | `getTasks` `getOptions` `getComments` `getChecklist` `getActivityLog` `getNotifications` | **cocok** |
 | 3 — bersarang | `getCollabs` `getPackages` `getBootstrapData` `getAllCommentsLite` `getChecklistSummary` | **cocok** |
-| 4 — link, catatan, dashboard | 9 fungsi tulis | **cocok, 23 skenario** |
-| 4 — sisanya | 41 fungsi tulis | belum |
+| 4 — link, catatan, dashboard, folder | 13 fungsi tulis | **cocok, 35 skenario** |
+| 4 — sisanya | 37 fungsi tulis | belum |
+
+**27 dari 64 fungsi sudah pindah.** Sisanya: kolaborasi (8), user & PIN (7), task (6),
+ceklis (5), paket (4), opsi (4), komentar/notifikasi/setup (3).
 
 ### Fungsi tulis dibandingkan dengan cara lain
 
@@ -616,6 +619,6 @@ spreadsheet tidak akan ikut terbawa.
 | `scripts/banding/daftar.js` | fungsi baca mana yang dibandingkan, dan bagaimana |
 | `scripts/banding/jalan.js` | merekam acuan Sheets, lalu membandingkan `_db.js` dengannya |
 | `scripts/nonaktifkan-opsi-kembar.js` | menonaktifkan pilihan dropdown kembar lewat kolom Active |
-| `test/migrasi.test.js` | 266 assertion, ikut `npm test` |
+| `test/migrasi.test.js` | 298 assertion, ikut `npm test` |
 
 `db/dump/` **diabaikan git.** Isinya seluruh data produksi, termasuk `pm_notes`.

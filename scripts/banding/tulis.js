@@ -105,6 +105,38 @@ async function jalankanSkenario(be, spek) {
   return { hasil, sesudah };
 }
 
+/* Kuota Sheets dihitung PER MENIT per pengguna, dan skenario folder jauh lebih
+   mahal daripada yang lain: tiap penambahan memicu pembacaan daftar penuh, dan
+   pembersihnya satu pembacaan lagi per baris. Jadi kehabisan kuota di sini bukan
+   kebetulan sesekali, melainkan hal yang pasti terjadi pada jalan yang panjang.
+
+   Menunggu empat detik tak ada gunanya untuk jendela satu menit. Yang masuk akal:
+   kenali pesannya, lalu tunggu sampai jendelanya betul-betul berganti. Jalannya
+   jadi lebih lama hanya ketika memang perlu — bukan selalu. */
+const kuotaHabis = (pesan) => /Quota exceeded|rateLimitExceeded|RESOURCE_EXHAUSTED/i.test(String(pesan || ''));
+const TUNGGU_KUOTA = Number(process.env.BANDING_TUNGGU_KUOTA_MS || 65000);
+
+async function tungguKuota() {
+  console.log('     kuota Sheets habis — menunggu ' + Math.round(TUNGGU_KUOTA / 1000)
+    + ' detik supaya jendelanya berganti');
+  await new Promise((r) => setTimeout(r, TUNGGU_KUOTA));
+}
+
+/* Pembersih yang gagal karena kuota WAJIB diulang. Jejak yang tertinggal akan
+   muncul sebagai kegagalan di skenario berikutnya yang tak ada hubungannya —
+   itu sudah terjadi, dan menelusurinya memakan waktu lama. */
+async function bersihkanKeduanya(spek, sheets, db) {
+  if (!spek.bersihkan) return;
+  for (const be of [sheets, db]) {
+    try { await spek.bersihkan(be); }
+    catch (e) {
+      if (!kuotaHabis(e && e.message)) continue;
+      await tungguKuota();
+      try { await spek.bersihkan(be); } catch (e2) {}
+    }
+  }
+}
+
 async function main() {
   const uji = sheetUji();
   if (SIAPKAN) return siapkan(uji);
@@ -118,29 +150,49 @@ async function main() {
   const sheets = require('../../api/_sheets.js');
   const db = require('../../api/_db.js');
 
+  /* Jalan penuh memakan beberapa menit karena kuota. Saat menggarap satu
+     kelompok, menunggu semuanya lagi dan lagi membuat orang berhenti
+     menjalankannya — dan alat banding yang tak dijalankan tak menilai apa pun. */
+  const iHanya = process.argv.indexOf('--hanya');
+  const saring = iHanya > 0 ? String(process.argv[iHanya + 1] || '').toLowerCase() : '';
+  const daftar = saring
+    ? SKENARIO.filter((s) => s.nama.toLowerCase().indexOf(saring) >= 0)
+    : SKENARIO;
+
   console.log('  spreadsheet uji : ' + uji);
   console.log('  database        : ' + process.env.MYSQL_DATABASE);
-  console.log('  ' + SKENARIO.length + ' skenario\n');
+  if (saring) console.log('  disaring        : "' + saring + '"');
+  console.log('  ' + daftar.length + ' skenario'
+    + (saring ? ' (dari ' + SKENARIO.length + ')' : '') + '\n');
+  if (!daftar.length) throw new Error('Tak ada skenario yang cocok dengan "' + saring + '".');
 
   let cocok = 0, salah = 0;
   const gagal = [];
   const sengaja = [];
   let diulang = 0;
 
-  for (const spek of SKENARIO) {
+  for (const spek of daftar) {
     const a = await jalankanSkenario(sheets, spek);
     const b = await jalankanSkenario(db, spek);
 
     /* Dijalankan di kedua sisi, SELALU — termasuk saat skenarionya gagal di
        tengah. Jejak yang tertinggal mencemari jalan berikutnya, dan gagalnya
        akan muncul di skenario lain yang tak ada hubungannya. */
-    if (spek.bersihkan) { try { await spek.bersihkan(sheets); } catch (e) {}
-                          try { await spek.bersihkan(db); } catch (e) {} }
+    await bersihkanKeduanya(spek, sheets, db);
 
-    /* Sheets membatasi jumlah permintaan per menit per pengguna. Tanpa jeda,
-       sebagian baca gagal lalu DITELAN jadi daftar kosong oleh getAll* — dan
-       daftar kosong tak bisa dibedakan dari beda yang sungguhan. */
-    await new Promise((r) => setTimeout(r, Number(process.env.BANDING_JEDA_MS || 900)));
+    /* Jedanya SEBANDING dengan biaya skenarionya, bukan tetap.
+
+       Kuota Sheets 60 permintaan baca per menit per pengguna. Skenario satu
+       langkah memakai sekitar dua panggilan; skenario folder memakai ~24, karena
+       tiap penambahan memicu pembacaan daftar penuh dan pembersihnya satu
+       pembacaan lagi per baris. Jeda tetap berarti yang murah menunggu sia-sia
+       sementara yang mahal tetap menabrak batas.
+
+       Dan menabraknya beruntun: kuota habis membuat pembersih ikut gagal, jejak
+       tertinggal, lalu skenario berikutnya gagal karena jejak itu — bukan karena
+       ada yang salah padanya. Sepuluh "beda" dari satu sebab. */
+    const perLangkah = Number(process.env.BANDING_JEDA_MS || 4000);
+    await new Promise((r) => setTimeout(r, perLangkah * (spek.langkah.length + 1)));
 
     if (a.gagal || b.gagal) {
       salah++; gagal.push({ nama: spek.nama, d: { jalur: '', pesan: a.gagal || b.gagal } });
@@ -182,11 +234,11 @@ async function main() {
        Mengulang sekali memisahkan keduanya. Yang beda karena kuota akan lulus di
        percobaan kedua; yang beda sungguhan tetap beda. Pengulangannya ditandai
        di laporan supaya tak ada yang menyangka jalannya mulus. */
-    await new Promise((r) => setTimeout(r, 4000));
+    if (kuotaHabis(d.pesan) || kuotaHabis(a.gagal) || kuotaHabis(b.gagal)) await tungguKuota();
+    else await new Promise((r) => setTimeout(r, 4000));
     const a2 = await jalankanSkenario(sheets, spek);
     const b2 = await jalankanSkenario(db, spek);
-    if (spek.bersihkan) { try { await spek.bersihkan(sheets); } catch (e) {}
-                          try { await spek.bersihkan(db); } catch (e) {} }
+    await bersihkanKeduanya(spek, sheets, db);
     const d2 = (a2.gagal || b2.gagal) ? { jalur: '', pesan: a2.gagal || b2.gagal }
       : beda(rapikan(samarkan({ hasil: a2.hasil, sesudah: a2.sesudah }, spek.samarkan), null, false),
              rapikan(samarkan({ hasil: b2.hasil, sesudah: b2.sesudah }, spek.samarkan), null, false), '');
