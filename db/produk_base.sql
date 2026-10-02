@@ -129,7 +129,13 @@ CREATE TABLE IF NOT EXISTS tasks (
   objek           VARCHAR(255) NOT NULL DEFAULT '',
   detail          TEXT         NULL,
   dibuat_oleh     VARCHAR(100) NOT NULL DEFAULT '',
-  lintas_view     BOOLEAN      NOT NULL DEFAULT FALSE,  -- mirror ke Lintas Divisi
+  /* TEKS, bukan BOOLEAN — dan itu disengaja. rowToTask() mengembalikan sel ini
+     APA ADANYA sebagai string, jadi task yang diisi 'Ya' harus tetap terbaca 'Ya'.
+     Menyimpannya sebagai boolean memaksa semuanya jadi 'TRUE' — frontend tetap
+     jalan karena ia hanya menguji isinya, tapi nilainya berubah tanpa ada yang
+     meminta. Dan beda yang ditandai 'memang begitu' di kolom ini akan menutupi bug
+     mirror lain yang muncul kemudian. */
+  lintas_view     VARCHAR(20)  NOT NULL DEFAULT '',   -- mirror ke Lintas Divisi, teks mentah
   /* "Nynda (PM) • 2026-08-11 10:00". Dibiarkan satu teks supaya migrasinya
      setia; memecahnya jadi dua kolom boleh menyusul kalau memang dibutuhkan. */
   status_by       VARCHAR(190) NOT NULL DEFAULT '',

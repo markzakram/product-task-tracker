@@ -384,6 +384,68 @@ Jadi peralihannya tidak menyentuh 64 titik panggilan. Yang dibuat adalah `api/_d
 yang mengekspor 64 nama yang sama, lalu baris itu memilih berdasarkan env. Membalikkannya
 kalau ada masalah juga satu env, bukan deploy ulang yang panik.
 
+### Saklarnya sudah terpasang
+
+```bash
+node scripts/banding/siap.js
+```
+
+Menjawab satu pertanyaan dengan pasti: **kalau saklarnya ditukar sekarang, apa yang akan
+rusak?** Ia membaca daftar aksi langsung dari `api/rpc.js`, mencocokkannya dengan
+`api/_db.js`, memeriksa kredensial dan isi database, lalu menjawab SIAP atau BELUM SIAP
+beserta daftar fungsi yang kurang. Tidak menulis apa pun.
+
+Daftarnya dibaca dari `rpc.js`, bukan ditulis ulang — daftar salinan akan ketinggalan
+begitu ada aksi baru, dan ketinggalannya diam karena pemeriksa tetap bilang "siap".
+
+**Sumber datanya diputuskan di `api/_backend.js`**, satu berkas, dipakai `rpc.js` maupun
+`metrics.js`:
+
+```js
+const backend = SUMBER === 'mysql' ? require('./_db.js') : require('./_sheets.js');
+```
+
+Bawaannya **sengaja** `sheets`. Env yang hilang, salah ketik, atau belum sempat diset di
+lingkungan baru jatuh ke perilaku lama — bukan ke backend yang kredensialnya belum tentu
+ada. Nilai yang tak dikenal ditolak keras: `mysq1` tidak diam-diam menjalankan Sheets.
+
+### `/api/metrics` nyaris tertinggal
+
+`/api/rpc` bukan satu-satunya yang membaca spreadsheet. `api/metrics.js` juga, dan kalau
+hanya `rpc.js` yang dialihkan ia akan terus membaca spreadsheet yang **tak lagi
+diperbarui** — lalu menyajikan angka basi ke sistem OKR tanpa satu pun tanda bahwa ada
+yang salah. Angka yang salah diam-diam jauh lebih buruk daripada endpoint yang mati,
+karena tak ada yang memeriksanya ulang.
+
+Karena itu keduanya kini memutuskan lewat `_backend.js` yang sama; tak mungkin terpisah.
+
+| Endpoint | Sebelum | Sesudah `DATA_SOURCE=mysql` |
+|---|---|---|
+| `/api/rpc` | spreadsheet | **MySQL** |
+| `/api/metrics` | spreadsheet | **MySQL** |
+| `/api/mcp` → OKR | sheet OKR terpisah | **tetap sheet OKR** |
+| Login Google | OAuth | tetap OAuth |
+
+Sheet OKR milik manager tetap di Google — itu spreadsheet lain, bukan bagian migrasi ini.
+`googleapis` juga tetap terpasang karena login Google memakainya untuk memverifikasi token,
+bukan untuk membaca sheet.
+
+**Jangan hapus kredensial Google.** `GOOGLE_SERVICE_ACCOUNT_JSON` dan `SPREADSHEET_ID`
+masih dibutuhkan sheet OKR, dan selama masa transisi keduanya adalah jalan pulang:
+tanpa itu, `DATA_SOURCE=sheets` tak bisa menyelamatkan apa pun.
+
+### Yang hilang saat pindah: riwayat versi
+
+Spreadsheet punya riwayat versi otomatis dari Google — bisa mundur ke keadaan minggu lalu
+kapan saja, tanpa menyiapkan apa pun lebih dulu. **MySQL tidak begitu.** Begitu pindah,
+tak ada cadangan sampai ada yang membuatnya.
+
+Tanyakan ke IT **sebelum** peralihan, bukan sesudah: apakah `produk_base` masuk jadwal
+backup mereka, dan berapa lama disimpan. Kalau tidak, itu harus disiapkan sendiri.
+
+Dan sesudah peralihan, jadikan spreadsheet-nya **hanya-baca** — supaya tak ada yang
+menyunting di sana lalu bingung kenapa perubahannya tak muncul.
+
 ### Alat banding — kerjakan ini LEBIH DULU, sebelum `_db.js`
 
 ```bash

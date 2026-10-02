@@ -2575,13 +2575,24 @@ const MENTION_ALL = ['everyone', 'semua', 'all'];
 // "Dev" & "Lihat Saja" sengaja tidak ikut: yang pertama akun teknis, yang kedua tamu baca.
 const MENTION_ROLES = ['manager', 'leader', 'staff', 'magang'];
 
-async function createMentionNotifications(refId, author, message) {
+/* Penentu SIAPA yang menerima notifikasi, dipisah dari penulisannya.
+
+   Pencocokannya berlapis dan tiap lapis ada sebabnya: nama terpanjang dulu supaya
+   "Staff Data" tak tertukar dengan "Staff Soal", batas kata supaya "@Staff" tak
+   mengena di tengah kata, dan nama selalu menang atas peran supaya "@Magang A"
+   tidak jatuh jadi "@magang" lalu menotifikasi seluruh anak magang.
+
+   Menyalin aturan ini ke api/_db.js berarti dua tempat yang bisa menyimpang soal
+   siapa diberitahu — dan menyimpang di sini berarti orang yang salah membaca
+   percakapan yang bukan haknya, atau orang yang benar tak pernah tahu ia ditag.
+   Jadi kedua backend memanggil fungsi yang sama ini.
+
+   Murni: tak menyentuh penyimpanan apa pun. `pics` disuapkan pemanggil, dan _users
+   sudah dimuat lebih dulu oleh pemanggil juga. */
+function susunMention(author, message, pics) {
   const msg = String(message || '');
-  if (msg.indexOf('@') < 0) return;
-  let pics = [];
-  try { pics = (await getOptions()).pic || []; } catch (e) { pics = []; }
+  if (msg.indexOf('@') < 0) return null;
   const validPics = pics.filter(p => baseName(p) !== 'lintas divisi');   // hindari user lihat-saja
-  try { await loadUsers(); } catch (e) { /* peran tak wajib */ }
   // Kumpulan nama = dropdown PIC + baris USERS. Kalau hanya PIC, nama yang belum masuk
   // dropdown gagal dicocokkan lalu JATUH ke tag peran — "@Magang A" berubah jadi "@magang"
   // dan menotifikasi seluruh anak magang. Nama harus selalu menang atas peran.
@@ -2631,13 +2642,22 @@ async function createMentionNotifications(refId, author, message) {
       targets.add(u.name);
     });
   }
-  if (!targets.size) return;
+  if (!targets.size) return null;
 
   const sasaran = tagAll ? 'semua'
     : (peranDitag.size ? Array.from(peranDitag).join('/') : 'Anda');
   const text = `${author} men-tag ${sasaran}: "${msg.slice(0, 90)}"`;
-  for (const t of targets) {
-    await addNotification(t, 'mention', refId, author, text);
+  return { targets: Array.from(targets), text };
+}
+
+async function createMentionNotifications(refId, author, message) {
+  let pics = [];
+  try { pics = (await getOptions()).pic || []; } catch (e) { pics = []; }
+  try { await loadUsers(); } catch (e) { /* peran tak wajib */ }
+  const m = susunMention(author, message, pics);
+  if (!m) return;
+  for (const t of m.targets) {
+    await addNotification(t, 'mention', refId, author, m.text);
   }
 }
 
@@ -3446,6 +3466,7 @@ module.exports = {
     loadCollabsRaw, readPackages, buildStepIndex,
     getAllCommentsLite, getChecklistSummary,
     susunBootstrap,
+    susunMention, addNotification, logActivity, createMentionNotifications,
     formatDate, toSheetDate, generateTaskId, rowToTask, taskToRow, findRowByTaskId, serialToDate, nowStamp,
     isManagerActor, canApproveDone, getDoneApprovers, getManagers, isDoneStatus,
     isLeaderActor, isStaffActor, isMagangActor, canManageUsers, roleOfActor,

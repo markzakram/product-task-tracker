@@ -359,4 +359,121 @@ SKENARIO.push(
     langkah: [{ fn: 'deleteNoteFolder', args: () => ['', 'Riset'] }] },
 );
 
-module.exports = { SKENARIO, UJI, TANDA };
+/* ------------------------------------------------------- OPSI & KOMENTAR -- */
+/* Kelompok ini punya dua kendala yang tak ada di kelompok sebelumnya.
+
+   1. TAK ADA JALAN MENGHAPUS. `deleteOption` hanya menonaktifkan, dan komentar
+      tak punya fungsi hapus sama sekali. Jadi baris uji MENUMPUK di spreadsheet
+      uji. Itu tidak merusak perbandingan — `--siapkan` menyalin staging ke MySQL
+      tiap jalan, sehingga kedua sisi menumpuk hal yang sama — tapi tetap perlu
+      disebut, dan nilainya diberi awalan yang mencolok supaya jelas asalnya.
+
+   2. CELAH YANG DISENGAJA: `editOption` untuk tipe tanpa induk mengganti nama
+      opsi DI SELURUH TASK. Di sini ia diuji dengan nilai baru yang belum dipakai
+      task mana pun, jadi yang terbukti baru mekanismenya — bukan akibatnya pada
+      task. Mengujinya dengan nilai sungguhan berarti mengubah ratusan task
+      staging massal, dan pembalikannya tak bisa dijamin kalau jalannya terputus.
+      Celah ini ditutup saat `saveTask` sudah pindah: nanti task uji bisa dibuat
+      sendiri, dipakai, lalu dibuang. */
+
+const OPSI = 'ZZUjiBanding';
+const TUGAS_UJI = 'TSK-UJIBANDING';
+
+SKENARIO.push(
+  {
+    nama: 'saveOption — tambah, nonaktifkan, nyalakan lagi',
+    periksa: ['getOptions'],
+    langkah: [
+      { fn: 'saveOption', args: () => ['platform', OPSI, ''] },
+      { fn: 'deleteOption', args: () => ['platform', OPSI, ''] },
+      /* Yang sudah ada dinyalakan kembali, bukan ditambah lagi — kalau ditambah,
+         dropdown menampilkan nilai yang sama dua kali. */
+      { fn: 'saveOption', args: () => ['platform', OPSI, ''] },
+      { fn: 'deleteOption', args: () => ['platform', OPSI, ''] },
+    ],
+  },
+  {
+    nama: 'saveOption — nilai sama beda huruf besar-kecil dianggap satu',
+    periksa: ['getOptions'],
+    langkah: [
+      { fn: 'saveOption', args: () => ['platform', OPSI, ''] },
+      { fn: 'saveOption', args: () => ['platform', OPSI.toLowerCase(), ''] },
+      { fn: 'deleteOption', args: () => ['platform', OPSI, ''] },
+    ],
+  },
+  { ditolak: true, nama: 'saveOption — tipe tak dikenal ditolak', periksa: ['getOptions'],
+    langkah: [{ fn: 'saveOption', args: () => ['bukantipe', OPSI, ''] }] },
+  { ditolak: true, nama: 'saveOption — nilai kosong ditolak', periksa: ['getOptions'],
+    langkah: [{ fn: 'saveOption', args: () => ['platform', '', ''] }] },
+  { ditolak: true, nama: 'saveOption — verb tanpa induk ditolak', periksa: ['getOptions'],
+    langkah: [{ fn: 'saveOption', args: () => ['verb', OPSI, ''] }] },
+  {
+    /* Verb memakai induk, jadi editOption keluar lebih awal dan TIDAK menyentuh
+       task sama sekali — nama task lama sengaja dibiarkan. */
+    nama: 'saveOption + editOption — verb dengan induk',
+    periksa: ['getOptions'],
+    langkah: [
+      { fn: 'saveOption', args: () => ['verb', OPSI, 'Kreatif'] },
+      { fn: 'editOption', args: () => ['verb', OPSI, OPSI + ' Baru', 'Kreatif'] },
+      /* Dikembalikan supaya barisnya dipakai ulang jalan berikutnya, bukan
+         ditinggalkan jadi baris baru yang menumpuk. */
+      { fn: 'editOption', args: () => ['verb', OPSI + ' Baru', OPSI, 'Kreatif'] },
+      { fn: 'deleteOption', args: () => ['verb', OPSI, 'Kreatif'] },
+    ],
+  },
+  {
+    /* Tipe tanpa induk: editOption juga mengganti nilainya di seluruh task dan
+       mengembalikan `tasks`. Di sini nol task terkena — lihat catatan celah. */
+    nama: 'editOption — tipe tanpa induk mengembalikan tasks juga',
+    periksa: ['getOptions'],
+    langkah: [
+      { fn: 'saveOption', args: () => ['platform', OPSI, ''] },
+      { fn: 'editOption', args: () => ['platform', OPSI, OPSI + ' Baru', ''] },
+      { fn: 'editOption', args: () => ['platform', OPSI + ' Baru', OPSI, ''] },
+      { fn: 'deleteOption', args: () => ['platform', OPSI, ''] },
+    ],
+  },
+  { ditolak: true, nama: 'editOption — opsi tak ketemu ditolak', periksa: ['getOptions'],
+    langkah: [{ fn: 'editOption', args: () => ['platform', 'TidakAdaSamaSekali', 'Baru', ''] }] },
+  { ditolak: true, nama: 'editOption — nilai baru kosong ditolak', periksa: ['getOptions'],
+    langkah: [{ fn: 'editOption', args: () => ['platform', OPSI, '', ''] }] },
+  { ditolak: true, nama: 'deleteOption — yang tak ada tetap dianggap berhasil', periksa: ['getOptions'],
+    langkah: [{ fn: 'deleteOption', args: () => ['platform', 'TidakAdaSamaSekali', ''] }] },
+
+  { ditolak: true, nama: 'reorderOptions — bukan Manager ditolak', periksa: ['getOptions'],
+    langkah: [{ fn: 'reorderOptions', args: () => ['platform', ['A', 'B'], 'ujibanding'] }] },
+  { ditolak: true, nama: 'reorderOptions — jenis kosong ditolak', periksa: ['getOptions'],
+    langkah: [{ fn: 'reorderOptions', args: () => ['', ['A'], 'Nynda (PM)'] }] },
+
+  {
+    /* Komentar tak punya fungsi hapus di v1 — tak ada jalan membersihkannya
+       lewat antarmuka yang sama. Barisnya menumpuk di spreadsheet uji, dan itu
+       dinyatakan di sini supaya terbaca sebagai konsekuensi yang diketahui,
+       bukan pembersihan yang kelupaan. Perbandingannya tetap sah karena
+       --siapkan menyalin staging ke MySQL tiap jalan: kedua sisi menumpuk
+       baris yang sama. */
+    menumpuk: 'addComment tak punya pasangan hapus di v1; barisnya tertinggal di sheet uji',
+    nama: 'addComment — komentar biasa',
+    periksa: [['getComments', TUGAS_UJI], ['getNotifications', UJI]], samarkan: { timestamp: /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/ },
+    langkah: [
+      { fn: 'addComment', args: () => [{ taskId: TUGAS_UJI, author: UJI, message: 'Komentar uji banding' }] },
+    ],
+  },
+  { ditolak: true, nama: 'addComment — pesan kosong ditolak', periksa: [['getComments', TUGAS_UJI]],
+    langkah: [{ fn: 'addComment', args: () => [{ taskId: TUGAS_UJI, author: UJI, message: '' }] }] },
+  { ditolak: true, nama: 'addComment — tanpa task id ditolak', periksa: [['getComments', TUGAS_UJI]],
+    langkah: [{ fn: 'addComment', args: () => [{ taskId: '', author: UJI, message: 'Halo' }] }] },
+
+  {
+    /* Menandai sudah dibaca untuk user yang tak punya notifikasi: aman dijalankan
+       berulang, dan membuktikan jalur baseName-nya ("Nynda (PM)" -> "nynda"). */
+    nama: 'markNotificationsRead — user tanpa notifikasi',
+    periksa: [['getNotifications', UJI]],
+    langkah: [
+      { fn: 'markNotificationsRead', args: () => [UJI, ''] },
+      { fn: 'markNotificationsRead', args: () => [UJI, TUGAS_UJI] },
+    ],
+  },
+);
+
+module.exports = { SKENARIO, UJI, TANDA, OPSI, TUGAS_UJI };

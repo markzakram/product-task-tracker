@@ -240,7 +240,7 @@ async function getTasks(/* pre */) {
            getCollabs mengembalikan mirror sebagai BOOLEAN untuk kolom yang sama
            bentuknya. Ketidakkonsistenan itu ditiru, bukan dirapikan: frontend
            sudah terlanjur bergantung pada keduanya. */
-        mirror: r.lintas_view ? 'TRUE' : '',
+        mirror: teks(r.lintas_view).trim(),
         statusBy: teks(r.status_by).trim(),
         /* Medan maya — tak ada kolomnya di sheet, disediakan agar UI lama jalan. */
         startDate: createdDate,
@@ -793,6 +793,253 @@ async function deleteNoteFolder(user, folder) {
     message: 'Folder "' + folder + '" dihapus. ' + res.changed + ' catatan dipindah ke Umum.' });
 }
 
+/* ------------------------------------------------------------------ */
+/* Penulis internal — dipakai hampir semua fungsi tulis                 */
+/* ------------------------------------------------------------------ */
+
+const { susunMention, isManagerActor, USES_PARENT_DB } = (function () {
+  const i = require('./_sheets.js')._internals;
+  /* USES_PARENT tidak diekspor; isinya tetap dan pendek, tapi menyalinnya berarti
+     dua tempat yang harus ikut berubah. Diturunkan dari perilaku _sheets.js:
+     hanya verb dan object yang memakai kolom induk. */
+  return { susunMention: i.susunMention, isManagerActor: i.isManagerActor,
+    USES_PARENT_DB: ['verb', 'object'] };
+}());
+
+/* _users adalah keadaan modul di _sheets.js, dan isManagerActor, getManagers,
+   serta susunMention semuanya membacanya. Harus diisi dari MySQL sebelum dipakai
+   — kalau tidak, pemeriksaan peran jatuh ke kosong dan menolak semua orang. */
+async function muatUsers() {
+  const baris = await q('SELECT nama, peran, aktif FROM users ORDER BY nama');
+  setUsersFromRows(baris.map((r) => [teks(r.nama), teks(r.peran), r.aktif ? 'TRUE' : 'FALSE']));
+}
+
+/* Pencatatan tak boleh menggagalkan operasi utamanya — sama seperti di _sheets.js.
+   Riwayat yang hilang satu baris jauh lebih ringan daripada task yang gagal
+   tersimpan karena pencatatannya bermasalah. */
+async function logActivity(user, action, taskId, detail, statusFrom, statusTo) {
+  try {
+    await q('INSERT INTO activity_log (terjadi_at, user_nama, action, task_id, detail, status_lama, status_baru)'
+      + ' VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [nowStamp(), teks(user) || 'Unknown', teks(action), teks(taskId),
+        teks(detail), teks(statusFrom), teks(statusTo)]);
+  } catch (e) { /* sengaja ditelan */ }
+}
+
+async function addNotification(forUser, type, refId, from, text) {
+  if (!teks(forUser).trim()) return;
+  /* Bentuk id-nya ditiru persis: 'N' + epoch + '-' + acak. Bukan AUTO_INCREMENT,
+     karena id ini sudah terlanjur jadi kunci utama di tabelnya. */
+  const id = 'N' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
+  await q('INSERT INTO notifications (id, for_user, tipe, ref_id, dari, teks, dibuat_at, dibaca)'
+    + ' VALUES (?, ?, ?, ?, ?, ?, ?, 0)',
+    [id, teks(forUser), teks(type), teks(refId), teks(from), teks(text), nowStamp()]);
+}
+
+async function createMentionNotifications(refId, author, message) {
+  let pics = [];
+  try { pics = (await getOptions()).pic || []; } catch (e) { pics = []; }
+  try { await muatUsers(); } catch (e) { /* peran tak wajib */ }
+  /* Penentu SIAPA yang ditag dipakai bersama, bukan disalin: menyimpang di sana
+     berarti orang yang salah membaca percakapan yang bukan haknya, atau orang
+     yang benar tak pernah tahu ia ditag. */
+  const m = susunMention(author, message, pics);
+  if (!m) return;
+  for (const t of m.targets) await addNotification(t, 'mention', refId, author, m.text);
+}
+
+/* ------------------------------------------------------------------ */
+/* Opsi dropdown                                                       */
+/* ------------------------------------------------------------------ */
+
+/* Pencocokan opsi di _sheets.js tidak seragam, dan ketidakseragamannya ditiru:
+
+     tipe   : `r.type === type`                    PEKA huruf besar-kecil
+     nilai  : `r.value.toLowerCase() === ...`      buta
+     induk  : `r.parent.toLowerCase() === ...`     buta
+
+   Collation database ini buta untuk ketiganya, jadi `tipe` butuh BINARY. Tanpa
+   itu, menyimpan opsi bertipe "Status" akan menimpa yang bertipe "status". */
+async function _cariOpsi(type, value, parent) {
+  const pakaiInduk = USES_PARENT_DB.indexOf(type) >= 0;
+  const sql = 'SELECT id FROM options WHERE BINARY tipe = ? AND nilai = ?'
+    + (pakaiInduk ? ' AND induk = ?' : '') + ' ORDER BY id LIMIT 1';
+  const args = pakaiInduk ? [type, value, parent] : [type, value];
+  const baris = await q(sql, args);
+  return baris.length ? Number(baris[0].id) : 0;
+}
+
+async function saveOption(type, value, parent) {
+  type = teks(type).trim();
+  value = teks(value).trim();
+  parent = teks(parent).trim();
+  if (OPTION_TYPES.indexOf(type) < 0) return { success: false, message: 'Tipe opsi tidak valid.' };
+  if (!value) return { success: false, message: 'Nilai opsi tidak boleh kosong.' };
+  if (USES_PARENT_DB.indexOf(type) >= 0 && !parent) {
+    return { success: false, message: 'Opsi ini wajib punya induk (parent).' };
+  }
+  const id = await _cariOpsi(type, value, parent);
+  if (id) {
+    /* Yang sudah ada dinyalakan kembali, bukan ditambah lagi — menambah akan
+       membuat dua baris bernilai sama yang tampil dua kali di dropdown. */
+    await q('UPDATE options SET aktif = 1, induk = ? WHERE id = ?', [parent, id]);
+  } else {
+    await q('INSERT INTO options (tipe, nilai, aktif, induk, urutan) VALUES (?, ?, 1, ?, 0)',
+      [type, value, parent]);
+  }
+  return { success: true, message: 'Opsi berhasil disimpan.', options: await getOptions() };
+}
+
+async function deleteOption(type, value, parent) {
+  type = teks(type).trim();
+  value = teks(value).trim();
+  parent = teks(parent).trim();
+  if (OPTION_TYPES.indexOf(type) < 0) return { success: false, message: 'Tipe opsi tidak valid.' };
+  const id = await _cariOpsi(type, value, parent);
+  /* Dinonaktifkan, bukan dihapus: task lama masih menyimpan nilainya sebagai teks,
+     dan menghapus barisnya akan membuat nilai itu tak dikenali lagi di layar.
+     Yang tak ketemu pun tetap dianggap berhasil — ditiru apa adanya. */
+  if (id) await q('UPDATE options SET aktif = 0 WHERE id = ?', [id]);
+  return { success: true, message: 'Opsi berhasil dinonaktifkan.', options: await getOptions() };
+}
+
+/* Tipe opsi yang namanya ikut tertulis di task. Mengganti nama opsi berarti
+   mengganti nilainya di seluruh task, kalau tidak task lama menunjuk pilihan
+   yang sudah tak ada di dropdown. `division` dan `object` tak punya kolomnya. */
+const KOLOM_TASK_OPSI = {
+  status: 'status', priority: 'kesulitan', stage: 'stage',
+  platform: 'platform', pic: 'pic', support: 'support',
+};
+
+async function editOption(type, oldValue, newValue, parent) {
+  type = teks(type).trim();
+  oldValue = teks(oldValue).trim();
+  newValue = teks(newValue).trim();
+  parent = teks(parent).trim();
+  if (OPTION_TYPES.indexOf(type) < 0) return { success: false, message: 'Tipe opsi tidak valid.' };
+  if (!oldValue || !newValue) return { success: false, message: 'Nilai lama/baru tidak boleh kosong.' };
+  const id = await _cariOpsi(type, oldValue, parent);
+  if (!id) return { success: false, message: 'Opsi tidak ditemukan.' };
+
+  /* Nama baru bisa SUDAH dipakai baris lain — termasuk baris yang sudah
+     dinonaktifkan. Kasusnya nyata: "Hold" dinonaktifkan, lalu kemudian "Pause"
+     diganti namanya jadi "Hold".
+
+     Di Sheets itu lolos begitu saja dan menghasilkan dua baris bernilai sama;
+     getOptions menyaring yang nonaktif dan membuang kembar, jadi di layar tetap
+     terlihat satu. Di sini kunci unik (tipe, nilai) menolaknya, dan tanpa
+     penanganan ini yang sampai ke layar adalah galat SQL mentah — 500, bukan
+     pesan yang bisa dimengerti.
+
+     Yang terlihat dibuat sama: baris yang bentrok dibuang, baris yang sedang
+     diganti nama yang bertahan beserta urutannya. Bedanya hanya di penyimpanan
+     — v1 menyisakan baris mati yang tak pernah tampil di mana pun. */
+  const bentrok = await q(
+    'SELECT id FROM options WHERE BINARY tipe = ? AND nilai = ? AND id <> ?',
+    [type, newValue, id]);
+  for (const b of bentrok) await q('DELETE FROM options WHERE id = ?', [b.id]);
+
+  await q('UPDATE options SET nilai = ? WHERE id = ?', [newValue, id]);
+
+  if (USES_PARENT_DB.indexOf(type) >= 0) {
+    /* Kata kerja / objek: cukup ganti nama opsinya. Nama task lama memang TIDAK
+       diubah otomatis — itu keputusan v1, bukan kelalaian. */
+    return { success: true, message: '"' + oldValue + '" diubah menjadi "' + newValue + '".',
+      options: await getOptions() };
+  }
+
+  const kol = KOLOM_TASK_OPSI[type];
+  if (kol === 'support') {
+    /* Support berisi BEBERAPA nama dipisah koma, jadi tak bisa diganti borongan.
+       Tiap baris dibaca, bagiannya dicocokkan satu per satu, lalu disusun ulang
+       dengan pemisah ", " — sama persis seperti _sheets.js. */
+    const baris = await q('SELECT task_id, support FROM tasks WHERE support <> \'\'');
+    for (const r of baris) {
+      const bagian = teks(r.support).split(',').map((x) => x.trim()).filter(Boolean);
+      if (!bagian.some((p) => p.toLowerCase() === oldValue.toLowerCase())) continue;
+      const baru = bagian.map((p) => (p.toLowerCase() === oldValue.toLowerCase() ? newValue : p)).join(', ');
+      await q('UPDATE tasks SET support = ? WHERE task_id = ?', [baru, r.task_id]);
+    }
+  } else if (kol) {
+    /* Collation buta huruf besar-kecil, sama seperti `cur.toLowerCase() === ...`. */
+    await q('UPDATE tasks SET `' + kol + '` = ? WHERE `' + kol + '` = ?', [newValue, oldValue]);
+  }
+
+  return { success: true, message: '"' + oldValue + '" diubah menjadi "' + newValue + '".',
+    options: await getOptions(), tasks: await getTasks() };
+}
+
+async function reorderOptions(type, values, actor) {
+  type = teks(type).trim();
+  if (!type) return { success: false, message: 'Jenis dropdown tidak disebut.' };
+  await muatUsers();
+  if (!isManagerActor(actor)) {
+    return { success: false, message: 'Hanya Manager yang bisa mengatur urutan dropdown.' };
+  }
+  /* Di sini tipe dicocokkan BUTA huruf besar-kecil — kebalikan dari _cariOpsi.
+     Ketidakseragaman itu ada di v1 dan ditiru, bukan dirapikan. */
+  const milik = await q(
+    'SELECT id, nilai FROM options WHERE aktif = 1 AND tipe = ?'
+    + ' ORDER BY (urutan = 0) ASC, urutan ASC, id ASC', [type]);
+
+  const urut = (values || []).map((v) => teks(v).trim()).filter(Boolean);
+  const data = [];
+  const sudah = new Set();
+  urut.forEach((v, i) => {
+    /* Kembar yang sama-sama aktif diberi nomor SAMA supaya tetap berdampingan. */
+    milik.forEach((r) => {
+      if (sudah.has(r.id) || teks(r.nilai).toLowerCase() !== v.toLowerCase()) return;
+      sudah.add(r.id);
+      data.push([Number(r.id), i + 1]);
+    });
+  });
+  /* Yang tak disebut ditaruh sesudahnya, bukan dibiarkan ber-urutan nol — kalau
+     tidak, ia melompat ke belakang semua pada pengurutan berikutnya dan urutannya
+     terlihat berubah sendiri. */
+  let n = urut.length;
+  milik.forEach((r) => { if (!sudah.has(r.id)) data.push([Number(r.id), ++n]); });
+
+  if (!data.length) return { success: false, message: 'Tak ada pilihan yang cocok untuk diurutkan.' };
+  for (const [id, nomor] of data) await q('UPDATE options SET urutan = ? WHERE id = ?', [nomor, id]);
+  await logActivity(actor, 'Option Reorder', '', 'Urutan dropdown ' + type + ' diubah');
+  return { success: true, message: 'Urutan dropdown disimpan.', options: await getOptions() };
+}
+
+/* ------------------------------------------------------------------ */
+/* Komentar & notifikasi                                               */
+/* ------------------------------------------------------------------ */
+
+async function addComment(payload) {
+  const taskId = teks(payload && payload.taskId).trim();
+  const author = teks((payload && payload.author) || 'Unknown').trim();
+  const message = teks(payload && payload.message).trim();
+  if (!taskId) return { success: false, message: 'Task ID tidak valid.' };
+  if (!message) return { success: false, message: 'Komentar tidak boleh kosong.' };
+
+  await q('INSERT INTO comments (dibuat_at, task_id, author, message) VALUES (?, ?, ?, ?)',
+    [nowStamp(), taskId, author, message]);
+  await logActivity(author, 'Comment', taskId,
+    message.length > 120 ? message.slice(0, 117) + '...' : message);
+  await createMentionNotifications(taskId, author, message).catch(() => {});
+  return { success: true, message: 'Komentar berhasil ditambahkan.', comments: await getComments(taskId) };
+}
+
+async function markNotificationsRead(user, refId) {
+  const u = baseName(user);
+  const ref = teks(refId).trim();
+  /* baseName membuang imbuhan dalam kurung lalu mengecilkan huruf ("Nynda (PM)"
+     cocok dengan "nynda"), jadi penyaringannya tak bisa diserahkan ke SQL. Dibaca
+     dulu, dicocokkan di sini dengan fungsi yang sama, baru ditandai. */
+  const baris = await q('SELECT id, for_user, ref_id, dibaca FROM notifications WHERE dibaca = 0');
+  const sasaran = baris
+    .filter((r) => baseName(r.for_user) === u && (!ref || teks(r.ref_id).trim() === ref))
+    .map((r) => r.id);
+  if (sasaran.length) {
+    await q('UPDATE notifications SET dibaca = 1 WHERE id IN (?)', [sasaran]);
+  }
+  return { success: true, notifications: await getNotifications(user) };
+}
+
 /* Dipakai alat banding dan skrip, bukan oleh rpc.js. Tanpa ini proses Node
    menggantung menunggu pool yang masih terbuka. */
 async function tutup() {
@@ -809,5 +1056,7 @@ module.exports = {
   addNote, updateNote, deleteNote,
   addDashboard, updateDashboard, deleteDashboard,
   renameUserFolder, deleteUserFolder, renameNoteFolder, deleteNoteFolder,
+  saveOption, editOption, deleteOption, reorderOptions,
+  addComment, markNotificationsRead,
   _db: { pool, q, tutup, teks, stempel, pegangan },
 };

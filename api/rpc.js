@@ -11,7 +11,10 @@
  * ============================================================
  */
 
-const backend = require('./_sheets'); // rpc dispatcher
+/* Sumber datanya diputuskan di satu tempat — lihat api/_backend.js.
+   HANDLERS di bawah memanggil backend.<fungsi> lewat satu variabel, jadi menukar
+   sumbernya di sana menukar semuanya; 60 titik panggilan tak tersentuh. */
+const { backend } = require('./_backend.js'); // rpc dispatcher
 const crypto = require('crypto');
 
 // Sesi admin ringan (HMAC) untuk login Google: payload {email, exp} ditandatangani SESSION_SECRET.

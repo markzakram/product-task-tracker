@@ -551,8 +551,11 @@ console.log('\n=== 15. Alat banding fungsi tulis ===');
      jalan.js. Memakai fungsi yang belum terbukti berarti menilai dengan alat
      yang sendirinya belum tentu benar. */
   const { DAFTAR } = require('../scripts/banding/daftar.js');
+  /* Entri `periksa` boleh berupa nama saja atau [nama, ...argumen] — getComments
+     dan getNotifications memerlukan argumennya. */
+  const namaPembaca = (p) => (Array.isArray(p) ? p[0] : p);
   ok('fungsi penilainya semua sudah terbukti di jalan.js',
-    SKENARIO.every((s) => (s.periksa || []).every((n) => DAFTAR.some((d) => d.nama === n))));
+    SKENARIO.every((s) => (s.periksa || []).every((p) => DAFTAR.some((d) => d.nama === namaPembaca(p)))));
 
   /* Pegangan TIDAK boleh ditulis tetap. Sheets memberi nomor baris, MySQL memberi
      id, dan keduanya tak akan pernah sama — angka tetap yang kebetulan benar di
@@ -561,9 +564,13 @@ console.log('\n=== 15. Alat banding fungsi tulis ===');
 
      Pengecualiannya skenario penolakan, yang memang menguji pegangan tak masuk
      akal — dan itu ditandai `ditolak` sehingga terbaca sebagai pilihan. */
-  /* Yang dimaksud hanya langkah yang MENERIMA pegangan. Operasi folder tidak:
-     ia bekerja dengan nama user dan nama folder, tak pernah dengan nomor baris. */
-  const menerimaPegangan = (fn) => /^(update|delete)/.test(fn) && !/Folder$/.test(fn);
+  /* Daftarnya ditulis tegas, bukan ditebak dari pola nama. Pola sudah dua kali
+     meleset: operasi folder bekerja dengan nama folder, dan operasi opsi dengan
+     tipe dan nilai — tak satu pun menerima nomor baris, padahal namanya berawalan
+     "delete". Daftar yang salah akan ketahuan langsung; pola yang salah diam. */
+  const PENERIMA_PEGANGAN = ['updateUserLink', 'deleteUserLink',
+    'updateNote', 'deleteNote', 'updateDashboard', 'deleteDashboard'];
+  const menerimaPegangan = (fn) => PENERIMA_PEGANGAN.indexOf(fn) >= 0;
   SKENARIO.forEach((s) => {
     if (s.ditolak) return;
     s.langkah.filter((l) => menerimaPegangan(l.fn)).forEach((l) => {
@@ -584,8 +591,12 @@ console.log('\n=== 15. Alat banding fungsi tulis ===');
        jejak yang terbawa membuat jalan berikutnya gagal dengan sebab yang tak ada
        hubungannya. Itu sudah terjadi: satu jalan meninggalkan dua baris, jalan
        berikutnya melaporkan sembilan beda. */
-    ok(s.nama.slice(0, 30) + ': jejaknya dirapikan',
-      tambah === 0 || hapus >= 1 || typeof s.bersihkan === 'function');
+    /* Sebagian memang tak bisa dibersihkan: komentar tak punya fungsi hapus di
+       v1. Itu boleh, asalkan DINYATAKAN dengan alasannya — supaya terbaca sebagai
+       konsekuensi yang diketahui, bukan pembersihan yang kelupaan. */
+    ok(s.nama.slice(0, 30) + ': jejaknya dirapikan atau menumpuknya dinyatakan',
+      tambah === 0 || hapus >= 1 || typeof s.bersihkan === 'function'
+      || (typeof s.menumpuk === 'string' && s.menumpuk.length > 30));
   });
 
   eq('nama user uji mudah dikenali kalau ada yang tertinggal', UJI, 'ujibanding');
@@ -647,6 +658,35 @@ console.log('\n=== 16. Batas pegangan di _db.js ===');
      yang menentukan batasnya, supaya tak ada yang terlewat saat ditambah. */
   const pakai = (src.match(/peganganSah\(/g) || []).length;
   ok('dipakai oleh setiap fungsi yang menerima pegangan', pakai >= 3);
+}
+
+console.log('\n=== 16b. mirror task adalah TEKS, bukan boolean ===');
+{
+  /* rowToTask() mengembalikan sel Lintas View APA ADANYA sebagai string. Task yang
+     diisi "Ya" harus tetap terbaca "Ya" — di staging ada 14 yang begitu, di
+     produksi belum ada satu pun.
+
+     Menyimpannya sebagai boolean memaksa semuanya jadi "TRUE". Frontend tetap
+     jalan karena ia cuma mengecilkan huruf lalu menguji isinya, jadi tak ada yang
+     rusak — nilainya saja yang berubah tanpa ada yang meminta.
+
+     Yang membuatnya pantas diperbaiki, bukan dimaklumi: menandainya "beda yang
+     disengaja" akan menutupi bug mirror LAIN yang muncul kemudian di kolom yang
+     sama. Satu tanda maklum menelan semua temuan sesudahnya. */
+  const ddl = fs.readFileSync(path.join(__dirname, '..', 'db', 'produk_base.sql'), 'utf8');
+  ok('kolomnya VARCHAR di DDL', /lintas_view\s+VARCHAR/.test(ddl));
+  ok('bukan BOOLEAN lagi', !/lintas_view\s+BOOLEAN/.test(ddl));
+
+  const spek = TABEL.find((t) => t.tabel === 'tasks');
+  ok('migrasi menyimpannya apa adanya',
+    spek.kolom.find((k) => k[0] === 'lintas_view')[1] === T.teks);
+
+  const src = fs.readFileSync(path.join(__dirname, '..', 'api', '_db.js'), 'utf8');
+  ok('lapisan baca tak mengubahnya jadi TRUE', src.indexOf("r.lintas_view ? 'TRUE'") < 0);
+
+  /* collabs dan packages TETAP boolean: di sana v1 memang menafsirkannya lewat
+     daftar penyangkal, bukan meneruskan teks mentahnya. */
+  ok('collabs.mirror tetap boolean', /mirror\s+BOOLEAN/.test(ddl));
 }
 
 console.log('\n=== 17. Operasi folder — dua jebakan yang diam ===');

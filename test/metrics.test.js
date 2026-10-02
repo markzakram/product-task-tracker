@@ -216,7 +216,11 @@ const body = src.replace(/^[\s\S]*?\* =+\s*\*\//, '');   // buang blok komentar 
 ['NOTES_SHEET', 'COMMENTS_SHEET', 'LINKS_SHEET', 'getAllNotes', 'getComments', 'getAllLinks', 'getUsers'].forEach((name) => {
   ok(`metrics.js tidak memanggil ${name}`, !body.includes(name));
 });
+/* Kurung buka ikut dicocokkan supaya yang terhitung adalah PANGGILAN, bukan nama
+   berkas: sejak sumber datanya diputuskan di api/_backend.js, baris require-nya
+   mengandung "_backend.js" yang tanpa kurung akan ikut terbaca sebagai panggilan
+   dan membuat uji ini gagal padahal tak ada yang berubah maksudnya. */
 ok('hanya getTasks & getActivityLog yang dipanggil dari backend',
-  (body.match(/backend\.\w+/g) || []).every((c) => c === 'backend.getTasks' || c === 'backend.getActivityLog'));
+  (body.match(/backend\.\w+\(/g) || []).every((c) => c === 'backend.getTasks(' || c === 'backend.getActivityLog('));
 
 console.log(`\n✅ Semua ${passed} assertion lulus.`);

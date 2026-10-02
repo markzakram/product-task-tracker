@@ -186,7 +186,7 @@ const TABEL = [
             ['support', T.teks], ['document', T.teks], ['pic_notes', T.teks],
             ['pm_notes', T.teks], ['divisi_tujuan', T.teks], ['kontak_divisi', T.teks],
             ['kata_kerja', T.teks], ['jumlah', T.teks], ['objek', T.teks],
-            ['detail', T.teks], ['dibuat_oleh', T.teks], ['lintas_view', T.boolSangkalan],
+            ['detail', T.teks], ['dibuat_oleh', T.teks], ['lintas_view', T.teks],
             ['status_by', T.teks]] },
 
   { tabel: 'checklists', sheet: 'CHECKLIST', rentang: 'A2:G', wajib: 'task_id',

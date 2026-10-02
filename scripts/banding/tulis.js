@@ -96,11 +96,19 @@ async function jalankanSkenario(be, spek) {
     if (langkah.simpan) langkah.simpan(ctx, r);
     hasil.push({ fn: langkah.fn, nilai: r });
   }
-  /* Keadaan sesudahnya, dibaca lewat fungsi baca yang sudah terbukti setara. */
+  /* Keadaan sesudahnya, dibaca lewat fungsi baca yang sudah terbukti setara.
+
+     Entrinya boleh berupa nama saja, atau [nama, ...argumen] untuk pembaca yang
+     memerlukannya — getComments(taskId), getNotifications(user). Tanpa itu,
+     skenario komentar dan notifikasi terpaksa tak memeriksa keadaan sesudahnya
+     sama sekali, dan yang tersisa cuma membandingkan nilai kembaliannya. */
   const sesudah = {};
-  for (const nama of spek.periksa) {
+  for (const p of spek.periksa) {
+    const nama = Array.isArray(p) ? p[0] : p;
+    const args = Array.isArray(p) ? p.slice(1) : [];
     const fn = be[nama] || (be._internals && be._internals[nama]);
-    sesudah[nama] = await fn();
+    if (typeof fn !== 'function') return { gagal: 'pembaca ' + nama + ' tak ada di backend ini' };
+    sesudah[nama + (args.length ? '(' + JSON.stringify(args) + ')' : '')] = await fn(...args);
   }
   return { hasil, sesudah };
 }

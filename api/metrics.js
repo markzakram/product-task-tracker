@@ -27,7 +27,11 @@
  * ============================================================
  */
 
-const backend = require('./_sheets.js');
+/* Sumber datanya WAJIB sama dengan yang dipakai api/rpc.js. Kalau berbeda,
+   aplikasi menulis ke MySQL sementara endpoint ini terus membaca spreadsheet yang
+   tak lagi diperbarui — lalu menyajikan angka basi ke sistem OKR tanpa satu pun
+   tanda. Angka yang salah diam-diam lebih buruk daripada endpoint yang mati. */
+const { backend } = require('./_backend.js');
 
 /* ------------------------------------------------------------------ */
 /* Autentikasi                                                         */
