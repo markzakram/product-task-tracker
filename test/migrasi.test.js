@@ -689,6 +689,68 @@ console.log('\n=== 16b. mirror task adalah TEKS, bukan boolean ===');
   ok('collabs.mirror tetap boolean', /mirror\s+BOOLEAN/.test(ddl));
 }
 
+console.log('\n=== 16c. Saklar sumber data & penolakan yang jelas ===');
+{
+  const rpc = fs.readFileSync(path.join(__dirname, '..', 'api', 'rpc.js'), 'utf8');
+  const be = fs.readFileSync(path.join(__dirname, '..', 'api', '_backend.js'), 'utf8');
+  const met = fs.readFileSync(path.join(__dirname, '..', 'api', 'metrics.js'), 'utf8');
+
+  /* Satu tempat yang memutuskan, dipakai kedua endpoint. Kalau terpisah, aplikasi
+     bisa menulis ke MySQL sementara /api/metrics terus membaca spreadsheet yang
+     tak diperbarui — lalu menyajikan angka basi ke sistem OKR tanpa satu pun
+     tanda. Angka salah yang diam lebih buruk daripada endpoint yang mati. */
+  ok('rpc.js memutuskan lewat _backend.js', rpc.indexOf("require('./_backend.js')") > 0);
+  ok('metrics.js juga', met.indexOf("require('./_backend.js')") > 0);
+  ok('tak ada lagi yang require _sheets langsung di jalur aplikasi',
+    rpc.indexOf("require('./_sheets')") < 0 && met.indexOf("require('./_sheets") < 0);
+
+  /* Bawaannya sheets: env yang hilang atau belum sempat diset jatuh ke perilaku
+     lama, bukan ke backend yang kredensialnya belum tentu ada. */
+  ok('bawaannya sheets', /DATA_SOURCE \|\| 'sheets'/.test(be));
+  /* Dan salah ketik ditolak keras — "mysq1" tidak boleh diam-diam jalan di Sheets
+     lalu membuat orang mengira sudah pindah. */
+  ok('nilai tak dikenal ditolak, bukan jatuh ke bawaan',
+    be.indexOf('hanya boleh "sheets" atau "mysql"') > 0);
+
+  /* Aksi yang fungsinya belum pindah menjawab dengan menyebut namanya, bukan
+     jatuh jadi "backend.saveTask is not a function" — itu yang membuat lingkungan
+     Preview berguna: tiap tombol yang belum siap mengatakan dirinya belum siap. */
+  ok('aksi belum-pindah ditolak dengan kode sendiri', rpc.indexOf('BELUM_PINDAH') > 0);
+  ok('pesannya menyebut nama fungsinya', /fungsi ' \+ TAK_TERSEDIA\[action\]/.test(rpc));
+  ok('daftarnya dibangun sekali saat modul dimuat', /const TAK_TERSEDIA = \(function/.test(rpc));
+  /* Dibaca dari HANDLERS itu sendiri: daftar terpisah pasti ketinggalan begitu ada
+     aksi baru, dan ketinggalannya diam. */
+  ok('daftarnya dibaca dari HANDLERS, bukan ditulis terpisah',
+    /String\(HANDLERS\[a\]\)/.test(rpc));
+
+  /* Muat-awal membawa penanda sumber datanya. Tanpa ini, satu-satunya cara tahu
+     sebuah deployment berjalan di MySQL atau spreadsheet adalah menebak dari
+     perilakunya — dan keduanya terlihat sama persis kalau datanya memang sama.
+     Justru itu bahayanya: preview yang dikira sudah MySQL padahal masih Sheets
+     akan lulus semua pengujian, lalu tak membuktikan apa pun.
+
+     Ketiga cabang dapat penanda yang sama; tamu Lintas Divisi dan magang juga
+     perlu bisa diperiksa. */
+  const sheets = fs.readFileSync(path.join(__dirname, '..', 'api', '_sheets.js'), 'utf8');
+  eq('penandanya ada di ketiga cabang muat-awal',
+    (sheets.match(/sumberData:/g) || []).length, 3);
+
+  const I = require('../api/_sheets.js')._internals;
+  I.setUsersFromRows([['Ali', 'Staff', 'TRUE']]);
+  const kosong = {
+    tasks: [], options: {}, activity: [], commentsSummary: [], pinUsers: [],
+    links: [], dashboards: [], notes: [], checklistSummary: {}, collabs: [], users: [],
+  };
+  const simpan = process.env.DATA_SOURCE;
+  process.env.DATA_SOURCE = 'mysql';
+  eq('cabang biasa melaporkan sumbernya', I.susunBootstrap({}, kosong).meta.sumberData, 'mysql');
+  eq('cabang tamu juga', I.susunBootstrap({ viewOnly: true }, kosong).meta.sumberData, 'mysql');
+  eq('cabang magang juga', I.susunBootstrap({ magangOnly: true }, kosong).meta.sumberData, 'mysql');
+  delete process.env.DATA_SOURCE;
+  eq('tanpa env, melaporkan sheets', I.susunBootstrap({}, kosong).meta.sumberData, 'sheets');
+  if (simpan === undefined) delete process.env.DATA_SOURCE; else process.env.DATA_SOURCE = simpan;
+}
+
 console.log('\n=== 17. Operasi folder — dua jebakan yang diam ===');
 {
   const src = fs.readFileSync(path.join(__dirname, '..', 'api', '_db.js'), 'utf8');

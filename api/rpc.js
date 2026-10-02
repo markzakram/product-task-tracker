@@ -14,7 +14,7 @@
 /* Sumber datanya diputuskan di satu tempat — lihat api/_backend.js.
    HANDLERS di bawah memanggil backend.<fungsi> lewat satu variabel, jadi menukar
    sumbernya di sana menukar semuanya; 60 titik panggilan tak tersentuh. */
-const { backend } = require('./_backend.js'); // rpc dispatcher
+const { backend, SUMBER: SUMBER_DATA } = require('./_backend.js'); // rpc dispatcher
 const crypto = require('crypto');
 
 // Sesi admin ringan (HMAC) untuk login Google: payload {email, exp} ditandatangani SESSION_SECRET.
@@ -107,6 +107,21 @@ const HANDLERS = {
   renameNoteFolder: (user, oldFolder, newFolder) => backend.renameNoteFolder(user, oldFolder, newFolder),
   deleteNoteFolder: (user, folder) => backend.deleteNoteFolder(user, folder),
 };
+
+/* Dibangun SEKALI saat modul dimuat, bukan tiap request.
+
+   Tiap entri HANDLERS adalah fungsi panah satu baris (`(x) => backend.namaFungsi(x)`),
+   jadi nama fungsi yang dipanggilnya bisa dibaca dari sumbernya sendiri. Dengan begitu
+   daftar ini tak perlu ditulis terpisah — dan daftar terpisah pasti ketinggalan begitu
+   ada aksi baru ditambahkan, lalu diam-diam melaporkan semuanya tersedia. */
+const TAK_TERSEDIA = (function () {
+  const out = {};
+  Object.keys(HANDLERS).forEach(function (a) {
+    const m = /backend\.(\w+)\s*\(/.exec(String(HANDLERS[a]));
+    if (m && typeof backend[m[1]] !== 'function') out[a] = m[1];
+  });
+  return out;
+}());
 
 async function readJsonBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
@@ -252,6 +267,23 @@ module.exports = async (req, res) => {
   const handler = HANDLERS[action];
   if (!handler) {
     return res.status(400).end(JSON.stringify({ __error: true, message: 'Action tidak dikenal: ' + action }));
+  }
+
+  /* Aksi yang fungsinya belum ada di backend terpilih ditolak dengan pesan yang
+     menyebut namanya — bukan dibiarkan jatuh jadi "backend.saveTask is not a
+     function" dan muncul di layar sebagai 500 tanpa sebab.
+
+     Ini yang membuat lingkungan Preview berguna selama pemindahan: orang bisa
+     memakai aplikasinya sungguhan di atas MySQL, dan setiap tombol yang belum
+     siap mengatakan dirinya belum siap. Tanpa ini, menguji di Preview berarti
+     menebak-nebak apakah yang rusak itu fungsinya atau datanya. */
+  if (TAK_TERSEDIA[action]) {
+    return res.status(501).end(JSON.stringify({
+      __error: true, code: 'BELUM_PINDAH',
+      message: 'Aksi "' + action + '" belum tersedia di ' + SUMBER_DATA
+        + ' — fungsi ' + TAK_TERSEDIA[action] + ' masih dalam pemindahan. '
+        + 'Pakai lingkungan yang masih memakai spreadsheet untuk aksi ini.',
+    }));
   }
 
   // Instance serverless dipakai ulang saat masih hangat. Buang cache daftar user tiap

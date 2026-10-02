@@ -2783,6 +2783,7 @@ function susunBootstrap(opts, d) {
       magangUsers: magangNames,          // daftar identitas yang boleh dipilih
       meta: {
         sheetName: CONFIG.TASK_SHEET,
+        sumberData: String(process.env.DATA_SOURCE || 'sheets').trim().toLowerCase(),
         env: appEnv(),
         managers: [], doneApprovers: [], collabManagers: [],
         users: _users.filter(u => String(u.role).toLowerCase() === 'magang')
@@ -2822,6 +2823,7 @@ function susunBootstrap(opts, d) {
       viewOnly: true,
       meta: {
         sheetName: CONFIG.TASK_SHEET,
+        sumberData: String(process.env.DATA_SOURCE || 'sheets').trim().toLowerCase(),
         env: appEnv(),
         managers: getManagers(),
         doneApprovers: getDoneApprovers(),
@@ -2845,6 +2847,7 @@ function susunBootstrap(opts, d) {
     collabs,
     meta: {
       sheetName: CONFIG.TASK_SHEET,
+      sumberData: String(process.env.DATA_SOURCE || 'sheets').trim().toLowerCase(),
       env: appEnv(),
       managers: getManagers(),
       doneApprovers: getDoneApprovers(),
