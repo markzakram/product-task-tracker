@@ -44,21 +44,27 @@ tes:
   tags:
     - self-runner
 
-  # Unduhan npm disimpan antar-jalan, dikunci pada package-lock.json: selama
-  # dependensinya tak berubah, pemasangan berikutnya tak perlu mengunduh ulang.
+  # Unduhan npm disimpan antar-jalan, dikunci pada package.json — BUKAN pada
+  # package-lock.json, yang memang tak ada di repo (lihat catatan di bawah).
   cache:
     key:
       files:
-        - package-lock.json
+        - package.json
     paths:
       - .npm/
 
   script:
-    # `npm ci`, bukan `npm install`: memasang PERSIS versi yang tercatat di
-    # package-lock.json. `npm install` boleh mengambil versi lebih baru yang
-    # kebetulan terbit hari itu, sehingga tes bisa lulus di mesin Anda lalu
-    # gagal di sini — atau sebaliknya — tanpa satu baris pun kode berubah.
-    - npm ci --cache .npm --prefer-offline --no-audit --no-fund
+    # `npm install`, BUKAN `npm ci` — dan ini disengaja.
+    #
+    # `npm ci` menuntut package-lock.json, dan berkas itu SENGAJA dikeluarkan
+    # dari git di commit 73de6f0: ia membuat build Vercel crash dengan
+    # FUNCTION_INVOCATION_FAILED. Karena itulah workflow GitHub yang asli memakai
+    # `npm install`.
+    #
+    # Berkas ini pernah "diperbaiki" jadi `npm ci` tanpa tahu sejarah itu, dan
+    # job langsung gagal dengan EUSAGE. Jangan ulangi. Pertanyaan lockfile baru
+    # layak dibuka lagi setelah aplikasinya lepas dari Vercel.
+    - npm install --cache .npm --prefer-offline --no-audit --no-fund
 
     # Penjaga 1: salinan tangan harus identik dengan aslinya.
     #
