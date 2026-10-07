@@ -14,8 +14,8 @@
 #  jangan salah satunya.
 # =============================================================================
 
-# Mengandaikan runner memakai executor Docker. Kalau job gagal dengan
-# "node: command not found", runner-nya executor shell — tanyakan ke IT.
+# Image ini hanya berlaku di runner ber-executor Docker. Runner shell
+# mengabaikannya diam-diam dan memakai apa pun yang terpasang di mesinnya.
 image: node:20
 
 # Pipeline berjalan untuk tiap push ke branch mana pun, dan untuk merge request.
@@ -34,6 +34,15 @@ stages:
 
 tes:
   stage: test
+
+  # Instance ini punya dua runner bersama, dan yang mengambil job tanpa label
+  # adalah #11 "self-shell-runner" — executor SHELL yang berjalan langsung di
+  # server GitLab dan tak punya Node. Jalan pertama gagal dalam dua detik di
+  # sana: `npm: command not found`, sebelum satu baris pun kode tersentuh.
+  #
+  # Label ini mengarahkan job ke #9 "GLOBAL RUNNER FOR GITLAB SELFHOSTED".
+  tags:
+    - self-runner
 
   # Unduhan npm disimpan antar-jalan, dikunci pada package-lock.json: selama
   # dependensinya tak berubah, pemasangan berikutnya tak perlu mengunduh ulang.
