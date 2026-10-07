@@ -1,0 +1,76 @@
+# =============================================================================
+#  GitLab CI — gerbang sebelum apa pun dianggap beres
+#
+#  Pengganti .github/workflows/ci.yml. GitLab TIDAK membaca berkas GitHub Actions
+#  sama sekali, jadi tanpa berkas ini setiap push ke GitLab tak diperiksa siapa
+#  pun — dan tanpa berkas ini pula GitLab menyalakan Auto DevOps, yang mencoba
+#  menebak cara membangun dan men-deploy project lalu gagal.
+#
+#  Isinya sengaja SAMA dengan versi GitHub: dua penjaga yang sama, urutan yang
+#  sama. Pindah rumah bukan saat yang tepat untuk sekalian mengubah aturan.
+#
+#  Selama masa pindahan, .github/workflows/ci.yml tetap dipertahankan karena
+#  GitHub masih jadi sumber deploy Vercel. Hapus keduanya bersamaan nanti,
+#  jangan salah satunya.
+# =============================================================================
+
+# Mengandaikan runner memakai executor Docker. Kalau job gagal dengan
+# "node: command not found", runner-nya executor shell — tanyakan ke IT.
+image: node:20
+
+# Pipeline berjalan untuk tiap push ke branch mana pun, dan untuk merge request.
+# Kalau sebuah branch sedang punya merge request terbuka, yang jalan pipeline
+# merge request-nya saja — tanpa aturan ini, satu push memicu DUA pipeline yang
+# identik, menghabiskan runner bersama yang dipakai project lain juga.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+stages:
+  - test
+
+tes:
+  stage: test
+
+  # Unduhan npm disimpan antar-jalan, dikunci pada package-lock.json: selama
+  # dependensinya tak berubah, pemasangan berikutnya tak perlu mengunduh ulang.
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - .npm/
+
+  script:
+    # `npm ci`, bukan `npm install`: memasang PERSIS versi yang tercatat di
+    # package-lock.json. `npm install` boleh mengambil versi lebih baru yang
+    # kebetulan terbit hari itu, sehingga tes bisa lulus di mesin Anda lalu
+    # gagal di sini — atau sebaliknya — tanpa satu baris pun kode berubah.
+    - npm ci --cache .npm --prefer-offline --no-audit --no-fund
+
+    # Penjaga 1: salinan tangan harus identik dengan aslinya.
+    #
+    # test/gas.test.js membaca gas/Index.html, BUKAN public/index.html. Kalau
+    # salinannya tertinggal, 1.619 assertion di sana menguji kode yang sudah tak
+    # ada lagi — dan melaporkan hijau. Penjaga ini tetap perlu meski Apps Script
+    # sudah tak dipakai, karena yang dijaganya adalah kejujuran tesnya.
+    - |
+      if ! diff -q public/index.html gas/Index.html > /dev/null; then
+        echo "gas/Index.html tertinggal dari public/index.html."
+        echo ""
+        echo "gas/Index.html adalah salinan tangan dari public/index.html."
+        echo "Perbaiki dengan satu perintah, lalu commit ulang:"
+        echo ""
+        echo "    cp public/index.html gas/Index.html"
+        echo ""
+        echo "Selisihnya:"
+        diff public/index.html gas/Index.html | head -40
+        exit 1
+      fi
+      echo "Sinkron."
+
+    # Penjaga 2: seluruh assertion lulus.
+    - npm test
